@@ -1,0 +1,9 @@
+-- first.syn: house-ish loop. Evaluate the block with ^E.
+
+bpm 124
+d1 "bd*4" # gain 1
+d2 "~ cp ~ cp" # gain 0.8
+d3 "hh*8?0.2" # gain 0.45 # pan 0.3
+d4 "~ oh ~ oh" # gain 0.4 # pan -0.3
+d5 "c2 ~ [c2 g2] <c2 eb2>" # voice saw # gain 0.7
+d6 "<c4 e4 g4> [g4 e4]*2 ~ c5" # voice pluck # gain 0.5

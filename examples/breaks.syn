@@ -1,0 +1,8 @@
+-- breaks.syn: euclidean drums and slow chords
+
+bpm 150
+d1 "bd(3,8) ~ bd(2,8,3)" # gain 1
+d2 "~ sn ~ [sn rim]"
+d3 "hh(7,16)" # gain 0.5
+d4 "<c3 f3 g3 eb3>/2" # voice tri # gain 0.6
+d5 "cb ~ ~ cb ~ ~ cb ~" # gain 0.3 # pan -0.5
