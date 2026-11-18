@@ -43,7 +43,7 @@ func DataDir() string {
 	return Expand("~/.local/share/" + app)
 }
 
-// SetsDir holds saved .syn files.
+// SetsDir holds saved sets (.rb files).
 func SetsDir() string { return filepath.Join(DataDir(), "sets") }
 
 // RecordingsDir holds recorded WAV files.
@@ -59,3 +59,15 @@ func SamplesDir() string { return filepath.Join(DataDir(), "samples") }
 
 // SetlistFile is the performance set list, one set name per line.
 func SetlistFile() string { return filepath.Join(ConfigDir(), "setlist.txt") }
+
+// CacheDir holds Ruby compiled to machine code, so later starts are quick.
+func CacheDir() string {
+	if d := os.Getenv("SUSYNTH_CACHE"); d != "" {
+		return Expand(d)
+	}
+	base, err := os.UserCacheDir()
+	if err != nil {
+		base = Expand("~/.cache")
+	}
+	return filepath.Join(base, app, "ruby")
+}

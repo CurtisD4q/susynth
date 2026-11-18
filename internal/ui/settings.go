@@ -32,8 +32,8 @@ type settingRow struct{ label, hint string }
 
 var settingRows = [numSettings]settingRow{
 	setTheme:     {"Theme", "default, large (projector) or contrast (washed-out projectors)"},
-	setAudio:     {"Audio output", "auto picks PipeWire, PulseAudio, then ALSA; none = silent (recording still works)"},
-	setTempo:     {"Tempo (BPM)", "applies live; evals can also set it with: bpm 128"},
+	setAudio:     {"Audio output", "auto = built-in (native), then PipeWire/PulseAudio/ALSA players; none = silent (recording still works)"},
+	setTempo:     {"Tempo (BPM)", "bar counter and MIDI clock until your code calls use_bpm (Sonic Pi starts at 60)"},
 	setInternal:  {"Internal synth", "off = only OSC/MIDI devices make sound (events still flow)"},
 	setOSC:       {"OSC → SuperDirt", "send every note to SuperDirt as /dirt/play bundles over UDP"},
 	setOSCAddr:   {"OSC address", "Enter to edit host:port (SuperDirt default 127.0.0.1:57120)"},
@@ -235,6 +235,9 @@ func validAddr(s string) error {
 
 func (a *App) reloadSamples(report bool) {
 	banks, files, err := synth.LoadSamples(a.samplesDir())
+	if a.seq != nil {
+		a.seq.RefreshTables()
+	}
 	switch {
 	case err != nil:
 		a.say(fmt.Sprintf("samples: %d banks, %d files loaded — %v", banks, files, err), true)

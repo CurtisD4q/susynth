@@ -5,6 +5,9 @@ type Theme struct {
 	Name string
 
 	Base      style // background for the whole screen
+	Frame     style // the rounded border around the window
+	Rule      style // dividing lines inside the frame
+	TabOn     style // the selected page tab
 	Title     style
 	Divider   style
 	Text      style
@@ -61,38 +64,42 @@ func nextTheme(cur *Theme) *Theme {
 }
 
 func themeDefault() *Theme {
-	mint := int16(79)
+	// Mint's look: a teal frame, pale-cyan titles, a slate selection bar.
+	accent, bright, slate := int16(110), int16(116), int16(237)
 	return &Theme{
 		Name:      "default",
-		Base:      st(252, -1),
-		Title:     style{fg: mint, bg: -1, bold: true},
-		Divider:   st(238, -1),
-		Text:      st(252, -1),
-		Muted:     st(244, -1),
-		Pane:      style{fg: 244, bg: -1, bold: true},
-		CursorRow: st(255, 236),
-		Gutter:    st(240, -1),
-		GutterOK:  st(mint, -1),
+		Base:      st(253, -1),
+		Frame:     st(109, -1),
+		Rule:      st(109, -1),
+		TabOn:     style{fg: bright, bg: -1, bold: true},
+		Title:     style{fg: accent, bg: -1, bold: true},
+		Divider:   st(109, -1),
+		Text:      st(253, -1),
+		Muted:     st(245, -1),
+		Pane:      style{fg: accent, bg: -1, bold: true},
+		CursorRow: st(255, slate),
+		Gutter:    st(243, -1),
+		GutterOK:  st(114, -1),
 		GutterErr: st(203, -1),
-		Comment:   st(243, -1),
-		Keyword:   style{fg: mint, bg: -1, bold: true},
-		String:    st(150, -1),
-		Modifier:  st(179, -1),
-		ErrRow:    st(255, 124),
-		Toast:     st(255, 238),
-		ToastErr:  style{fg: 255, bg: 124, bold: true},
-		Bar:       st(252, 236),
-		BarKey:    st(244, 236),
-		Rec:       style{fg: 255, bg: 160, bold: true},
-		Hush:      style{fg: 16, bg: 214, bold: true},
-		Pending:   style{fg: 16, bg: 179, bold: true},
-		StepOn:    style{fg: mint, bg: -1, bold: true},
-		StepOff:   st(238, -1),
-		Playhead:  style{fg: 16, bg: mint, bold: true},
-		MuteTag:   style{fg: 255, bg: 124, bold: true},
-		SoloTag:   style{fg: 16, bg: 220, bold: true},
-		LevelOn:   st(mint, -1),
-		LevelOff:  st(238, -1),
+		Comment:   st(245, -1),
+		Keyword:   style{fg: accent, bg: -1, bold: true},
+		String:    st(114, -1),
+		Modifier:  st(214, -1),
+		ErrRow:    st(203, -1),
+		Toast:     st(253, -1),
+		ToastErr:  style{fg: 203, bg: -1, bold: true},
+		Bar:       st(253, -1),
+		BarKey:    st(245, -1),
+		Rec:       style{fg: 203, bg: -1, bold: true},
+		Hush:      style{fg: 214, bg: -1, bold: true},
+		Pending:   style{fg: 214, bg: -1, bold: true},
+		StepOn:    style{fg: bright, bg: -1, bold: true},
+		StepOff:   st(240, -1),
+		Playhead:  style{fg: 231, bg: -1, bold: true},
+		MuteTag:   style{fg: 203, bg: -1, bold: true},
+		SoloTag:   style{fg: 220, bg: -1, bold: true},
+		LevelOn:   st(accent, -1),
+		LevelOff:  st(240, -1),
 		CellW:     2,
 	}
 }
@@ -116,6 +123,9 @@ func themeContrast() *Theme {
 	t.CellW = 3
 	t.Bold = true
 	t.Base = style{fg: 15, bg: 0, bold: true}
+	t.Frame = style{fg: 15, bg: 0, bold: true}
+	t.Rule = st(15, 0)
+	t.TabOn = style{fg: 0, bg: 11, bold: true}
 	t.Title = style{fg: 11, bg: 0, bold: true}
 	t.Divider = st(15, 0)
 	t.Text = style{fg: 15, bg: 0, bold: true}

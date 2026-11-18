@@ -1,0 +1,911 @@
+# susynth's Sonic Pi runtime. It runs inside the WebAssembly Ruby sandbox and
+# talks to the Go side over stdin/stdout, one tab-separated line per message.
+#
+# Go -> Ruby                         Ruby -> Go
+#   run  id cursor at nbytes + code    ran  id first last     (code accepted)
+#   chk  nbytes + code                 err  line thread message
+#   adv  t                             ev   t thread line kind name k=v,...
+#   stop                               log  text
+#   syn  names / smp names             bpm  value
+#                                      thr+ / thr- name kind
+#                                      .    (end of reply)
+#
+# Time is in seconds of the engine's sample clock. Every live_loop, in_thread
+# and run is a Fiber with its own virtual time; sleep moves that time forward
+# and hands control back to the scheduler, which always resumes the thread that
+# is furthest behind. Nothing here ever waits on a real clock.
+
+$stdout.binmode
+$__out = +""
+$__synths = []
+$__samples = []
+$__warned = {}
+$__store = {}
+
+def __send(*f)
+  $__out << f.map { |x| x.to_s.tr("\t\n", "  ") }.join("\t") << "\n"
+end
+
+def __flush
+  $__out << ".\n"
+  $stdout.write($__out)
+  $stdout.flush
+  $__out = +""
+end
+
+def __warn_once(key, msg)
+  return if $__warned[key]
+  $__warned[key] = true
+  __send("log", msg)
+end
+
+# ---- threads and the scheduler ------------------------------------------------
+
+class SusynthStop < Exception; end
+
+class SusynthThread
+  attr_accessor :name, :kind, :time, :fiber, :ctx, :block, :next_block, :next_ctx,
+                :slept, :alive, :wait_from, :wait_for, :seq, :cue_val, :start
+end
+
+$__run = []
+$__waiting = Hash.new { |h, k| h[k] = [] }
+$__loops = {}
+$__seq = 0
+$__cur = nil
+
+def __stable_hash(s)
+  s.to_s.bytes.reduce(5381) { |h, b| ((h * 33) ^ b) & 0x7fffffff }
+end
+
+def __default_ctx
+  { bpm: 60.0, synth: :beep, sdef: {}, smpdef: {}, fx: [], transpose: 0, octave: 0,
+    rng: Random.new(0), ticks: {}, density: 1.0 }
+end
+
+$__main_ctx = __default_ctx
+
+def __ctx
+  $__cur ? $__cur.ctx : $__main_ctx
+end
+
+def __inherit(c, seed)
+  { bpm: c[:bpm], synth: c[:synth], sdef: c[:sdef].dup, smpdef: c[:smpdef].dup, fx: c[:fx].dup,
+    transpose: c[:transpose], octave: c[:octave], rng: Random.new(seed), ticks: {}, density: 1.0 }
+end
+
+def __buffer_line(locs)
+  l = (locs || []).find { |x| x.path == "buffer" }
+  l ? l.lineno : 0
+end
+
+def __report(e, th)
+  line = __buffer_line(e.backtrace_locations)
+  if line.zero? && th.block && (loc = th.block.source_location) && loc[0] == "buffer"
+    line = loc[1]
+  end
+  msg = e.message.to_s.lines.first.to_s.strip
+  msg = "#{e.class}: #{msg}" unless e.instance_of?(RuntimeError)
+  where = th.kind == :loop ? "live_loop :#{th.name}: " : ""
+  __send("err", line, th.name, where + msg)
+end
+
+def __spawn(kind, name, parent, at, &body)
+  th = SusynthThread.new
+  th.name, th.kind, th.alive = name, kind, true
+  th.time = at
+  th.start = at
+  th.seq = ($__seq += 1)
+  th.ctx = __inherit(parent ? parent.ctx : $__main_ctx, __stable_hash(name))
+  th.fiber = Fiber.new do
+    begin
+      body.call(th)
+    rescue SusynthStop
+    rescue Exception => e
+      __report(e, th)
+    end
+    :done
+  end
+  $__run << th
+  __send("thr+", name, kind)
+  th
+end
+
+def __finish(th)
+  return unless th.alive
+  th.alive = false
+  $__run.delete(th)
+  $__loops.delete(th.name) if th.kind == :loop && $__loops[th.name].equal?(th)
+  __send("thr-", th.name, th.kind)
+end
+
+def __step(th)
+  $__cur = th
+  r = th.fiber.resume
+  $__cur = nil
+  case r
+  when :sleep
+  when Array # [:sync, name]
+    $__run.delete(th)
+    th.wait_from = th.time
+    $__waiting[r[1]] << th
+  else
+    __finish(th)
+  end
+end
+
+def __advance(limit)
+  loop do
+    th = $__run.min_by { |t| [t.time, t.seq] }
+    break if th.nil? || th.time >= limit
+    __step(th)
+  end
+end
+
+def __stop_all
+  $__main_ctx = __default_ctx
+  ($__run + $__waiting.values.flatten).uniq.each { |th| __finish(th) }
+  $__run.clear
+  $__waiting.clear
+  $__loops.clear
+  $__last_cue.clear
+end
+
+# Settings made at the top level of a run (use_bpm, use_synth…) also become the
+# defaults for later runs, so ^E on a single loop keeps the file's tempo even
+# though the use_bpm line wasn't part of that block. A full run resets them.
+def __top_set(key, val)
+  __ctx[key] = val
+  $__main_ctx[key] = val if $__cur && $__cur.kind == :run
+  nil
+end
+
+def __need_thread(what)
+  raise "#{what} only works inside running code" unless $__cur
+  $__cur
+end
+
+# ---- timing -------------------------------------------------------------------
+
+def sleep(beats)
+  th = __need_thread("sleep")
+  b = beats.to_f
+  raise ArgumentError, "sleep needs a number of beats, 0 or more" if b.negative? || b.nan?
+  th.time += b * 60.0 / th.ctx[:bpm] / th.ctx[:density]
+  th.slept = true
+  Fiber.yield(:sleep)
+  nil
+end
+
+def wait(beats) = sleep(beats)
+
+$__last_cue = {}
+
+def sync(*names, **_opts)
+  th = __need_thread("sync")
+  th.slept = true
+  name = names.first.to_s.sub(/\A:/, "").to_sym
+  # a cue at exactly this moment counts, whichever thread the scheduler ran first
+  if (c = $__last_cue[name]) && (c[0] - th.time).abs < 1e-9 && th.wait_for != [name, c[0]]
+    th.wait_for = [name, c[0]]
+    th.cue_val = c[1]
+    return th.cue_val
+  end
+  Fiber.yield([:sync, name])
+  th.wait_for = [name, th.time]
+  th.cue_val
+end
+alias sync_bpm sync
+
+def cue(name, *args, **kw)
+  th = $__cur
+  t = th ? th.time : 0.0
+  name = name.to_s.sub(/\A:/, "").to_sym
+  val = kw.empty? ? (args.size <= 1 ? args.first : args) : kw
+  $__last_cue[name] = [t, val]
+  list = $__waiting.delete(name) || []
+  keep = []
+  list.each do |w|
+    if t >= w.wait_from && w.alive
+      w.time = t
+      w.cue_val = val
+      $__run << w
+    else
+      keep << w
+    end
+  end
+  $__waiting[name] = keep unless keep.empty?
+  nil
+end
+
+def stop
+  raise SusynthStop
+end
+
+def live_loop(name = nil, **opts, &blk)
+  unless name.is_a?(Symbol) || name.is_a?(String)
+    raise ArgumentError, "live_loop needs a name, like: live_loop :drums do"
+  end
+  raise ArgumentError, "live_loop :#{name} needs a do ... end block" unless blk
+  name = name.to_sym
+  parent = __need_thread("live_loop")
+  if (th = $__loops[name]) && th.alive
+    th.next_block = blk
+    th.next_ctx = parent.ctx
+    return nil
+  end
+  th = __spawn(:loop, name, parent, parent.time) do |me|
+    sync(opts[:sync]) if opts[:sync]
+    sleep(opts[:delay]) if opts[:delay]
+    me.block = blk
+    iteration = 0
+    loop do
+      if me.next_block
+        me.block = me.next_block
+        nc = __inherit(me.next_ctx, 0)
+        nc[:rng], nc[:ticks] = me.ctx[:rng], me.ctx[:ticks]
+        me.ctx = nc
+        me.next_block = nil
+      end
+      cue(name)
+      me.slept = false
+      me.block.call(iteration)
+      iteration += 1
+      raise "did not sleep: add a sleep inside the loop" unless me.slept
+    end
+  end
+  $__loops[name] = th
+  nil
+end
+
+def in_thread(name: nil, delay: 0, sync: nil, **_opts, &blk)
+  parent = __need_thread("in_thread")
+  n = name ? name.to_sym : :thread
+  return nil if name && $__run.any? { |t| t.name == n }
+  __spawn(:thread, n, parent, parent.time) do
+    sync(sync) if sync
+    sleep(delay) if delay.to_f > 0
+    blk.call
+  end
+  nil
+end
+
+def at(times = [0], values = nil, &blk)
+  times = times.is_a?(Numeric) ? [times] : times.to_a
+  vals = values&.to_a
+  times.each_with_index do |t, i|
+    in_thread do
+      sleep(t)
+      if blk.arity.zero? then blk.call
+      elsif vals then blk.call(vals[i % vals.size], i)
+      else blk.call(t, i)
+      end
+    end
+  end
+  nil
+end
+
+def density(d, &blk)
+  c = __ctx
+  old = c[:density]
+  c[:density] = old * d.to_f
+  d.to_i.times { blk.call }
+ensure
+  c[:density] = old if c
+end
+
+def use_bpm(b, &blk)
+  raise ArgumentError, "use_bpm does not take a block, use with_bpm" if blk
+  b = b.to_f
+  raise ArgumentError, "bpm must be above 0" unless b.positive?
+  __top_set(:bpm, b)
+  __send("bpm", b) if $__cur.nil? || $__cur.kind == :run
+  nil
+end
+
+def with_bpm(b, &blk)
+  c = __ctx
+  old = c[:bpm]
+  c[:bpm] = b.to_f
+  blk.call
+ensure
+  c[:bpm] = old if c
+end
+
+def current_bpm = __ctx[:bpm]
+def vt = $__cur ? $__cur.time - $__cur.start : 0.0
+def beat = vt * current_bpm / 60.0
+def rt(t) = t.to_f * current_bpm / 60.0
+def bt(t) = t.to_f * 60.0 / current_bpm
+
+# ---- notes, chords, scales ------------------------------------------------------
+
+NOTE_BASE = { "c" => 0, "d" => 2, "e" => 4, "f" => 5, "g" => 7, "a" => 9, "b" => 11 }.freeze
+
+def note(n, octave: nil)
+  case n
+  when nil, :r, :rest, :R then nil
+  when Numeric then n
+  when Symbol, String
+    s = n.to_s.downcase
+    return nil if s == "r" || s == "rest"
+    m = s.match(/\A([a-g])(s|b|#|f|n)?(-?\d+)?\z/)
+    raise ArgumentError, "#{n.inspect} isn't a note (try :c4, :fs3, :eb2 or 60)" unless m
+    v = NOTE_BASE[m[1]]
+    v += 1 if m[2] == "s" || m[2] == "#"
+    v -= 1 if m[2] == "b" || m[2] == "f"
+    oct = m[3] ? m[3].to_i : (octave || 4)
+    v + (oct + 1) * 12
+  else
+    raise ArgumentError, "#{n.inspect} isn't a note"
+  end
+end
+
+def note_info(n) = note(n)
+def midi_to_hz(n) = 440.0 * 2**((note(n) - 69) / 12.0)
+def hz_to_midi(f) = 69 + 12 * Math.log2(f.to_f / 440.0)
+
+CHORDS = {
+  "1" => [0], "5" => [0, 7], "+5" => [0, 4, 8], "m+5" => [0, 3, 8], "sus2" => [0, 2, 7], "sus4" => [0, 5, 7],
+  "6" => [0, 4, 7, 9], "m6" => [0, 3, 7, 9], "7sus2" => [0, 2, 7, 10], "7sus4" => [0, 5, 7, 10],
+  "7-5" => [0, 4, 6, 10], "m7-5" => [0, 3, 6, 10], "7+5" => [0, 4, 8, 10], "m7+5" => [0, 3, 8, 10],
+  "9" => [0, 4, 7, 10, 14], "m9" => [0, 3, 7, 10, 14], "m7+9" => [0, 3, 7, 10, 14], "maj9" => [0, 4, 7, 11, 14],
+  "9sus4" => [0, 5, 7, 10, 14], "6*9" => [0, 4, 7, 9, 14], "m6*9" => [0, 3, 9, 7, 14], "7-9" => [0, 4, 7, 10, 13],
+  "m7-9" => [0, 3, 7, 10, 13], "7-10" => [0, 4, 7, 10, 15], "9+5" => [0, 10, 13], "m9+5" => [0, 10, 14],
+  "7+5-9" => [0, 4, 8, 10, 13], "m7+5-9" => [0, 3, 8, 10, 13], "11" => [0, 4, 7, 10, 14, 17],
+  "m11" => [0, 3, 7, 10, 14, 17], "maj11" => [0, 4, 7, 11, 14, 17], "11+" => [0, 4, 7, 10, 14, 18],
+  "m11+" => [0, 3, 7, 10, 14, 18], "13" => [0, 4, 7, 10, 14, 17, 21], "m13" => [0, 3, 7, 10, 14, 17, 21],
+  "add2" => [0, 2, 4, 7], "add4" => [0, 4, 5, 7], "add9" => [0, 4, 7, 14], "add11" => [0, 4, 7, 17],
+  "add13" => [0, 4, 7, 21], "madd2" => [0, 2, 3, 7], "madd4" => [0, 3, 5, 7], "madd9" => [0, 3, 7, 14],
+  "madd11" => [0, 3, 7, 17], "madd13" => [0, 3, 7, 21], "major" => [0, 4, 7], "M" => [0, 4, 7],
+  "minor" => [0, 3, 7], "m" => [0, 3, 7], "major7" => [0, 4, 7, 11], "dom7" => [0, 4, 7, 10], "7" => [0, 4, 7, 10],
+  "M7" => [0, 4, 7, 11], "minor7" => [0, 3, 7, 10], "m7" => [0, 3, 7, 10], "augmented" => [0, 4, 8],
+  "a" => [0, 4, 8], "diminished" => [0, 3, 6], "dim" => [0, 3, 6], "i" => [0, 3, 6], "diminished7" => [0, 3, 6, 9],
+  "dim7" => [0, 3, 6, 9], "i7" => [0, 3, 6, 9], "halfdim" => [0, 3, 6, 10], "m7b5" => [0, 3, 6, 10],
+  "power" => [0, 7], "sus" => [0, 5, 7], "mmaj7" => [0, 3, 7, 11], "m7b9" => [0, 3, 7, 10, 13]
+}.freeze
+
+SCALES = {
+  diatonic: [2, 2, 1, 2, 2, 2, 1], ionian: [2, 2, 1, 2, 2, 2, 1], major: [2, 2, 1, 2, 2, 2, 1],
+  dorian: [2, 1, 2, 2, 2, 1, 2], phrygian: [1, 2, 2, 2, 1, 2, 2], lydian: [2, 2, 2, 1, 2, 2, 1],
+  mixolydian: [2, 2, 1, 2, 2, 1, 2], aeolian: [2, 1, 2, 2, 1, 2, 2], minor: [2, 1, 2, 2, 1, 2, 2],
+  natural_minor: [2, 1, 2, 2, 1, 2, 2], locrian: [1, 2, 2, 1, 2, 2, 2],
+  hex_major6: [2, 2, 1, 2, 2, 3], hex_dorian: [2, 1, 2, 2, 3, 2], hex_phrygian: [1, 2, 2, 3, 2, 2],
+  hex_major7: [2, 2, 3, 2, 2, 1], hex_sus: [2, 3, 2, 2, 1, 2], hex_aeolian: [3, 2, 2, 1, 2, 2],
+  major_pentatonic: [2, 2, 3, 2, 3], minor_pentatonic: [3, 2, 2, 3, 2], yu: [3, 2, 3, 2, 2],
+  zhi: [2, 3, 2, 2, 3], shang: [2, 3, 2, 3, 2], jiao: [3, 2, 3, 2, 2], gong: [2, 2, 3, 2, 3],
+  ritusen: [2, 3, 2, 2, 3], egyptian: [2, 3, 2, 3, 2], kumai: [2, 1, 4, 2, 3], hirajoshi: [2, 1, 4, 1, 4],
+  iwato: [1, 4, 1, 4, 2], chinese: [4, 2, 1, 4, 1], indian: [4, 1, 2, 3, 2], pelog: [1, 2, 4, 1, 4],
+  prometheus: [2, 2, 2, 5, 1], scriabin: [1, 3, 3, 2, 3], gong_scale: [2, 2, 3, 2, 3],
+  harmonic_minor: [2, 1, 2, 2, 1, 3, 1], harmonic_major: [2, 2, 1, 2, 1, 3, 1],
+  melodic_minor: [2, 1, 2, 2, 2, 2, 1], melodic_minor_asc: [2, 1, 2, 2, 2, 2, 1],
+  melodic_minor_desc: [2, 1, 2, 2, 1, 2, 2], melodic_major: [2, 2, 1, 2, 1, 2, 2],
+  super_locrian: [1, 2, 1, 2, 2, 2, 2], hungarian_minor: [2, 1, 3, 1, 1, 3, 1],
+  romanian_minor: [2, 1, 3, 1, 2, 1, 2], neapolitan_major: [1, 2, 2, 2, 2, 2, 1],
+  neapolitan_minor: [1, 2, 2, 2, 1, 3, 1], enigmatic: [1, 3, 2, 2, 2, 1, 1], spanish: [1, 3, 1, 2, 1, 2, 2],
+  bartok: [2, 2, 1, 2, 1, 2, 2], blues_major: [2, 1, 1, 3, 2, 3], blues_minor: [3, 2, 1, 1, 3, 2],
+  whole_tone: [2, 2, 2, 2, 2, 2], whole: [2, 2, 2, 2, 2, 2], chromatic: [1] * 12,
+  diminished: [1, 2, 1, 2, 1, 2, 1, 2], diminished2: [2, 1, 2, 1, 2, 1, 2, 1],
+  augmented: [3, 1, 3, 1, 3, 1], augmented2: [1, 3, 1, 3, 1, 3], leading_whole: [2, 2, 2, 2, 2, 1, 1],
+  purvi: [1, 3, 2, 1, 1, 3, 1], todi: [1, 2, 3, 1, 1, 3, 1], marva: [1, 3, 2, 1, 2, 2, 1],
+  bhairav: [1, 3, 1, 2, 1, 3, 1], ahirbhairav: [1, 3, 1, 2, 2, 1, 2]
+}.freeze
+
+def chord_names = CHORDS.keys.map(&:to_sym)
+def scale_names = SCALES.keys
+
+def chord(root, name = :major, invert: 0, num_octaves: 1, **_opts)
+  iv = CHORDS[name.to_s] or raise ArgumentError, "unknown chord #{name.inspect} (try :major :minor :m7 :dom7 :sus4 …)"
+  r = note(root)
+  notes = (0...num_octaves.to_i).flat_map { |o| iv.map { |i| r + i + 12 * o } }
+  ring(*chord_invert(notes, invert))
+end
+
+def chord_invert(notes, shift)
+  n = notes.to_a.dup
+  shift.to_i.abs.times do
+    if shift.positive? then n << (n.shift + 12)
+    else n.unshift(n.pop - 12)
+    end
+  end
+  ring(*n)
+end
+
+def scale(root, name = :major, num_octaves: 1, **_opts)
+  iv = SCALES[name.to_sym] or raise ArgumentError, "unknown scale #{name.inspect} (try :major :minor :minor_pentatonic :dorian …)"
+  n = note(root)
+  out = [n]
+  num_octaves.to_i.times { iv.each { |s| out << (n += s) } }
+  ring(*out)
+end
+
+DEGREES = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 }.freeze
+
+def __degree_index(d)
+  d.is_a?(Integer) ? d : (DEGREES[d.to_s.downcase.to_sym] or raise ArgumentError, "unknown degree #{d.inspect}")
+end
+
+def degree(d, tonic, sc)
+  s = scale(tonic, sc, num_octaves: 3).to_a
+  s[__degree_index(d) - 1]
+end
+
+def chord_degree(d, tonic, sc = :major, number_of_notes = 4, **_opts)
+  s = scale(tonic, sc, num_octaves: 4).to_a
+  i = __degree_index(d) - 1
+  ring(*(0...number_of_notes).map { |k| s[i + 2 * k] })
+end
+
+# ---- rings and helpers ------------------------------------------------------------
+
+class Ring
+  include Enumerable
+  def initialize(a) = @a = a.to_a
+  def [](i, len = nil)
+    return Ring.new(@a[i, len] || []) if len
+    return Ring.new(@a[i] || []) if i.is_a?(Range)
+    @a.empty? ? nil : @a[i.to_i % @a.size]
+  end
+  def each(&b) = @a.each(&b)
+  def size = @a.size
+  alias length size
+  def to_a = @a.dup
+  alias to_ary to_a
+  def ring = self
+  def tick(k = :___default, **o) = self[tick_counter_advance(k, o)]
+  def look(k = :___default, **_o) = self[__ctx[:ticks].fetch(k, 0)]
+  def choose = @a.empty? ? nil : @a[__ctx[:rng].rand(@a.size)]
+  def pick(n = 1) = Ring.new(Array.new(n) { choose })
+  def shuffle = Ring.new(@a.shuffle(random: __ctx[:rng]))
+  def reverse = Ring.new(@a.reverse)
+  def rotate(n = 1) = Ring.new(@a.rotate(n))
+  def mirror = Ring.new(@a + @a.reverse)
+  def reflect = Ring.new(@a + @a.reverse.drop(1))
+  def repeat(n = 2) = Ring.new(@a * n.to_i)
+  def stretch(n) = Ring.new(@a.flat_map { |x| [x] * n.to_i })
+  def take(n) = Ring.new(Array.new(n.to_i) { |i| self[i] })
+  def drop(n) = Ring.new(@a.drop(n))
+  def butlast = Ring.new(@a[0...-1])
+  def butfirst = Ring.new(@a.drop(1))
+  def first(n = nil) = n ? Ring.new(@a.first(n)) : @a.first
+  def last(n = nil) = n ? Ring.new(@a.last(n)) : @a.last
+  def +(o) = Ring.new(@a + o.to_a)
+  def -(o) = Ring.new(@a - o.to_a)
+  def scale(f) = Ring.new(@a.map { |x| x * f })
+  def ==(o) = o.respond_to?(:to_a) && @a == o.to_a
+  def to_s = "(ring #{@a.map(&:inspect).join(', ')})"
+  alias inspect to_s
+  def method_missing(m, *a, &b)
+    r = @a.respond_to?(m) ? @a.send(m, *a, &b) : super
+    r.is_a?(Array) ? Ring.new(r) : r
+  end
+  def respond_to_missing?(m, p = false) = @a.respond_to?(m, p) || super
+end
+
+def tick_counter_advance(k, o = {})
+  t = __ctx[:ticks]
+  t[k] = t.fetch(k, -1) + (o[:step] || 1)
+  t[k] = o[:offset] + t[k] if o[:offset] && t[k] == (o[:step] || 1) - 1
+  t[k]
+end
+
+class Array
+  def ring = Ring.new(self)
+  def tick(k = :___default, **o) = Ring.new(self).tick(k, **o)
+  def look(k = :___default, **o) = Ring.new(self).look(k, **o)
+  def choose = Ring.new(self).choose
+end
+
+class Range
+  def ring = Ring.new(to_a)
+  def tick(*a, **o) = ring.tick(*a, **o)
+  def choose = ring.choose
+end
+
+def tick(k = :___default, **o) = tick_counter_advance(k.is_a?(Symbol) ? k : k.to_s.to_sym, o)
+def look(k = :___default, **_o) = __ctx[:ticks].fetch(k, 0)
+def tick_reset(k = :___default) = __ctx[:ticks].delete(k) && nil
+def tick_reset_all = __ctx[:ticks].clear && nil
+def tick_set(k, v = nil)
+  k, v = :___default, k if v.nil?
+  __ctx[:ticks][k] = v
+  nil
+end
+
+def ring(*a) = Ring.new(a)
+def knit(*a) = Ring.new(a.each_slice(2).flat_map { |v, n| [v] * n.to_i })
+def bools(*a) = Ring.new(a.map { |x| x == true || x == 1 })
+
+def range(s, e, step_or_opts = 1, step: nil, inclusive: false)
+  st = (step || (step_or_opts.is_a?(Numeric) ? step_or_opts : 1)).to_f.abs
+  raise ArgumentError, "range step must be above 0" if st.zero?
+  out = []
+  x = s.to_f
+  if e >= s
+    while inclusive ? x <= e + 1e-9 : x < e - 1e-9
+      out << x
+      x += st
+    end
+  else
+    while inclusive ? x >= e - 1e-9 : x > e + 1e-9
+      out << x
+      x -= st
+    end
+  end
+  Ring.new(out.map { |v| v == v.round && s.is_a?(Integer) && st == st.round ? v.round : v })
+end
+
+def line(s, f, steps: 4, inclusive: false)
+  n = steps.to_i
+  return ring(s) if n <= 1
+  d = inclusive ? (f - s).to_f / (n - 1) : (f - s).to_f / n
+  Ring.new(Array.new(n) { |i| s + d * i })
+end
+
+def spread(hits, total, rotate: 0)
+  hits, total = hits.to_i, total.to_i
+  raise ArgumentError, "spread needs hits ≤ total" if hits > total || total <= 0
+  pattern = Array.new(total) { |i| ((i * hits) % total) < hits }
+  first = pattern.index(true) || 0
+  pattern = pattern.rotate(first)
+  rotate.to_i.times do
+    pattern = pattern.rotate(1)
+    pattern = pattern.rotate(1) until pattern.first || pattern.none?
+  end
+  Ring.new(pattern)
+end
+
+def quantise(n, step) = (n.to_f / step).round * step
+alias quantize quantise
+def factor?(a, b) = (a % b).zero?
+
+# randomness: deterministic per thread, like Sonic Pi
+def rrand(a, b, **_o) = a + __ctx[:rng].rand * (b - a)
+def rrand_i(a, b, **_o) = a.to_i + __ctx[:rng].rand((b.to_i - a.to_i).abs + 1) * (b < a ? -1 : 1)
+def rand(m = 1) = __ctx[:rng].rand * m
+def rand_i(m = 2) = __ctx[:rng].rand(m.to_i)
+def rand_look(m = 1) = Random.new(__ctx[:rng].seed + 1).rand * m
+def dice(n = 6) = __ctx[:rng].rand(n.to_i) + 1
+def one_in(n) = __ctx[:rng].rand(n.to_i).zero?
+def choose(list) = list.to_a.empty? ? nil : list.to_a[__ctx[:rng].rand(list.to_a.size)]
+def pick(list, n = 1, **_o) = Ring.new(Array.new(n) { choose(list) })
+def shuffle(list) = Ring.new(list.to_a.shuffle(random: __ctx[:rng]))
+def use_random_seed(s) = (__ctx[:rng] = Random.new(s.to_i)) && nil
+def with_random_seed(s, &blk)
+  c = __ctx
+  old = c[:rng]
+  c[:rng] = Random.new(s.to_i)
+  blk.call
+ensure
+  c[:rng] = old if c
+end
+def rand_reset = nil
+def rand_skip(_n = 1) = nil
+
+# ---- sound ---------------------------------------------------------------------------
+
+FX_SUPPORTED = %i[reverb gverb echo ping_pong lpf rlpf nlpf nrlpf hpf rhpf nhpf nrhpf bitcrusher krush
+                  distortion tanh level pan compressor normaliser].freeze
+
+def __with(key, val, &blk)
+  c = __ctx
+  old = c[key]
+  c[key] = val
+  blk.call
+ensure
+  c[key] = old if c
+end
+
+def use_synth(s, &blk)
+  raise ArgumentError, "use_synth does not take a block, use with_synth" if blk
+  __check_synth(s)
+  __top_set(:synth, s.to_sym)
+end
+
+def with_synth(s, &blk)
+  __check_synth(s)
+  __with(:synth, s.to_sym, &blk)
+end
+
+def current_synth = __ctx[:synth]
+def synth_names = $__synths.map(&:to_sym)
+def sample_names(*_a) = Ring.new($__samples.map(&:to_sym))
+def all_sample_names = sample_names
+def fx_names = FX_SUPPORTED
+
+def __check_synth(s)
+  return if $__synths.empty? || $__synths.include?(s.to_s)
+  raise ArgumentError, "synth #{s.inspect} isn't available (try :beep :saw :prophet :tb303 :pluck :fm …)"
+end
+
+def use_synth_defaults(**o) = __top_set(:sdef, o)
+def use_merged_synth_defaults(**o) = __top_set(:sdef, __ctx[:sdef].merge(o))
+def with_synth_defaults(**o, &blk) = __with(:sdef, o, &blk)
+def with_merged_synth_defaults(**o, &blk) = __with(:sdef, __ctx[:sdef].merge(o), &blk)
+def use_sample_defaults(**o) = __top_set(:smpdef, o)
+def use_merged_sample_defaults(**o) = __top_set(:smpdef, __ctx[:smpdef].merge(o))
+def with_sample_defaults(**o, &blk) = __with(:smpdef, o, &blk)
+def use_transpose(n) = __top_set(:transpose, n)
+def with_transpose(n, &blk) = __with(:transpose, n, &blk)
+def current_transpose = __ctx[:transpose]
+def use_octave(n) = __top_set(:octave, n)
+def with_octave(n, &blk) = __with(:octave, n, &blk)
+
+def with_fx(name, reps: 1, **opts, &blk)
+  name = name.to_sym
+  unless FX_SUPPORTED.include?(name)
+    __warn_once("fx#{name}", "with_fx #{name.inspect} isn't available in susynth; the block plays without it")
+    r = nil
+    reps.to_i.times { r = blk.call(nil) }
+    return r
+  end
+  c = __ctx
+  c[:fx] = c[:fx] + [[name, opts]]
+  r = nil
+  reps.to_i.times { r = blk.call(nil) }
+  r
+ensure
+  c[:fx] = c[:fx][0...-1] if c && FX_SUPPORTED.include?(name)
+end
+
+def __beats(o, k, bpm) = o.key?(k) ? o[k].to_f * 60.0 / bpm : nil
+
+# __fx folds the with_fx stack into per-note settings for the Go side.
+def __fx(out, bpm)
+  __ctx[:fx].each do |name, f|
+    case name
+    when :reverb, :gverb
+      out[:room] = [out[:room].to_f, (f[:mix] || 0.4).to_f].max
+      out[:rsize] = (f[:room] || f[:roomsize] || 0.6).to_f
+    when :echo, :ping_pong
+      phase = (f[:phase] || 0.25).to_f * 60.0 / bpm
+      decay = (f[:decay] || 2).to_f * 60.0 / bpm
+      out[:dly] = [out[:dly].to_f, (f[:mix] || 1).to_f * 0.6].max
+      out[:dtime] = phase
+      out[:dfb] = (f[:feedback] || 10**(-3 * phase / [decay, 0.01].max)).to_f.clamp(0, 0.95)
+    when :lpf, :rlpf, :nlpf, :nrlpf
+      c = (f[:cutoff] || 100).to_f
+      out[:flpf] = out[:flpf] ? [out[:flpf], c].min : c
+    when :hpf, :rhpf, :nhpf, :nrhpf
+      c = (f[:cutoff] || 100).to_f
+      out[:fhpf] = out[:fhpf] ? [out[:fhpf], c].max : c
+    when :bitcrusher
+      b = (f[:bits] || 8).to_f
+      out[:crush] = out[:crush] ? [out[:crush], b].min : b
+    when :krush, :distortion, :tanh
+      d = (f[:distort] || f[:gain] && (f[:gain].to_f / 10) || 0.5).to_f.clamp(0, 1)
+      out[:shape] = [out[:shape].to_f, d].max
+    when :level
+      out[:amp] = out[:amp].to_f * (f[:amp] || 1).to_f
+    when :pan
+      out[:pan] = (f[:pan] || 0).to_f
+    end
+  end
+  out
+end
+
+def __emit(kind, name, o)
+  th = __need_thread(kind == "s" ? "sample" : "play")
+  line = __buffer_line(caller_locations(2, 12))
+  kv = o.map { |k, v| "#{k}=#{v.is_a?(Float) ? v.round(5) : v}" }.join(",")
+  __send("ev", format("%.6f", th.time), th.name, line, kind, name, kv)
+end
+
+def play(n, *rest, **opts)
+  opts = rest.first.merge(opts) if rest.first.is_a?(Hash)
+  if n.is_a?(Array) || n.is_a?(Ring)
+    n.to_a.each { |x| play(x, **opts) }
+    return nil
+  end
+  c = __ctx
+  o = c[:sdef].merge(opts)
+  return nil if o.key?(:on) && !o[:on]
+  s = (o.delete(:synth) || c[:synth]).to_sym
+  __check_synth(s)
+  nn = note(o.key?(:note) ? o.delete(:note) : n)
+  return nil if nn.nil?
+  nn += c[:transpose] + c[:octave] * 12
+  bpm = c[:bpm]
+  ev = { n: nn.to_f, amp: (o[:amp] || 1).to_f, pan: (o[:pan] || 0).to_f }
+  %i[attack decay sustain release].each { |k| (v = __beats(o, k, bpm)) && ev[k.to_s[0].to_sym] = v }
+  ev[:r] ||= 60.0 / bpm unless o.key?(:release)
+  ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
+  __fx(ev, bpm)
+  __emit("p", s, ev)
+  nil
+end
+
+def synth(name, **opts)
+  play(opts.key?(:note) ? opts[:note] : 52, synth: name, **opts.except(:note))
+end
+
+def play_chord(notes, **opts) = play(notes.to_a, **opts)
+
+def play_pattern(notes, **opts)
+  notes.to_a.each do |n|
+    play(n, **opts)
+    sleep 1
+  end
+  nil
+end
+
+def play_pattern_timed(notes, times, **opts)
+  ts = times.is_a?(Numeric) ? [times] : times.to_a
+  notes.to_a.each_with_index do |n, i|
+    play(n, **opts)
+    sleep ts[i % ts.size]
+  end
+  nil
+end
+
+def sample(name, *rest, **opts)
+  idx = rest.first.is_a?(Integer) ? rest.first : nil
+  c = __ctx
+  o = c[:smpdef].merge(opts)
+  return nil if o.key?(:on) && !o[:on]
+  case name
+  when Symbol
+    n = name.to_s
+    unless $__samples.empty? || $__samples.include?(n)
+      raise ArgumentError, "sample #{name.inspect} isn't available here; drums like :bd_haus :drum_snare_hard " \
+                           ":drum_cymbal_closed are built in, or put #{n}.wav in your samples folder"
+    end
+  when String then n = name
+  else raise ArgumentError, "sample needs a name like :bd_haus or a path to a .wav file"
+  end
+  bpm = c[:bpm]
+  ev = { amp: (o[:amp] || 1).to_f, pan: (o[:pan] || 0).to_f, rate: (o[:rate] || 1).to_f }
+  ev[:i] = idx if idx
+  ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
+  %i[attack release].each { |k| (v = __beats(o, k, bpm)) && ev[k.to_s[0].to_sym] = v }
+  if o[:beat_stretch] || o[:start] || o[:finish] || o[:pitch]
+    __warn_once("smpopt", "sample options beat_stretch/start/finish/pitch are ignored in susynth")
+  end
+  __fx(ev, bpm)
+  __emit("s", n, ev)
+  nil
+end
+
+def sample_duration(*_a, **_o) = 1.0 * 60.0 / current_bpm
+def load_sample(*_a) = nil
+def load_samples(*_a) = nil
+def sample_free(*_a) = nil
+def sample_free_all = nil
+
+def control(*_a, **_o)
+  __warn_once("control", "control isn't supported in susynth: notes can't be changed once started")
+  nil
+end
+
+%i[midi midi_note_on midi_note_off midi_cc midi_pitch_bend osc osc_send].each do |m|
+  define_method(m) do |*_a, **_o|
+    __warn_once("io#{m}", "#{m} isn't available inside the Ruby sandbox; use Settings > MIDI output or OSC instead")
+    nil
+  end
+end
+
+%i[use_debug use_cue_logging use_arg_checks use_timing_guarantees use_real_time use_sched_ahead_time
+   set_sched_ahead_time! set_volume! set_mixer_control! use_osc use_midi_defaults set_audio_latency!
+   set_cent_tuning! use_tuning use_cent_tuning].each do |m|
+  define_method(m) { |*_a, **_o| nil }
+end
+
+def set(k, v) = ($__store[k] = v) && nil
+def get(k = nil) = k.nil? ? $__store : $__store[k]
+
+def define(name, &blk)
+  raise ArgumentError, "define needs a name and a do ... end block" unless blk
+  Object.send(:define_method, name.to_sym, &blk)
+  Object.send(:private, name.to_sym)
+  nil
+end
+
+def puts(*a)
+  __send("log", a.map(&:to_s).join(" "))
+  nil
+end
+
+def print(*a) = puts(*a)
+
+def p(*a)
+  __send("log", a.map(&:inspect).join(" "))
+  a.size <= 1 ? a.first : a
+end
+
+# ---- evaluation ---------------------------------------------------------------------
+
+def __syntax_line(e)
+  m = e.message.match(/buffer:(\d+)/)
+  m ? m[1].to_i : 0
+end
+
+def __syntax_msg(e)
+  msgs = e.message.lines.filter_map { |l| (m = l.match(/\^[~^]*\s+(\S.*)$/)) && m[1].strip }
+  return "a do, if or def is missing its end" if msgs.any? { |m| m =~ /expected an? `end'|expected an? `end`|end-of-input/ }
+  msgs.find { |m| m.include?("expected") } || msgs.first ||
+    e.message.lines.first.to_s.sub(/\Abuffer:\d+:\s*/, "").strip
+end
+
+# __parse checks the whole buffer with Ruby's compiler (for good messages with
+# line numbers), then returns its syntax tree.
+def __parse(code)
+  RubyVM::InstructionSequence.compile(code, "buffer", "buffer", 1)
+  RubyVM::AbstractSyntaxTree.parse(code)
+end
+
+# __block_lines finds the top-level statements around the cursor, stopping at
+# blank lines between statements (blank lines inside a do ... end don't count).
+def __block_lines(code, cursor)
+  ast = __parse(code)
+  body = ast.children[2]
+  return [1, 0] if body.nil?
+  stmts = body.type == :BLOCK ? body.children : [body]
+  stmts = stmts.select { |s| s.respond_to?(:first_lineno) }
+  return [1, 0] if stmts.empty?
+  lines = code.lines
+  blank_between = lambda do |a, b|
+    (a.last_lineno + 1...b.first_lineno).any? { |l| lines[l - 1].to_s.strip.empty? }
+  end
+  i = stmts.index { |s| cursor >= s.first_lineno && cursor <= s.last_lineno } ||
+      stmts.index { |s| s.first_lineno > cursor } || stmts.size - 1
+  a = b = i
+  a -= 1 while a.positive? && !blank_between.call(stmts[a - 1], stmts[a])
+  b += 1 while b < stmts.size - 1 && !blank_between.call(stmts[b], stmts[b + 1])
+  [stmts[a].first_lineno, stmts[b].last_lineno]
+end
+
+def __run(id, cursor, at, code)
+  begin
+    __parse(code)
+    first, last = cursor.positive? ? __block_lines(code, cursor) : [1, code.lines.size]
+  rescue SyntaxError => e
+    __send("err", __syntax_line(e), "", __syntax_msg(e))
+    __send("ran", id, 0, 0)
+    return
+  end
+  if last < first
+    __send("ran", id, 0, 0)
+    return
+  end
+  slice = code.lines[(first - 1)..(last - 1)].join
+  unless cursor.positive? # a full run starts from Sonic Pi's defaults, like Run
+    $__main_ctx = __default_ctx
+    __send("bpm", 60.0)
+  end
+  __spawn(:run, :main, nil, at) do
+    TOPLEVEL_BINDING.eval(slice, "buffer", first)
+  end
+  __send("ran", id, first, last)
+end
+
+def __check(code)
+  __parse(code)
+rescue SyntaxError => e
+  __send("err", __syntax_line(e), "", __syntax_msg(e))
+end
+
+def __main
+  while (line = $stdin.gets)
+    cmd, *args = line.chomp.split("\t", -1)
+    case cmd
+    when "run"
+      code = $stdin.read(args[3].to_i).to_s.force_encoding("UTF-8")
+      __run(args[0], args[1].to_i, args[2].to_f, code)
+    when "chk"
+      __check($stdin.read(args[0].to_i).to_s.force_encoding("UTF-8"))
+    when "adv"
+      __advance(args[0].to_f)
+    when "stop"
+      __stop_all
+    when "syn"
+      $__synths = args[0].to_s.split(",")
+    when "smp"
+      $__samples = args[0].to_s.split(",")
+    when "ping"
+      __send("pong", RUBY_VERSION)
+    end
+    __flush
+  end
+end
+
+__main

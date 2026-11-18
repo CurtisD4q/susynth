@@ -1,26 +1,100 @@
 # susynth
 
-A terminal instrument for live-coding music (Tidal/Strudel style). One standalone Go binary:
-no cgo, no C compiler, no external player programs. You write patterns in a text editor pane,
-press `^E`, and hear them on the next cycle.
+A terminal instrument for live-coding music in **Sonic Pi's language**. You write
+`live_loop`s in an editor pane, press `^E`, and hear the change on the loop's next
+pass. One standalone Go binary: no cgo, no Ruby to install, no external player programs.
+
+```ruby
+use_bpm 120
+
+live_loop :drums do
+  sample :bd_haus
+  sleep 0.5
+  sample :drum_snare_hard, amp: 0.8
+  sleep 0.5
+end
+
+live_loop :bass do
+  sync :drums
+  use_synth :tb303
+  play (ring :e2, :e2, :g2, :a2).tick, release: 0.2, cutoff: rrand(70, 110)
+  sleep 0.25
+end
+```
+
+## How it works
+
+```
+  terminal UI (Go)  ──code──▶  live (Go middleman)  ──"run" / "advance to t"──▶  Ruby sandbox
+        ▲                         │        ▲                                      (CRuby 3.4 in
+        │ tracks, errors, puts    │        └──── timed notes, errors, puts ─────  WebAssembly)
+        │                         ▼
+        └──────────────── audio engine (Go) ──▶ sound card / WAV / MIDI / OSC
+```
+
+* **Real Ruby.** Your code runs in CRuby 3.4, compiled to WebAssembly and run by
+  [wazero](https://github.com/tetratelabs/wazero), a pure-Go runtime. Everything Ruby can
+  do works: methods, `define`, blocks, `each`/`map`, hashes, string interpolation, classes.
+* **Sandboxed.** The Ruby side has no network and no file system. It can only make sound.
+* **Sonic Pi's runtime, rewritten.** `internal/rubyvm/runtime.rb` implements Sonic Pi's
+  API in Ruby: `live_loop`, `in_thread`, `sync`/`cue`, `play`, `sample`, `sleep`, `use_bpm`,
+  `use_synth`, `with_fx`, synth and sample defaults, `ring`/`tick`/`look`, `chord`, `scale`,
+  `spread`, `knit`, `line`, `range`, `rrand`/`choose`/`dice` (deterministic, as in Sonic Pi),
+  `define`, `at`, `density`, `set`/`get`, `puts`. Each loop is a Ruby Fiber with its own
+  virtual time; `sleep` hands control back to a scheduler that always runs the thread that is
+  furthest behind, so timing is exact and never depends on the real clock.
+* **The middleman** (`internal/live`) keeps Ruby's virtual time about 250 ms ahead of the
+  audio, turns the notes Ruby plays into sample-accurate engine hits, and brings errors and
+  `puts` back to the screen.
+* **The audio engine** (`internal/engine`) starts every note on its exact sample and mixes,
+  records, and sends MIDI/OSC as before.
+
+Sonic Pi's synth, sample and effect **names** work, but the sounds are susynth's own
+synthesised voices (no SuperCollider, no sample files): `:prophet` plays a supersaw,
+`:bd_haus` plays the built-in kick, and so on. F4 Sounds lists every name. Effects map onto
+susynth's filters, bit crusher, distortion, echo and reverb; effects with no equivalent are
+skipped with a note. Put your own `.wav` files in the samples folder to use real samples
+(`sample :mybank, 2`, `sample :kick`, or `sample "~/path/to/file.wav"`).
 
 ## Quick start
 
 ```
-make build               # CGO_ENABLED=0 go build -o susynth ./cmd/susynth
-./susynth                # open the live editor
-./susynth examples/first.syn
-./susynth render -cycles 8 set.syn    # render a WAV, no sound device needed
-./susynth midi -cycles 8 set.syn      # export a Standard MIDI File
-./susynth check set.syn               # parse and report errors
+make build                            # CGO_ENABLED=0 go build -o susynth ./cmd/susynth
+./susynth                             # open the live editor
+./susynth examples/first.rb
+./susynth render -seconds 30 set.rb   # render a WAV, no sound device needed
+./susynth midi -seconds 30 set.rb     # export a Standard MIDI File
+./susynth check set.rb                # syntax check, then run 8 s silently to catch errors
 ./susynth samples                     # list loaded sample banks
 ./susynth devices                     # audio outputs and MIDI devices
 ```
 
-Audio is built in: susynth opens the sound device itself (PulseAudio/PipeWire over their socket,
-or ALSA; CoreAudio on macOS; WASAPI on Windows). If that fails it falls back to piping into
-`pw-cat`/`paplay`/`aplay` when one is installed. With nothing it runs silent, and `^R` still
-records a WAV. Force a backend with `-sink native|pipewire|pulseaudio|alsa|none`.
+**First launch:** Ruby is compiled to machine code the first time (about 10–15 s, cached in
+`~/.cache/susynth/ruby`, roughly 85 MB). The editor opens at once and Ruby warms up in the
+background; code you run before it is ready plays as soon as it is. Later launches start Ruby
+in about a second.
+
+Audio is built in (PulseAudio/PipeWire, ALSA, CoreAudio, WASAPI via oto), with a fallback to
+`pw-cat`/`paplay`/`aplay`. With nothing, it runs silent and `^R` still records a WAV.
+
+## Keys
+
+| key | action |
+|---|---|
+| `^E` | run the block under the cursor (top-level statements up to a blank line) |
+| `Esc Enter` | run the whole buffer (Sonic Pi's Run) |
+| `^G` | stop every loop and thread (Sonic Pi's Stop) |
+| `^P` | stop, or run the whole buffer again |
+| `^R` | record a WAV · `^S` / `^O` save / load a set (`.rb`) |
+| `Esc 1-9` · `Esc s n` | mute / solo a track (numbers in the Tracks pane) |
+| `Esc -` / `Esc =` | level of the live_loop the cursor is in |
+| `Esc x` | export MIDI (runs silently in a second sandbox; the music keeps playing) |
+| `F1`–`F7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform |
+
+As in Sonic Pi: re-running a `live_loop` swaps its body in on its next pass; a loop you
+delete from the text keeps playing until `^G`; an error inside a loop stops that loop only.
+A loop that never sleeps would freeze Ruby, so susynth restarts the sandbox after 2 seconds
+and stops everything.
 
 ## Build
 
@@ -31,61 +105,33 @@ make dist     # linux amd64/arm64, macOS amd64/arm64, windows amd64 -> dist/
 make test     # vet + tests (the race detector needs CGO_ENABLED=1)
 ```
 
-## Pages (F1-F7)
+Binaries are about 15 MB, most of which is the compressed Ruby (`internal/rubyvm/ruby.wasm.gz`,
+provenance and licences in `internal/rubyvm/LICENSES`).
 
-Play (editor + tracks), Sets, Recordings, Sounds (drums, tones, sample banks), Settings,
-Help (keys and language reference), Perform (set list). A grid editor and themes
-(`default`, `large`, `contrast`) are available; see Help inside the app for current keys.
+## Libraries
 
-## Language
+* [wazero](https://github.com/tetratelabs/wazero) v1.11 (Apache-2.0): runs the Ruby sandbox.
+* [ruby.wasm](https://github.com/ruby/ruby.wasm) 2.7.1 build of CRuby 3.4.1 (Ruby/BSD; MIT).
+* [oto](https://github.com/ebitengine/oto) v3.5.1 for audio output, with purego, jfreymuth/pulse
+  and x/sys.
 
-```
-bpm 124
-d1 "bd*2 [~ bd] bd ~"
-d2 "~ sn ~ [sn cp]" # gain 0.9
-d4 "c2 ~ [c2 g2] ~" # voice saw # lpf 800
-d5 every 4 (fast 2) $ s "bd sn" # room 0.3
-hush
-```
-
-* Mini-notation: sequences, `[groups]`, `*` repeat, `~` rest, `<alternation>`, euclid, notes.
-* Functions: fast slow rev palindrome rot iter every degradeBy ply.
-* Modifiers: gain pan speed voice lpf hpf crush shape delay room release.
-* Commands: bpm mute unmute solo unsolo level stop hush delaytime delayfb roomsize.
-* Sounds: bd sn cp hh oh rim tom cb; sine tri saw square pluck fm supersaw organ noise;
-  plus any WAV bank found in the samples folder (one sub-folder per bank).
-
-## Outputs
-
-* WAV recording and offline render; Standard MIDI File export (format 1, 480 PPQ).
-* OSC to SuperDirt (`/dirt/play` bundles over UDP, NTP time tags).
-* Live MIDI by writing to a device node such as `/dev/snd/midiC1D0` (no cgo needed), with
-  optional 24-ppqn clock.
-
-## Design notes
-
-* Sample-counter master clock (48 kHz, 10 ms blocks, 100 ms lookahead) with exact rational
-  time; evaluation is quantised to cycle boundaries.
-* Libraries: [oto](https://github.com/ebitengine/oto) v3.5.1 for audio output (pulls in purego,
-  jfreymuth/pulse and x/sys), all vendored. OSC, MIDI, terminal handling and the UI are
-  hand-written on the standard library.
-* The raw terminal uses ioctls directly on Linux, macOS and FreeBSD (no `stty`).
-  Windows builds compile but the live editor is not supported there; `render`, `check`
-  and `midi` work.
+The sandbox blocked the Go module proxy and checksum database, so modules were fetched from
+GitHub with checksum verification off; run `go mod verify` on a networked machine.
 
 ## Verification status
 
-Verified in a sandbox: unit tests (including `-race`), MIDI output parsed with mido, OSC over a
-UDP listener, MIDI device writes captured from a file, the editor driven through a pty (also with
-an empty `PATH`), and native audio played into an ALSA file device (440 Hz at the right level).
-Cross-compiles for all five targets.
+Verified in a sandbox: unit tests (with `-race`), Sonic Pi features through real Ruby (loops,
+sync, ring/tick, define, hashes, interpolation, chords, spread, effects, error line numbers,
+recovery from a loop that never sleeps), Ruby → engine → audio rendered offline and checked
+for beats, live redefinition in real time, the editor through a pty including a first launch
+with an empty cache, rendered levels (no clipping), MIDI export, cross-compiles for five targets.
 
-**Not verified:** a real sound card, the PulseAudio/PipeWire socket path, macOS, Windows, a real
-MIDI device or SuperDirt. The sandbox blocked the Go module proxy and checksum database, so
-modules were fetched from GitHub with checksum verification off; run `go mod verify` on a
-networked machine.
+**Not verified:** a real sound card, macOS, Windows, a real MIDI device or SuperDirt, and how
+close each Sonic Pi synth sounds to the original (it won't sound the same).
 
 ## Known gaps
 
-No undo in the editor; ASCII/BMP text only; error markers are cleared when lines are inserted
-or removed.
+* No `control` (changing a note while it plays), no `sample` `start:`/`finish:`/`beat_stretch:`,
+  and only the effects listed on F4. MIDI/OSC calls in code are skipped; use F5 Settings.
+* Ruby's own `Thread` isn't available; Sonic Pi's `in_thread` and `live_loop` are.
+* No undo in the editor.

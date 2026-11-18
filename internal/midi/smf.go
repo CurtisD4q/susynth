@@ -7,17 +7,16 @@ import (
 	"io"
 	"sort"
 
-	"github.com/susynth/susynth/internal/frac"
-	"github.com/susynth/susynth/internal/lang"
+	"github.com/susynth/susynth/internal/engine"
 )
 
 // PPQ is ticks per quarter note; one cycle is four beats.
 const PPQ = 480
 
-// Note is one note in a MIDI file; times are in cycles.
+// Note is one note in a MIDI file; times are in beats.
 type Note struct {
 	Track, Channel, Note, Vel int
-	Start, Dur                frac.F
+	Start, Dur                float64
 }
 
 func vlq(v uint32) []byte {
@@ -34,7 +33,7 @@ type msg struct {
 	data  []byte
 }
 
-func ticks(c frac.F) int64 { return c.Mul(frac.Int(4 * PPQ)).Add(frac.New(1, 2)).Floor() }
+func ticks(beats float64) int64 { return int64(beats*PPQ + 0.5) }
 
 // WriteSMF writes a format-1 file: a tempo track plus one track per susynth
 // track (names come from names, keyed by track number).
@@ -101,7 +100,7 @@ func WriteSMF(w io.Writer, bpm float64, names map[int]string, notes []Note) erro
 		var tb bytes.Buffer
 		name := names[id]
 		if name == "" {
-			name = "d" + itoa(id)
+			name = "track " + itoa(id)
 		}
 		tb.Write([]byte{0})
 		tb.Write(meta(0x03, []byte(name)))
@@ -130,32 +129,30 @@ func itoa(n int) string {
 	return string(b)
 }
 
-// FromProgram collects the notes of every track over the first `cycles` cycles.
-// It returns the notes, the track names, and how many events had no MIDI
-// meaning (user samples) and were skipped.
-func FromProgram(p lang.Program, cycles int) (notes []Note, names map[int]string, skipped int) {
+// FromHits turns played hits into MIDI notes: one MIDI track per live_loop
+// or thread, in the order they first played. Hits with no MIDI meaning (user
+// samples) are counted in skipped.
+func FromHits(hits []engine.Hit, bpm float64) (notes []Note, names map[int]string, skipped int) {
 	names = map[int]string{}
-	for _, t := range p.Tracks {
-		names[t.ID] = "d" + itoa(t.ID) + " " + t.Source
-		for _, ev := range t.Pattern.Query(frac.Int(0), frac.Int(int64(cycles))) {
-			n, ch, ok := NoteFor(ev.Value, t.ID)
-			if !ok {
-				skipped++
-				continue
-			}
-			notes = append(notes, Note{Track: t.ID, Channel: ch, Note: n, Vel: Velocity(t.Params.Gain),
-				Start: ev.Start, Dur: ev.End.Sub(ev.Start)})
+	ids := map[string]int{}
+	for _, h := range hits {
+		id, ok := ids[h.Track]
+		if !ok {
+			id = len(ids) + 1
+			ids[h.Track] = id
+			names[id] = h.Track
 		}
+		n, ch, ok := NoteFor(h.Word, id)
+		if !ok {
+			skipped++
+			continue
+		}
+		start := float64(h.At) / engine.SampleRate * bpm / 60
+		dur := float64(h.Gate)/engine.SampleRate*bpm/60 + h.Params.Release*bpm/60
+		if dur <= 0 {
+			dur = 0.25
+		}
+		notes = append(notes, Note{Track: id, Channel: ch, Note: n, Vel: Velocity(h.Params.Gain), Start: start, Dur: dur})
 	}
 	return
-}
-
-// BPMOf returns the last "bpm" statement in the program, or def.
-func BPMOf(p lang.Program, def float64) float64 {
-	for _, c := range p.Commands {
-		if c.Name == "bpm" {
-			def = c.Value
-		}
-	}
-	return def
 }

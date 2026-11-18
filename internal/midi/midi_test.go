@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/susynth/susynth/internal/engine"
-	"github.com/susynth/susynth/internal/lang"
 	"github.com/susynth/susynth/internal/synth"
 )
 
@@ -33,17 +32,30 @@ func TestNoteFor(t *testing.T) {
 
 // parse a Standard MIDI File just enough to check it is well-formed.
 func TestSMFIsWellFormed(t *testing.T) {
-	prog := lang.Parse("bpm 90\nd1 \"bd sn\"\nd2 \"c4 [e4 g4]\" # gain 0.5\nd3 \"nosuchsample\"\n", 0)
-	if len(prog.Errors) == 0 {
-		t.Fatal("expected unknown-sound error")
+	// two beats at 90 bpm: drums on one loop, a melody on another, a user sample skipped
+	beat := int64(engine.SampleRate * 60 / 90)
+	var hits []engine.Hit
+	for i := int64(0); i < 4; i++ {
+		w := "bd"
+		if i%2 == 1 {
+			w = "sn"
+		}
+		hits = append(hits, engine.Hit{At: i * beat, Track: "drums", Word: w, Params: synth.Params{Gain: 1}})
 	}
-	prog = lang.Parse("bpm 90\nd1 \"bd sn\"\nd2 \"c4 [e4 g4]\" # gain 0.5\n", 0)
-	notes, names, skipped := FromProgram(prog, 2)
-	if len(notes) != 2*2+2*3 || skipped != 0 {
-		t.Fatalf("notes=%d skipped=%d", len(notes), skipped)
+	for i, n := range []string{"60", "64", "67", "60", "64", "67"} {
+		hits = append(hits, engine.Hit{At: int64(i) * beat / 2, Track: "melody", Word: n, Gate: 1000,
+			Params: synth.Params{Gain: 0.5, Release: 0.2}})
+	}
+	hits = append(hits, engine.Hit{At: 0, Track: "melody", Word: "@file1"})
+	notes, names, skipped := FromHits(hits, 90)
+	if len(notes) != 10 || skipped != 1 || names[1] != "drums" || names[2] != "melody" {
+		t.Fatalf("notes=%d skipped=%d names=%v", len(notes), skipped, names)
+	}
+	if notes[1].Start != 1 {
+		t.Errorf("second drum hit should be on beat 1, got %v", notes[1].Start)
 	}
 	var buf bytes.Buffer
-	if err := WriteSMF(&buf, BPMOf(prog, 120), names, notes); err != nil {
+	if err := WriteSMF(&buf, 90, names, notes); err != nil {
 		t.Fatal(err)
 	}
 	b := buf.Bytes()

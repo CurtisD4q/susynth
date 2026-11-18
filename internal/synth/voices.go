@@ -95,6 +95,8 @@ type Params struct {
 	Delay    float64 // send to the delay bus 0..1
 	Room     float64 // send to the reverb bus 0..1
 	Release  float64 // tone release in seconds, 0 = default
+	Attack   float64 // tone attack in seconds, 0 = a 3 ms click guard
+	Note     float64 // exact MIDI note for tones (fractions allowed), 0 = from the word
 }
 
 type kind int
@@ -147,6 +149,7 @@ type Voice struct {
 	ph              [5]float64
 	smp             *Sample
 	pos, step       float64
+	att             int
 }
 
 // New builds a voice for a sound word. delay is the number of frames before
@@ -158,10 +161,7 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	if v.speed <= 0 {
 		v.speed = 1
 	}
-	g := p.Gain
-	if g == 0 {
-		g = 1
-	}
+	g := math.Max(0, math.Min(p.Gain, 4))
 	pan := math.Max(-1, math.Min(1, p.Pan))
 	ang := (pan + 1) * math.Pi / 4
 	v.gl = float32(g * math.Cos(ang))
@@ -199,12 +199,20 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 		return nil, fmt.Errorf("unknown sound %q", word)
 	}
 	v.k = kTone
-	v.freq = 440 * math.Pow(2, float64(n-69)/12) * v.speed
+	note := float64(n)
+	if p.Note > 0 {
+		note = p.Note
+	}
+	v.freq = 440 * math.Pow(2, (note-69)/12) * v.speed
+	v.att = int(0.003 * v.sr)
+	if p.Attack > 0.003 {
+		v.att = int(math.Min(p.Attack, 8) * v.sr)
+	}
 	if v.wave == "" {
 		v.wave = "saw"
 	}
-	if v.gate < int(0.02*v.sr) {
-		v.gate = int(0.02 * v.sr)
+	if v.gate < int(0.005*v.sr) {
+		v.gate = int(0.005 * v.sr)
 	}
 	v.rel = int(0.08 * v.sr)
 	if p.Release > 0 {
@@ -376,7 +384,7 @@ func (v *Voice) tone() float32 {
 	age := v.t
 	// envelope: 3 ms attack, hold for gate, linear release.
 	env := float32(1)
-	if a := int(0.003 * v.sr); age < a {
+	if a := v.att; a > 0 && age < a {
 		env = float32(age) / float32(a)
 	}
 	if age >= v.gate {

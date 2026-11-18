@@ -19,28 +19,52 @@ import (
 	"github.com/susynth/susynth/internal/audio"
 	"github.com/susynth/susynth/internal/config"
 	"github.com/susynth/susynth/internal/engine"
-	"github.com/susynth/susynth/internal/lang"
+	"github.com/susynth/susynth/internal/live"
 	"github.com/susynth/susynth/internal/paths"
+	"github.com/susynth/susynth/internal/rubyvm"
 )
 
 // Options come from the command line.
 type Options struct {
-	File  string // optional .syn file to open
+	File  string // optional .rb set to open
 	Sink  string // overrides config when non-empty
 	Theme string // overrides config when non-empty
 }
 
-const starter = `-- susynth: write patterns, press ^E to play the block under the cursor.
--- Changes land on the next cycle. ^G hushes everything. ^Q quits.
+const starter = `# susynth: Sonic Pi code, running in real Ruby.
+# ^E runs the block under the cursor, Esc-Enter runs everything.
+# ^G stops all loops. ^Q quits.
 
-bpm 124
-d1 "bd*2 [~ bd] bd ~"
-d2 "~ sn ~ [sn cp]" # gain 0.9
-d3 "hh*8" # gain 0.5 # pan 0.3
-d4 "c2 ~ [c2 g2] ~" # voice saw # gain 0.7
+use_bpm 120
 
--- melody: edit the notes and press ^E again while it plays
-d5 "<c4 e4 g4> [g4 e4]*2 ~ c5" # voice pluck # gain 0.6
+live_loop :drums do
+  sample :bd_haus
+  sleep 0.5
+  sample :drum_snare_hard, amp: 0.8
+  sleep 0.5
+end
+
+live_loop :hats do
+  sync :drums
+  8.times { sample :drum_cymbal_closed, amp: rrand(0.3, 0.6); sleep 0.125 }
+end
+
+live_loop :bass do
+  sync :drums
+  use_synth :tb303
+  play (ring :e2, :e2, :g2, :a2).tick, release: 0.2, cutoff: rrand(70, 110)
+  sleep 0.25
+end
+
+# melody: edit the notes and press ^E again while it plays
+live_loop :melody do
+  sync :drums
+  use_synth :pluck
+  with_fx :reverb, mix: 0.4 do
+    play scale(:e4, :minor_pentatonic).choose, amp: 0.6
+  end
+  sleep 0.5
+end
 `
 
 type prompt struct {
@@ -66,9 +90,15 @@ type App struct {
 	dirty   bool
 	quitAsk bool
 
-	errs    []lang.Error
+	errs    []codeErr
 	errRows int // editor line count when errs were recorded
-	marks   map[int]bool
+
+	vm        *rubyvm.VM
+	seq       *live.Seq
+	seqCancel context.CancelFunc
+	waitToast bool
+	laterMsgs chan laterMsg
+	marks     map[int]bool
 
 	toast      string
 	toastErr   bool
@@ -84,7 +114,6 @@ type App struct {
 	setlist      []string
 	live         int       // set list index currently live, -1 = none
 	discardUntil time.Time // a second go-live inside this window discards unsaved edits
-	grid         *gridState
 
 	recFile string
 	quit    bool
@@ -106,13 +135,20 @@ func Run(o Options) error {
 	defer term.Close()
 
 	a := &App{term: term, cfg: cfg, eng: engine.New(), th: themeByName(cfg.Theme),
-		marks: map[int]bool{}, audioFail: make(chan error, 1), live: -1}
+		marks: map[int]bool{}, audioFail: make(chan error, 1), live: -1, laterMsgs: make(chan laterMsg, 8)}
 	a.eng.SetBPM(cfg.BPM)
+	// Ruby boots in the background; the editor is usable straight away
+	a.vm = rubyvm.Start(paths.CacheDir())
+	a.seq = live.New(a.vm, a.eng)
+	sctx, scancel := context.WithCancel(context.Background())
+	a.seqCancel = scancel
+	a.seq.Start(sctx)
+	a.ps.closed = map[string]bool{"Samples": true, "Drum synths": true}
 	a.loadInitial(o, first)
 	a.loadSetlist()
 	a.startAudio(cfg.Sink)
 	if first && !a.toastErr {
-		a.say("welcome! ^E plays the block under the cursor — audio: "+a.sink.Name(), false)
+		a.say("welcome! ^E runs the block under the cursor — audio: "+a.sink.Name(), false)
 	}
 	a.reloadSamples(false)
 	defer a.shutdown()
@@ -125,19 +161,19 @@ func (a *App) loadInitial(o Options, first bool) {
 	case o.File != "":
 		if b, err := os.ReadFile(paths.Expand(o.File)); err == nil {
 			text = string(b)
-			a.setName = strings.TrimSuffix(filepath.Base(o.File), ".syn")
+			a.setName = strings.TrimSuffix(filepath.Base(o.File), ".rb")
 		} else {
-			a.setName = strings.TrimSuffix(filepath.Base(o.File), ".syn")
+			a.setName = strings.TrimSuffix(filepath.Base(o.File), ".rb")
 		}
 	case !first && a.cfg.AutoLoad && a.cfg.Set != "":
-		if b, err := os.ReadFile(filepath.Join(paths.SetsDir(), a.cfg.Set+".syn")); err == nil {
+		if b, err := os.ReadFile(filepath.Join(paths.SetsDir(), a.cfg.Set+".rb")); err == nil {
 			text, a.setName = string(b), a.cfg.Set
 		}
 	}
 	a.ed = newEditor(text)
 	// start on the first real statement so ^E does something straight away
 	for i := range a.ed.lines {
-		if t := strings.TrimSpace(a.ed.Line(i)); t != "" && !strings.HasPrefix(t, "--") && !strings.HasPrefix(t, "//") {
+		if t := strings.TrimSpace(a.ed.Line(i)); t != "" && !strings.HasPrefix(t, "#") {
 			a.ed.row = i
 			break
 		}
@@ -148,6 +184,8 @@ func (a *App) shutdown() {
 	if d, _ := a.eng.StopRecording(); d > 0 {
 		_ = d
 	}
+	a.seqCancel()
+	a.vm.Close()
 	a.eng.SetOutputs(nil)
 	for _, o := range a.outs {
 		o.Close()
@@ -235,6 +273,7 @@ func (a *App) loop() error {
 			a.startAudio("none")
 		case <-tick.C:
 		}
+		a.pollSeq()
 		if a.cfg.FrameHz != hz {
 			hz = a.cfg.FrameHz
 			tick.Reset(time.Second / time.Duration(hz))
@@ -265,16 +304,21 @@ func (a *App) render(w, h int, prev []string) []string {
 
 // ---- keys -------------------------------------------------------------------
 
-var trackRe = regexp.MustCompile(`^\s*d(\d+)\b`)
+var loopRe = regexp.MustCompile(`^\s*live_loop\s+:?"?([A-Za-z_][A-Za-z0-9_]*)`)
 
-func (a *App) trackOnCursor() (int, bool) {
-	m := trackRe.FindStringSubmatch(a.ed.Line(a.ed.row))
-	if m == nil {
-		return 0, false
+// trackOnCursor finds the live_loop the cursor is in and its track number.
+func (a *App) trackOnCursor() (int, string, bool) {
+	for i := a.ed.row; i >= 0; i-- {
+		if m := loopRe.FindStringSubmatch(a.ed.Line(i)); m != nil {
+			for _, t := range a.eng.Snapshot().Tracks {
+				if t.Name == m[1] {
+					return t.ID, t.Name, true
+				}
+			}
+			return 0, m[1], false
+		}
 	}
-	var id int
-	fmt.Sscanf(m[1], "%d", &id)
-	return id, true
+	return 0, "", false
 }
 
 func (a *App) handleKey(k key) {
@@ -287,7 +331,7 @@ func (a *App) handleKey(k key) {
 		if k.kind == kRune && k.r >= '0' && k.r <= '9' {
 			id := int(k.r - '0')
 			if !a.eng.SetSolo(id) {
-				a.say(fmt.Sprintf("no track d%d to solo", id), true)
+				a.say(fmt.Sprintf("no track %d to solo", id), true)
 			} else if id == 0 {
 				a.say("solo cleared", false)
 			}
@@ -309,14 +353,6 @@ func (a *App) handleKey(k key) {
 			return
 		}
 		a.altKey(k)
-		return
-	}
-	if a.page == pagePlay && a.grid != nil {
-		if k.kind == kCtrl && strings.ContainsRune("gprq", k.r) {
-			a.ctrlKey(k.r)
-			return
-		}
-		a.gridKey(k)
 		return
 	}
 	if a.page != pagePlay {
@@ -383,15 +419,19 @@ func (a *App) altKey(k key) {
 	case k.r >= '1' && k.r <= '9':
 		id := int(k.r - '0')
 		if !a.eng.ToggleMute(id) {
-			a.say(fmt.Sprintf("no track d%d playing", id), true)
+			a.say(fmt.Sprintf("no track %d playing", id), true)
 		}
 	case k.r == 's':
 		a.awaiting = "solo"
 		a.say("solo: press a track number (0 clears)", false)
 	case k.r == '-' || k.r == '=' || k.r == '+' || k.r == '_':
-		id, ok := a.trackOnCursor()
+		id, name, ok := a.trackOnCursor()
+		if name == "" {
+			a.say("put the cursor inside a live_loop to change its level", true)
+			return
+		}
 		if !ok {
-			a.say("put the cursor on a dN line to change its level", true)
+			a.say(":"+name+" is not playing — ^E runs it", true)
 			return
 		}
 		d := 0.1
@@ -399,20 +439,12 @@ func (a *App) altKey(k key) {
 			d = -0.1
 		}
 		if v, ok := a.eng.AdjustLevel(id, d); ok {
-			a.say(fmt.Sprintf("d%d level %d%%", id, int(v*100+0.5)), false)
-		} else {
-			a.say(fmt.Sprintf("d%d is not playing — eval it first", id), true)
+			a.say(fmt.Sprintf(":%s level %d%%", name, int(v*100+0.5)), false)
 		}
 	case k.r == ',' || k.r == '.' || k.r == '<' || k.r == '>':
-		d := map[rune]float64{',': -1, '.': 1, '<': -5, '>': 5}[k.r]
-		a.eng.SetBPM(a.eng.BPM() + d)
-		a.say(fmt.Sprintf("tempo %.0f BPM", a.eng.BPM()), false)
-	case k.r == 'g':
-		if a.page == pagePlay {
-			a.startGrid()
-		}
+		a.say("tempo comes from your code: change use_bpm and press ^E", false)
 	case k.r == 'x':
-		a.startPrompt("midi", "export MIDI, cycles (1-64): ", "8")
+		a.startPrompt("midi", "export MIDI, seconds (1-600): ", "30")
 	case k.r == 'n':
 		a.liveStep(1)
 	case k.r == 'p':
@@ -430,14 +462,16 @@ func (a *App) ctrlKey(r rune) {
 	case 'e':
 		a.eval(false)
 	case 'g':
-		a.eng.Hush()
+		a.seq.Stop(true)
 		a.marks = map[int]bool{}
-		a.say("hush — all tracks cleared (edit and ^E to bring them back)", false)
+		a.say("stopped every loop (^E or ^P to start again)", false)
 	case 'p':
-		if a.eng.TogglePlay() {
-			a.say("playing", false)
-		} else {
+		if a.seq.Running() || a.eng.Playing() {
+			a.seq.Stop(false)
+			a.marks = map[int]bool{}
 			a.say("stopped", false)
+		} else {
+			a.eval(true)
 		}
 	case 'r':
 		a.toggleRecord()
@@ -453,7 +487,7 @@ func (a *App) ctrlKey(r rune) {
 		a.errs = nil
 		a.say("errors cleared", false)
 	case 'c':
-		a.say("^Q quits (^G is hush)", false)
+		a.say("^Q quits (^G stops the music)", false)
 	case 'q':
 		if a.dirty && !a.quitAsk {
 			a.quitAsk = true
@@ -466,57 +500,82 @@ func (a *App) ctrlKey(r rune) {
 
 // ---- eval -------------------------------------------------------------------
 
+// codeErr is an error to mark in the editor; line is 0-based, -1 = none.
+type codeErr struct {
+	Line int
+	Text string
+}
+
+func (e codeErr) String() string {
+	if e.Line < 0 {
+		return e.Text
+	}
+	return fmt.Sprintf("line %d: %s", e.Line+1, e.Text)
+}
+
+// eval sends code to Ruby: the block around the cursor, or everything.
 func (a *App) eval(all bool) {
-	start, end := 0, len(a.ed.lines)-1
-	if !all {
-		s, e, ok := a.ed.Block(a.ed.row)
-		if !ok {
-			a.say("nothing under the cursor — put it inside a block of lines", true)
+	cursor := a.ed.row + 1
+	if all {
+		cursor = 0
+	}
+	a.errs, a.errRows = nil, len(a.ed.lines)
+	a.seq.Run(a.ed.Text(), cursor)
+	if !a.vm.IsReady() {
+		if err := a.vm.Err(); err != nil {
 			return
 		}
-		start, end = s, e
+		a.waitToast = true
+		a.say("Ruby is still starting ("+a.vm.Status()+") — your code runs the moment it's ready", false)
 	}
-	var b strings.Builder
-	for i := start; i <= end; i++ {
-		b.WriteString(a.ed.Line(i))
-		b.WriteByte('\n')
-	}
-	prog := lang.Parse(b.String(), start)
+}
 
-	kept := a.errs[:0:0]
-	for _, e := range a.errs {
-		if e.Line < start || e.Line > end {
-			kept = append(kept, e)
+type laterMsg struct {
+	text  string
+	isErr bool
+}
+
+// later shows a message from a background job on the next frame.
+func (a *App) later(text string, isErr bool) {
+	select {
+	case a.laterMsgs <- laterMsg{text, isErr}:
+	default:
+	}
+}
+
+// pollSeq shows what Ruby reported since the last frame.
+func (a *App) pollSeq() {
+	for len(a.laterMsgs) > 0 {
+		m := <-a.laterMsgs
+		a.say(m.text, m.isErr)
+	}
+	if a.waitToast && a.vm.IsReady() && !a.seq.Waiting() {
+		a.waitToast = false
+	}
+	for _, n := range a.seq.Notes() {
+		switch n.Kind {
+		case "err":
+			e := codeErr{Line: n.Line - 1, Text: n.Text}
+			a.errs = append(a.errs, e)
+			if len(a.errs) > 20 {
+				a.errs = a.errs[len(a.errs)-20:]
+			}
+			a.errRows = len(a.ed.lines)
+			a.say(e.String(), true)
+		case "log":
+			a.say("puts: "+n.Text, false)
+		case "ran":
+			if n.First == 0 {
+				continue
+			}
+			for i := n.First - 1; i <= n.Last-1; i++ {
+				a.marks[i] = true
+			}
+			if !a.toastErr || time.Now().After(a.toastUntil) {
+				a.say(fmt.Sprintf("running lines %d–%d", n.First, n.Last), false)
+			}
 		}
 	}
-	a.errs, a.errRows = kept, len(a.ed.lines)
-
-	if len(prog.Errors) > 0 {
-		a.errs = append(a.errs, prog.Errors...)
-		a.say(fmt.Sprintf("eval failed: %d error(s) — nothing changed, last good pattern keeps playing", len(prog.Errors)), true)
-		return
-	}
-	if len(prog.Tracks) == 0 && len(prog.Commands) == 0 {
-		a.say("nothing to evaluate in this block", true)
-		return
-	}
-	for i := start; i <= end; i++ {
-		delete(a.marks, i)
-	}
-	for _, t := range prog.Tracks {
-		a.marks[t.Line] = true
-	}
-	for _, c := range prog.Commands {
-		a.marks[c.Line] = true
-	}
-	wasPlaying := a.eng.Snapshot().Playing
-	a.eng.Apply(prog, all)
-	if !wasPlaying {
-		a.eng.Play()
-		a.say(fmt.Sprintf("playing — %d track(s)", len(prog.Tracks)), false)
-		return
-	}
-	a.say("queued — lands on the next cycle", false)
 }
 
 // ---- sets & recording --------------------------------------------------------
@@ -564,8 +623,8 @@ func (a *App) promptKey(k key) {
 			a.saveSet(name)
 		case "midi":
 			var n int
-			if _, err := fmt.Sscanf(name, "%d", &n); err != nil || n < 1 || n > 64 {
-				a.say("cycles must be a number from 1 to 64", true)
+			if _, err := fmt.Sscanf(name, "%d", &n); err != nil || n < 1 || n > 600 {
+				a.say("seconds must be a number from 1 to 600", true)
 				return
 			}
 			a.exportMIDI(n)
@@ -584,11 +643,11 @@ func (a *App) promptKey(k key) {
 var nameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._ -]{0,60}$`)
 
 func setPath(name string) (string, error) {
-	name = strings.TrimSuffix(name, ".syn")
+	name = strings.TrimSuffix(name, ".rb")
 	if !nameRe.MatchString(name) || strings.Contains(name, "..") {
 		return "", errors.New("use letters, digits, - _ . and spaces in set names")
 	}
-	return filepath.Join(paths.SetsDir(), name+".syn"), nil
+	return filepath.Join(paths.SetsDir(), name+".rb"), nil
 }
 
 func (a *App) saveSet(name string) {
@@ -603,7 +662,7 @@ func (a *App) saveSet(name string) {
 		a.say("save failed: "+err.Error(), true)
 		return
 	}
-	a.setName, a.dirty = strings.TrimSuffix(name, ".syn"), false
+	a.setName, a.dirty = strings.TrimSuffix(name, ".rb"), false
 	a.say("saved "+p, false)
 }
 
@@ -618,16 +677,16 @@ func (a *App) loadSet(name string) {
 		return
 	}
 	a.ed.SetText(string(b))
-	a.setName, a.dirty = strings.TrimSuffix(name, ".syn"), false
+	a.setName, a.dirty = strings.TrimSuffix(name, ".rb"), false
 	a.errs, a.marks = nil, map[int]bool{}
-	a.say("loaded "+a.setName+" — ^E to play a block, Esc-Enter evals everything", false)
+	a.say("loaded "+a.setName+" — ^E runs a block, Esc-Enter runs everything", false)
 }
 
 func (a *App) listSets() string {
 	ents, _ := os.ReadDir(paths.SetsDir())
 	var names []string
 	for _, e := range ents {
-		if n, ok := strings.CutSuffix(e.Name(), ".syn"); ok {
+		if n, ok := strings.CutSuffix(e.Name(), ".rb"); ok {
 			names = append(names, n)
 		}
 	}

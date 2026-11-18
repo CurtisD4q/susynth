@@ -122,6 +122,9 @@ func LoadSamples(dir string) (banks, files int, err error) {
 	reg.Lock()
 	reg.banks = next
 	reg.Unlock()
+	fileCache.Lock()
+	fileCache.keys = nil
+	fileCache.Unlock()
 	return len(next), files, firstErr
 }
 
@@ -131,7 +134,9 @@ func Banks() []Bank {
 	defer reg.RUnlock()
 	out := make([]Bank, 0, len(reg.banks))
 	for _, b := range reg.banks {
-		out = append(out, *b)
+		if !strings.HasPrefix(b.Name, "@") {
+			out = append(out, *b)
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out

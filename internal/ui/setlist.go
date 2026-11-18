@@ -6,9 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/susynth/susynth/internal/lang"
+	"github.com/susynth/susynth/internal/live"
 	"github.com/susynth/susynth/internal/midi"
 	"github.com/susynth/susynth/internal/paths"
+	"github.com/susynth/susynth/internal/rubyvm"
+	"github.com/susynth/susynth/internal/synth"
 	"path/filepath"
 )
 
@@ -71,8 +73,8 @@ func (a *App) moveInSetlist(i, d int) int {
 	return j
 }
 
-// goLive loads set list entry i and evaluates the whole set; it lands on the
-// next cycle, so the changeover is on the beat. Unsaved edits ask first.
+// goLive loads set list entry i, stops what is playing and runs the new set.
+// Unsaved edits ask first.
 func (a *App) goLive(i int) {
 	if i < 0 || i >= len(a.setlist) {
 		return
@@ -89,9 +91,10 @@ func (a *App) goLive(i int) {
 		return
 	}
 	a.live = i
+	a.seq.Stop(false)
 	a.eval(true)
 	if !a.toastErr {
-		a.say(fmt.Sprintf("LIVE %d/%d: %s — lands on the next cycle", i+1, len(a.setlist), name), false)
+		a.say(fmt.Sprintf("LIVE %d/%d: %s", i+1, len(a.setlist), name), false)
 	}
 }
 
@@ -117,39 +120,63 @@ func (a *App) liveStep(d int) {
 
 // ---- MIDI file export ------------------------------------------------------------------
 
-// exportMIDI writes the editor's tracks as a Standard MIDI File.
-func (a *App) exportMIDI(cycles int) {
-	prog := lang.Parse(a.ed.Text(), 0)
-	if len(prog.Errors) > 0 {
-		a.errs = append([]lang.Error(nil), prog.Errors...)
-		a.errRows = len(a.ed.lines)
-		a.say(fmt.Sprintf("cannot export: %d error(s) in the set — fix them first", len(prog.Errors)), true)
-		return
-	}
-	notes, names, skipped := midi.FromProgram(prog, cycles)
-	if len(notes) == 0 {
-		a.say("nothing to export: no tracks with drum or note sounds", true)
-		return
-	}
-	if _, err := paths.Ensure(paths.RecordingsDir()); err != nil {
-		a.say("cannot create folder: "+err.Error(), true)
-		return
-	}
-	path := filepath.Join(paths.RecordingsDir(), "set-"+time.Now().Format("20060102-150405")+".mid")
-	f, err := os.Create(path)
-	if err == nil {
-		err = midi.WriteSMF(f, midi.BPMOf(prog, a.eng.BPM()), names, notes)
-		if cerr := f.Close(); err == nil {
-			err = cerr
+// exportMIDI runs the editor's code in a second, silent Ruby sandbox for the
+// given number of seconds and writes what it played as a Standard MIDI File.
+// The music that is playing is not interrupted.
+func (a *App) exportMIDI(seconds int) {
+	if ns := a.seq.Check(a.ed.Text()); len(ns) > 0 {
+		a.errs = nil
+		for _, n := range ns {
+			a.errs = append(a.errs, codeErr{Line: n.Line - 1, Text: n.Text})
 		}
-	}
-	if err != nil {
-		a.say("export failed: "+err.Error(), true)
+		a.errRows = len(a.ed.lines)
+		a.say("cannot export: fix the syntax error first", true)
 		return
 	}
-	msg := fmt.Sprintf("exported %d notes, %d cycles → %s", len(notes), cycles, path)
-	if skipped > 0 {
-		msg += fmt.Sprintf(" (%d sample hits skipped)", skipped)
-	}
-	a.say(msg, false)
+	code := a.ed.Text()
+	a.say(fmt.Sprintf("exporting %d seconds of MIDI…", seconds), false)
+	go func() {
+		vm := rubyvm.Start(paths.CacheDir())
+		defer vm.Close()
+		vm.SetTables(synth.SynthNames(), synth.SampleNames())
+		<-vm.Ready()
+		msg, isErr := func() (string, bool) {
+			if err := vm.Err(); err != nil {
+				return "export failed: " + err.Error(), true
+			}
+			hits, bpm, ns, err := live.Collect(vm, code, float64(seconds))
+			if err != nil {
+				return "export failed: " + err.Error(), true
+			}
+			for _, n := range ns {
+				if n.Kind == "err" {
+					return "export stopped by an error: " + n.Text, true
+				}
+			}
+			notes, names, skipped := midi.FromHits(hits, bpm)
+			if len(notes) == 0 {
+				return "nothing to export: no drum or note sounds", true
+			}
+			if _, err := paths.Ensure(paths.RecordingsDir()); err != nil {
+				return "cannot create folder: " + err.Error(), true
+			}
+			path := filepath.Join(paths.RecordingsDir(), "set-"+time.Now().Format("20060102-150405")+".mid")
+			f, err := os.Create(path)
+			if err == nil {
+				err = midi.WriteSMF(f, bpm, names, notes)
+				if cerr := f.Close(); err == nil {
+					err = cerr
+				}
+			}
+			if err != nil {
+				return "export failed: " + err.Error(), true
+			}
+			m := fmt.Sprintf("exported %d notes, %ds → %s", len(notes), seconds, path)
+			if skipped > 0 {
+				m += fmt.Sprintf(" (%d sample hits skipped)", skipped)
+			}
+			return m, false
+		}()
+		a.later(msg, isErr)
+	}()
 }
