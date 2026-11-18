@@ -56,6 +56,30 @@ susynth's filters, bit crusher, distortion, echo and reverb; effects with no equ
 skipped with a note. Put your own `.wav` files in the samples folder to use real samples
 (`sample :mybank, 2`, `sample :kick`, or `sample "~/path/to/file.wav"`).
 
+## Prerequisites
+
+To **run** a prebuilt binary:
+
+| What | Needed? | Details |
+|---|---|---|
+| Operating system | Yes | Linux (x86-64 or ARM64) or macOS (Intel or Apple Silicon). On Windows only `render`, `check` and `midi` work; the live editor needs a Unix terminal. |
+| Terminal | Yes | UTF-8 with 256 colours (almost any modern terminal), at least 60 × 12; 120 × 32 or larger is comfortable. |
+| Sound | Recommended | Linux: PulseAudio or PipeWire, or ALSA (`libasound.so.2`, installed on nearly every desktop). macOS: nothing extra. Without sound it runs silent and can still record. |
+| Disk space | Yes | About 20 MB for the program, plus about 85 MB of cache the first time Ruby is compiled. |
+| Ruby, SuperCollider, Sonic Pi | No | Ruby is built in. No other music software is needed. |
+| Your own samples | Optional | `.wav` files (8/16/24/32-bit or float) in the samples folder. |
+| MIDI device | Optional | Linux raw MIDI device (for example `/dev/snd/midiC1D0`) for live MIDI out. |
+| SuperDirt | Optional | Only if you want to send notes to SuperCollider over OSC. |
+
+To **build** from source:
+
+| What | Needed? | Details |
+|---|---|---|
+| Go | Yes | 1.25 or newer. Dependencies are vendored, so no internet is needed. |
+| C compiler | No | The build uses `CGO_ENABLED=0`. |
+| make | Optional | For `make build`, `make dist` and `make test`; plain `go build` works too. |
+| C compiler + cgo | Optional | Only for `go test -race`. |
+
 ## Quick start
 
 ```
@@ -76,6 +100,157 @@ in about a second.
 
 Audio is built in (PulseAudio/PipeWire, ALSA, CoreAudio, WASAPI via oto), with a fallback to
 `pw-cat`/`paplay`/`aplay`. With nothing, it runs silent and `^R` still records a WAV.
+
+## Guide
+
+### 1. Start it
+
+Run `./susynth`. The editor opens with a starter set already in it. On the very first launch
+the Tracks pane says *compiling Ruby (first run only)…*; you can read and edit while it
+finishes, and anything you run in the meantime starts as soon as Ruby is ready.
+
+The screen has four parts:
+
+* **Editor** (left): your code. A green bar in the left margin marks lines that are running;
+  a red bar marks a line with an error.
+* **Tracks** (right): one row per running `live_loop`, with its number, level, the last sound
+  it played, and a one-bar step display. The `◆` is where the bar is now.
+* **Message row**: what just happened, errors, and `puts` output.
+* **Transport bar** (bottom): playing or stopped, tempo, bar and beat, recording.
+
+### 2. Play the starter set
+
+Press `Esc` then `Enter` to run the whole buffer. Drums, hats, an acid bass and a melody
+start together. Press `^G` to stop everything.
+
+### 3. Write your first loop
+
+Delete the starter text (`^K` deletes a line) and type:
+
+```ruby
+live_loop :beat do
+  sample :bd_haus
+  sleep 1
+end
+```
+
+Put the cursor anywhere inside the loop and press `^E`. A kick plays once a beat. Every
+`live_loop` needs a name (`:beat`) and must `sleep` somewhere inside it.
+
+### 4. Change it while it plays
+
+Edit the loop and press `^E` again. The new version takes over on the loop's next pass, so
+the music never stops:
+
+```ruby
+live_loop :beat do
+  sample :bd_haus
+  sleep 0.5
+  sample :drum_snare_hard
+  sleep 0.5
+end
+```
+
+`^E` runs only the block the cursor is in (up to the nearest blank lines), so you can change
+one loop without touching the others. `Esc Enter` runs the whole file again.
+
+### 5. Add more loops and keep them in time
+
+Separate loops with a blank line. Use `sync` so a new loop starts on the beat of another:
+
+```ruby
+use_bpm 120
+
+live_loop :beat do
+  sample :bd_haus
+  sleep 1
+end
+
+live_loop :bass do
+  sync :beat
+  use_synth :tb303
+  play (ring :e2, :g2, :a2, :g2).tick, release: 0.3, cutoff: 90
+  sleep 1
+end
+```
+
+`use_bpm` sets the tempo (Sonic Pi starts at 60). `(ring …).tick` steps through the notes,
+one per pass.
+
+### 6. Add effects
+
+Wrap sounds in `with_fx`:
+
+```ruby
+live_loop :keys do
+  sync :beat
+  use_synth :prophet
+  with_fx :reverb, mix: 0.5 do
+    play chord(:e3, :minor), release: 2, amp: 0.5
+  end
+  sleep 4
+end
+```
+
+Available effects: `reverb`, `echo`, `lpf`, `hpf`, `bitcrusher`, `distortion`, `level` and
+`pan` (plus a few aliases). F4 Sounds lists them all.
+
+### 7. Find sounds
+
+Press `F4` for the Sounds page. Groups fold open and shut with `←` / `→`. Highlight a synth
+or sample and press `Enter` to hear it, or `i` to insert an example into your set. `F1`
+returns to the editor.
+
+### 8. Use your own samples
+
+Put `.wav` files in the samples folder (shown on `F5` Settings; by default
+`~/.local/share/susynth/samples`):
+
+* a folder `samples/kit/` becomes `sample :kit, 0`, `sample :kit, 1`, …
+* a file anywhere in there, `kick.wav`, can also be played as `sample :kick`
+* or give a path: `sample "~/Music/loop.wav"`
+
+On F5, highlight *Samples* and press `Enter` to reload after adding files.
+
+### 9. Mix while you play
+
+* `Esc` then a number mutes or unmutes that track (numbers are in the Tracks pane).
+* `Esc s` then a number solos it; `Esc s 0` clears solo.
+* With the cursor inside a loop, `Esc -` and `Esc =` lower or raise its level.
+
+### 10. When something goes wrong
+
+* **Syntax error:** nothing runs; a red row names the line. Fix it and press `^E` again.
+* **Error inside a loop** (a typo, a wrong name): that loop stops, the others keep playing.
+* **A loop with no `sleep`:** Ruby freezes; susynth restarts it within about 2 seconds and every
+  loop stops. Add a `sleep` and run again.
+* `puts` anything to see it on the message row: `puts "bar #{tick}"`.
+* `^L` clears the error rows.
+
+### 11. Save, record and export
+
+* `^S` saves the set (as a `.rb` file); `^O` loads one. `F2` Sets lists them.
+* `^R` starts and stops recording what you hear to a WAV file; `F3` Recordings lists them.
+* `Esc x` exports a MIDI file. It runs your code silently in a second sandbox, so the music
+  keeps playing.
+* Without the editor: `./susynth render -seconds 60 set.rb` writes a WAV and
+  `./susynth midi -seconds 60 set.rb` writes a MIDI file.
+
+### 12. Perform a set list
+
+On `F2` Sets, highlight a set and press `a` to add it to the set list. On `F7` Perform,
+reorder with `[` / `]` and press `Enter` to go live with a set. During a show, `Esc n` and
+`Esc p` move to the next and previous set.
+
+### Where things are kept
+
+| What | Linux / macOS default | Change with |
+|---|---|---|
+| Sets, recordings, samples | `~/.local/share/susynth/` | `SUSYNTH_DATA` |
+| Settings, set list | `~/.config/susynth/` (macOS: `~/Library/Application Support/susynth/`) | `SUSYNTH_CONFIG` |
+| Compiled Ruby cache | `~/.cache/susynth/ruby` (macOS: `~/Library/Caches/susynth/ruby`) | `SUSYNTH_CACHE` |
+
+Deleting the cache is safe; Ruby is compiled again on the next launch.
 
 ## Keys
 
