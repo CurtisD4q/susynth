@@ -3,6 +3,7 @@ package audio
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -15,7 +16,9 @@ import (
 
 const (
 	nativeBuffer = 40 * time.Millisecond  // oto's device buffer
+	playerBuffer = 30 * time.Millisecond  // how much oto pulls from us at a time
 	nativeAhead  = 100 * time.Millisecond // how much we keep queued ahead of oto
+	bytesPerSec  = 48000 * 4              // stereo int16
 )
 
 var (
@@ -49,7 +52,9 @@ func nativeContext() (*oto.Context, error) {
 
 // nativeSink is a push-style Sink on top of oto's pull-style player: Write
 // queues bytes and blocks while more than nativeAhead is queued, which paces
-// the engine; the player reads from the queue and gets silence on underrun.
+// the engine. Read hands oto only the audio that exists and waits briefly
+// when there is none: padding short reads with silence would cut gaps into
+// the music (oto asks for up to half a second per read by default).
 type nativeSink struct {
 	player *oto.Player
 	mu     sync.Mutex
@@ -66,24 +71,47 @@ func openNative() (Sink, error) {
 	s := &nativeSink{}
 	s.cond = sync.NewCond(&s.mu)
 	s.player = c.NewPlayer(s)
+	s.player.SetBufferSize(int(playerBuffer.Seconds()*bytesPerSec) / 4 * 4)
 	s.player.Play()
 	return s, nil
 }
 
 func (s *nativeSink) Name() string { return "native" }
 func (s *nativeSink) Latency() time.Duration {
-	return nativeBuffer + nativeAhead/2
+	return nativeBuffer + playerBuffer + nativeAhead/2
 }
 
-// Read implements io.Reader for oto. It never blocks and always fills p.
+// Read implements io.Reader for oto. It returns whatever audio is queued
+// (whole frames only). With nothing queued it waits up to 50 ms for the
+// engine, and only then returns a short stretch of silence so oto keeps going.
 func (s *nativeSink) Read(p []byte) (int, error) {
 	s.mu.Lock()
-	n := copy(p, s.q)
+	defer s.mu.Unlock()
+	if len(s.q) < 4 && !s.closed {
+		deadline := time.Now().Add(50 * time.Millisecond)
+		t := time.AfterFunc(50*time.Millisecond, func() {
+			s.mu.Lock()
+			s.cond.Broadcast()
+			s.mu.Unlock()
+		})
+		for len(s.q) < 4 && !s.closed && time.Now().Before(deadline) {
+			s.cond.Wait()
+		}
+		t.Stop()
+	}
+	if s.closed {
+		return 0, io.EOF
+	}
+	if len(s.q) < 4 { // the engine has stalled: a little silence, not a long gap
+		n := min(len(p), int(0.005*bytesPerSec)) / 4 * 4
+		clear(p[:n])
+		return n, nil
+	}
+	n := min(len(p), len(s.q)) / 4 * 4
+	copy(p, s.q[:n])
 	s.q = s.q[n:]
 	s.cond.Broadcast()
-	s.mu.Unlock()
-	clear(p[n:])
-	return len(p), nil
+	return n, nil
 }
 
 func (s *nativeSink) Write(frames []int16) error {
@@ -99,8 +127,11 @@ func (s *nativeSink) Write(frames []int16) error {
 	for _, v := range frames {
 		s.q = binary.LittleEndian.AppendUint16(s.q, uint16(v))
 	}
-	if err := s.player.Err(); err != nil {
-		return err
+	s.cond.Broadcast()
+	if s.player != nil {
+		if err := s.player.Err(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -110,5 +141,8 @@ func (s *nativeSink) Close() error {
 	s.closed = true
 	s.cond.Broadcast()
 	s.mu.Unlock()
+	if s.player == nil {
+		return nil
+	}
 	return s.player.Close()
 }
