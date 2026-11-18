@@ -97,6 +97,7 @@ type App struct {
 	seq       *live.Seq
 	seqCancel context.CancelFunc
 	waitToast bool
+	clipboard string // what ^C or ^X copied last
 	laterMsgs chan laterMsg
 	marks     map[int]bool
 
@@ -364,44 +365,139 @@ func (a *App) handleKey(k key) {
 		a.pageKey(k)
 		return
 	}
+	a.editorKey(k)
+}
+
+// editorKey handles typing, moving, selecting and clipboard keys in the editor.
+func (a *App) editorKey(k key) {
+	ed := a.ed
+	// moving: Shift extends the selection, anything else drops it
+	move := func(f func()) {
+		if k.shift {
+			ed.Mark()
+		} else {
+			ed.Unmark()
+		}
+		f()
+		ed.BreakRun()
+	}
+	edit := func(kind string, f func()) {
+		ed.Checkpoint(kind)
+		f()
+		a.edited()
+	}
 	switch k.kind {
 	case kCtrl:
-		a.ctrlKey(k.r)
+		switch k.r {
+		case 'a':
+			ed.SelectAll()
+		case 'c':
+			a.copySelection(false)
+		case 'x':
+			a.copySelection(true)
+		case 'v':
+			if a.clipboard == "" {
+				a.say("nothing copied yet — select with Shift+arrows and ^C (or paste with your terminal's paste key)", false)
+				return
+			}
+			edit("", func() { ed.InsertText(a.clipboard) })
+		case 'z':
+			if ed.Undo() {
+				a.edited()
+			} else {
+				a.say("nothing to undo", false)
+			}
+		case 'y':
+			if ed.Redo() {
+				a.edited()
+			} else {
+				a.say("nothing to redo", false)
+			}
+		case 'k':
+			edit("", func() { ed.Unmark(); ed.KillLine() })
+		default:
+			a.ctrlKey(k.r)
+		}
+	case kPaste:
+		if k.text != "" {
+			edit("", func() { ed.InsertText(k.text) })
+		}
 	case kEsc:
+		ed.Unmark()
 		a.toast = ""
 	case kRune:
-		a.ed.Insert(k.r)
-		a.edited()
+		kind := "type"
+		if k.r == ' ' {
+			kind = "space"
+		}
+		if _, _, sel := ed.Selection(); sel {
+			kind = ""
+		}
+		edit(kind, func() { ed.DeleteSelection(); ed.Insert(k.r) })
 	case kTab:
-		a.ed.Insert(' ')
-		a.ed.Insert(' ')
-		a.edited()
+		edit("", func() { ed.DeleteSelection(); ed.Insert(' '); ed.Insert(' ') })
 	case kEnter:
-		a.ed.Newline()
-		a.edited()
+		edit("", func() { ed.DeleteSelection(); ed.Newline() })
 	case kBackspace:
-		a.ed.Backspace()
-		a.edited()
+		if _, _, sel := ed.Selection(); sel {
+			edit("", func() { ed.DeleteSelection() })
+		} else {
+			edit("back", func() { ed.Unmark(); ed.Backspace() })
+		}
 	case kDelete:
-		a.ed.Delete()
-		a.edited()
+		if _, _, sel := ed.Selection(); sel {
+			edit("", func() { ed.DeleteSelection() })
+		} else {
+			edit("del", func() { ed.Unmark(); ed.Delete() })
+		}
 	case kUp:
-		a.ed.Vert(-1)
+		move(func() { ed.Vert(-1) })
 	case kDown:
-		a.ed.Vert(1)
+		move(func() { ed.Vert(1) })
 	case kLeft:
-		a.ed.Left()
+		move(ed.Left)
 	case kRight:
-		a.ed.Right()
+		move(ed.Right)
 	case kHome:
-		a.ed.Home()
+		move(ed.Home)
 	case kEnd:
-		a.ed.End()
+		move(ed.End)
 	case kPgUp:
-		a.ed.Vert(-10)
+		move(func() { ed.Vert(-10) })
 	case kPgDn:
-		a.ed.Vert(10)
+		move(func() { ed.Vert(10) })
 	}
+}
+
+// copySelection copies (or cuts) the selection, or the current line when
+// nothing is selected, to susynth's clipboard and the system clipboard.
+func (a *App) copySelection(cut bool) {
+	ed := a.ed
+	text := ed.SelectedText()
+	whole := text == ""
+	if whole {
+		text = ed.Line(ed.row) + "\n"
+	}
+	a.clipboard = text
+	a.term.copyToSystem(text)
+	n := strings.Count(strings.TrimSuffix(text, "\n"), "\n") + 1
+	what := fmt.Sprintf("%d line(s)", n)
+	if !whole && n == 1 {
+		what = fmt.Sprintf("%d character(s)", len([]rune(text)))
+	}
+	if !cut {
+		ed.Unmark()
+		a.say("copied "+what, false)
+		return
+	}
+	ed.Checkpoint("")
+	if whole {
+		ed.KillLine()
+	} else {
+		ed.DeleteSelection()
+	}
+	a.edited()
+	a.say("cut "+what+" — ^V pastes, ^Z undoes", false)
 }
 
 func (a *App) edited() {
@@ -480,14 +576,9 @@ func (a *App) ctrlKey(r rune) {
 	case 'o':
 		a.startPrompt("load", "load set: ", "")
 		a.say("sets: "+a.listSets(), false)
-	case 'k':
-		a.ed.KillLine()
-		a.edited()
 	case 'l':
 		a.errs = nil
 		a.say("errors cleared", false)
-	case 'c':
-		a.say("^Q quits (^G stops the music)", false)
 	case 'q':
 		if a.dirty && !a.quitAsk {
 			a.quitAsk = true
@@ -637,6 +728,8 @@ func (a *App) promptKey(k key) {
 		}
 	case k.kind == kRune && !k.alt:
 		p.buf = append(p.buf, k.r)
+	case k.kind == kPaste:
+		p.buf = append(p.buf, []rune(strings.TrimSpace(strings.SplitN(k.text, "\n", 2)[0]))...)
 	}
 }
 

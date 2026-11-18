@@ -23,14 +23,17 @@ const (
 	kPgDn
 	kTab
 	kEsc
-	kFn   // r holds the function-key number 1..12
-	kCtrl // r holds the lower-case letter
+	kFn    // r holds the function-key number 1..12
+	kCtrl  // r holds the lower-case letter
+	kPaste // text holds what the terminal pasted (bracketed paste)
 )
 
 type key struct {
-	kind keyKind
-	r    rune
-	alt  bool
+	kind  keyKind
+	r     rune
+	alt   bool
+	shift bool   // Shift held with an arrow, Home/End or PgUp/PgDn
+	text  string // kPaste only
 }
 
 // readKeys decodes stdin into keys until the process exits.
@@ -123,7 +126,7 @@ func readKeys(out chan<- key) {
 }
 
 func parseCSI(next func(time.Duration) (byte, bool)) key {
-	num := 0
+	num, first, params := 0, 0, 0
 	for {
 		c, ok := next(25 * time.Millisecond)
 		if !ok {
@@ -134,11 +137,46 @@ func parseCSI(next func(time.Duration) (byte, bool)) key {
 			continue
 		}
 		if c == ';' {
-			num = 0 // ignore modifiers: keep the final key
+			if params == 0 {
+				first = num
+			}
+			params++
+			num = 0
 			continue
 		}
-		return csiFinal(c, num)
+		if c == '~' && params == 0 && num == 200 {
+			return readPaste(next)
+		}
+		// "ESC [ 1 ; 2 A" is Shift+Up: the number after ';' is 1 + modifier bits
+		mod := 0
+		if params > 0 {
+			mod, num = num, first
+		}
+		k := csiFinal(c, num)
+		if mod > 1 && (mod-1)&1 == 1 {
+			k.shift = true
+		}
+		return k
 	}
+}
+
+// readPaste collects a bracketed paste (ESC [200~ … ESC [201~) as one key,
+// so pasted code goes in as text and is never mistaken for commands.
+func readPaste(next func(time.Duration) (byte, bool)) key {
+	const end = "\x1b[201~"
+	var buf []byte
+	for len(buf) < 4<<20 {
+		c, ok := next(2 * time.Second)
+		if !ok {
+			break
+		}
+		buf = append(buf, c)
+		if len(buf) >= len(end) && string(buf[len(buf)-len(end):]) == end {
+			buf = buf[:len(buf)-len(end)]
+			break
+		}
+	}
+	return key{kind: kPaste, text: string(buf)}
 }
 
 func csiFinal(c byte, n int) key {

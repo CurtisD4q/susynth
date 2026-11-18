@@ -142,6 +142,12 @@ func (a *App) drawEditor(f *frame, x, y, w, h int) (int, int) {
 		}
 		f.text(x+1, yy, fmt.Sprintf("%2d", row+1), th.Gutter.over(base), 2)
 		a.drawCode(f, x+gutterW, yy, a.ed.lines[row], a.ed.left, textW, base)
+		// selection: the selected characters, plus one cell for a selected line break
+		for c := a.ed.left; c <= len(a.ed.lines[row]) && c-a.ed.left < textW; c++ {
+			if a.ed.Selected(row, c) {
+				f.tint(x+gutterW+c-a.ed.left, yy, th.Select)
+			}
+		}
 	}
 	// error rows: red, never a dialog
 	for i := 0; i < errN; i++ {

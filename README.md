@@ -135,7 +135,7 @@ start together. Press `^G` to stop everything.
 
 ### 3. Write your first loop
 
-Delete the starter text (`^K` deletes a line) and type:
+Clear the starter text with `^A` then `Delete`, and type:
 
 ```ruby
 live_loop :beat do
@@ -164,7 +164,23 @@ end
 `^E` runs only the block the cursor is in (up to the nearest blank lines), so you can change
 one loop without touching the others. `Esc Enter` runs the whole file again.
 
-### 5. Add more loops and keep them in time
+### 5. Copy, cut, paste and undo
+
+* Hold **Shift** and use the arrow keys (or Home, End, PgUp, PgDn) to select; `^A` selects
+  everything.
+* `^C` copies and `^X` cuts the selection. With nothing selected they copy or cut the whole
+  line the cursor is on. `^V` pastes.
+* `Backspace` or `Delete` removes the selection. `^Z` undoes and `^Y` redoes.
+* To paste code from another app (a browser, Sonic Pi, a text file), use your terminal's own
+  paste: `Ctrl+Shift+V` on most Linux terminals, `Cmd+V` on macOS. It arrives as one block,
+  indentation intact. To start from an empty editor, press `^A` then `Delete` first.
+* What you copy also goes to the system clipboard in terminals that support it (kitty,
+  WezTerm, iTerm2, Alacritty, foot, Windows Terminal and others). Where it isn't, select
+  with the mouse and use the terminal's copy.
+
+A handy live move: duplicate a loop with `^C` `^V`, rename the copy, change it and press `^E`.
+
+### 6. Add more loops and keep them in time
 
 Separate loops with a blank line. Use `sync` so a new loop starts on the beat of another:
 
@@ -187,7 +203,7 @@ end
 `use_bpm` sets the tempo (Sonic Pi starts at 60). `(ring …).tick` steps through the notes,
 one per pass.
 
-### 6. Add effects
+### 7. Add effects
 
 Wrap sounds in `with_fx`:
 
@@ -205,13 +221,13 @@ end
 Available effects: `reverb`, `echo`, `lpf`, `hpf`, `bitcrusher`, `distortion`, `level` and
 `pan` (plus a few aliases). F4 Sounds lists them all.
 
-### 7. Find sounds
+### 8. Find sounds
 
 Press `F4` for the Sounds page. Groups fold open and shut with `←` / `→`. Highlight a synth
 or sample and press `Enter` to hear it, or `i` to insert an example into your set. `F1`
 returns to the editor.
 
-### 8. Use your own samples
+### 9. Use your own samples
 
 Put `.wav` files in the samples folder (shown on `F5` Settings; by default
 `~/.local/share/susynth/samples`):
@@ -222,13 +238,13 @@ Put `.wav` files in the samples folder (shown on `F5` Settings; by default
 
 On F5, highlight *Samples* and press `Enter` to reload after adding files.
 
-### 9. Mix while you play
+### 10. Mix while you play
 
 * `Esc` then a number mutes or unmutes that track (numbers are in the Tracks pane).
 * `Esc s` then a number solos it; `Esc s 0` clears solo.
 * With the cursor inside a loop, `Esc -` and `Esc =` lower or raise its level.
 
-### 10. When something goes wrong
+### 11. When something goes wrong
 
 * **Syntax error:** nothing runs; a red row names the line. Fix it and press `^E` again.
 * **Error inside a loop** (a typo, a wrong name): that loop stops, the others keep playing.
@@ -237,7 +253,7 @@ On F5, highlight *Samples* and press `Enter` to reload after adding files.
 * `puts` anything to see it on the message row: `puts "bar #{tick}"`.
 * `^L` clears the error rows.
 
-### 11. Save, record and export
+### 12. Save, record and export
 
 * `^S` saves the set (as a `.rb` file); `^O` loads one. `F2` Sets lists them.
 * `^R` starts and stops recording what you hear to a WAV file; `F3` Recordings lists them.
@@ -246,7 +262,7 @@ On F5, highlight *Samples* and press `Enter` to reload after adding files.
 * Without the editor: `./susynth render -seconds 60 set.rb` writes a WAV and
   `./susynth midi -seconds 60 set.rb` writes a MIDI file.
 
-### 12. Perform a set list
+### 13. Perform a set list
 
 On `F2` Sets, highlight a set and press `a` to add it to the set list. On `F7` Perform,
 reorder with `[` / `]` and press `Enter` to go live with a set. During a show, `Esc n` and
@@ -271,6 +287,10 @@ Deleting the cache is safe; Ruby is compiled again on the next launch.
 | `^G` | stop every loop and thread (Sonic Pi's Stop) |
 | `^P` | stop, or run the whole buffer again |
 | `^R` | record a WAV · `^S` / `^O` save / load a set (`.rb`) |
+| `Shift` + arrows | select text (also with Home, End, PgUp, PgDn) · `^A` selects everything |
+| `^C` / `^X` / `^V` | copy / cut / paste the selection (with nothing selected: the whole line) |
+| `Backspace` / `Delete` | delete the selection, or one character |
+| `^Z` / `^Y` | undo / redo · `^K` deletes the current line |
 | `Esc 1-9` · `Esc s n` | mute / solo a track (numbers in the Tracks pane) |
 | `Esc -` / `Esc =` | level of the live_loop the cursor is in |
 | `Esc x` | export MIDI (runs silently in a second sandbox; the music keeps playing) |
@@ -319,4 +339,3 @@ close each Sonic Pi synth sounds to the original (it won't sound the same).
 * No `control` (changing a note while it plays), no `sample` `start:`/`finish:`/`beat_stretch:`,
   and only the effects listed on F4. MIDI/OSC calls in code are skipped; use F5 Settings.
 * Ruby's own `Thread` isn't available; Sonic Pi's `in_thread` and `live_loop` are.
-* No undo in the editor.

@@ -14,6 +14,7 @@ type Theme struct {
 	Muted     style
 	Pane      style // pane header
 	CursorRow style
+	Select    style // selected text in the editor
 	Gutter    style
 	GutterOK  style
 	GutterErr style
@@ -78,6 +79,7 @@ func themeDefault() *Theme {
 		Muted:     st(245, -1),
 		Pane:      style{fg: accent, bg: -1, bold: true},
 		CursorRow: st(255, slate),
+		Select:    st(255, 24),
 		Gutter:    st(243, -1),
 		GutterOK:  st(114, -1),
 		GutterErr: st(203, -1),
@@ -132,6 +134,7 @@ func themeContrast() *Theme {
 	t.Muted = st(250, 0)
 	t.Pane = style{fg: 11, bg: 0, bold: true}
 	t.CursorRow = style{fg: 15, bg: 19, bold: true}
+	t.Select = style{fg: 0, bg: 14, bold: true}
 	t.Gutter = st(250, 0)
 	t.GutterOK = style{fg: 10, bg: 0, bold: true}
 	t.GutterErr = style{fg: 9, bg: 0, bold: true}

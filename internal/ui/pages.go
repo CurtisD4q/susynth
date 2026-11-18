@@ -598,7 +598,7 @@ func (a *App) pageHint() string {
 	case pagePerform:
 		return "Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove · Esc back"
 	}
-	return "Esc+1-9 mute · Esc+s solo · Esc+-/= loop level · Esc+x MIDI · Esc+t theme · F1-F7 pages"
+	return "Shift+arrows select · ^C ^X ^V copy cut paste · ^Z undo · Esc+1-9 mute · F6 help"
 }
 
 type helpLine struct {
@@ -626,6 +626,15 @@ var helpLines = []helpLine{
 	{key: "Esc x", text: "export the set as a MIDI file (runs silently in a second sandbox)"},
 	{key: "Esc n / p", text: "perform: next / previous set in the set list"},
 	{key: "^Q", text: "quit (asks once if there are unsaved changes)"},
+	{text: ""},
+	{head: true, text: "EDITING"},
+	{key: "Shift + arrows", text: "select text (also Shift+Home/End/PgUp/PgDn); ^A selects everything"},
+	{key: "^C  ^X  ^V", text: "copy / cut / paste; with nothing selected, copy or cut the whole line"},
+	{key: "terminal paste", text: "Ctrl+Shift+V (Linux) or Cmd+V (macOS) pastes from other apps"},
+	{key: "Backspace  Delete", text: "delete the selection (or one character)"},
+	{key: "^Z  ^Y", text: "undo / redo"},
+	{key: "^K", text: "delete the current line"},
+	{text: "Copies also go to the system clipboard in terminals that support it (OSC 52)."},
 	{text: ""},
 	{head: true, text: "THE LANGUAGE  (Sonic Pi, running in real Ruby 3.4)"},
 	{key: "live_loop :name do", text: "a loop that runs forever; re-run it to change it on its next pass"},

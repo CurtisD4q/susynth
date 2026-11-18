@@ -120,3 +120,11 @@ func (f *frame) rows() []string {
 	}
 	return out
 }
+
+// tint recolours one cell (selection highlight), keeping its character.
+func (f *frame) tint(x, y int, s style) {
+	if x < 0 || y < 0 || x >= f.w || y >= f.h {
+		return
+	}
+	f.cells[y*f.w+x].s = s
+}
