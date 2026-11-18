@@ -22,6 +22,16 @@ live_loop :bass do
 end
 ```
 
+![susynth playing four live loops](screenshots/play.png)
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Playing](screenshots/play.png) **Play (F1):** four `live_loop`s running; the Tracks pane shows each loop's level, last sound and a one-bar step display. | ![An error in one loop](screenshots/error.png) **An error in one loop:** a typo on line 33 stops `:melody` and is marked in red; the other loops keep playing. |
+| ![First launch](screenshots/coldstart.png) **First launch:** the editor opens at once while Ruby compiles in the background; code you run now starts when Ruby is ready. | ![Sounds](screenshots/sounds.png) **Sounds (F4):** Sonic Pi synth, sample and effect names in folding groups; `Enter` previews, `i` inserts an example. |
+| ![Settings](screenshots/settings.png) **Settings (F5):** audio output, OSC, MIDI, samples folder, theme. (Taken with audio off, so it shows `none`.) | ![Help](screenshots/help.png) **Help (F6):** keys and a Sonic Pi language reference. |
+
 ## How it works
 
 ```
