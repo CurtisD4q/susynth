@@ -98,6 +98,7 @@ type App struct {
 	seqCancel context.CancelFunc
 	waitToast bool
 	clipboard string // what ^C or ^X copied last
+	showRoll  bool   // right pane shows the piano roll instead of Tracks
 	laterMsgs chan laterMsg
 	marks     map[int]bool
 
@@ -539,6 +540,16 @@ func (a *App) altKey(k key) {
 		}
 	case k.r == ',' || k.r == '.' || k.r == '<' || k.r == '>':
 		a.say("tempo comes from your code: change use_bpm and press ^E", false)
+	case k.r == 'r':
+		if a.page != pagePlay {
+			a.gotoPage(pagePlay)
+		}
+		a.showRoll = !a.showRoll
+		if a.showRoll {
+			a.say("piano roll — Esc r goes back to Tracks", false)
+		} else {
+			a.say("tracks — Esc r shows the piano roll", false)
+		}
 	case k.r == 'x':
 		a.startPrompt("midi", "export MIDI, seconds (1-600): ", "30")
 	case k.r == 'n':

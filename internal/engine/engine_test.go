@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -258,5 +260,34 @@ func TestEffectsAddTailsAndSends(t *testing.T) {
 	from, to := 21600, 67200
 	if rd, rw := rms(d, from, to), rms(w, from, to); rd > 20 || rw < rd*5+50 {
 		t.Errorf("effect tail missing: dry=%.1f wet=%.1f", rd, rw)
+	}
+}
+
+func TestRollKeepsNotesWithPitchAndLength(t *testing.T) {
+	e := New() // 60 bpm: one beat = 48000 frames
+	e.Play()
+	e.ThreadStarted("melody", true)
+	e.ThreadStarted("drums", true)
+	tone := Hit{At: 4800, Track: "melody", Word: "64", Gate: 24000,
+		Params: synth.Params{Gain: 1, Wave: "saw", Note: 64.5, Release: 0.25}}
+	e.Schedule(tone, hit(9600, "drums", "bd"), hit(96000, "drums", "sn"))
+	for i := 0; i < 10; i++ { // 0.5 s: the tone and kick have started, the snare hasn't
+		e.Render(4800)
+	}
+	rv := e.Roll(4, 4)
+	if rv.SamplesPerBeat != 48000 || len(rv.Notes) != 3 {
+		t.Fatalf("roll %+v", rv)
+	}
+	var got []string
+	for _, n := range rv.Notes {
+		got = append(got, fmt.Sprintf("%s %v %s %d-%d", n.Name, n.Note, n.Drum, n.At, n.End))
+	}
+	want := []string{"melody 64.5  4800-40800", "drums 0 bd 9600-12000", "drums 0 sn 96000-98400"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("got  %v\nwant %v", got, want)
+	}
+	e.Hush()
+	if n := len(e.Roll(4, 4).Notes); n != 0 {
+		t.Errorf("hush should clear the roll, %d left", n)
 	}
 }

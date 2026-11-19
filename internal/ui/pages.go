@@ -622,6 +622,7 @@ var helpLines = []helpLine{
 	{key: "Esc 1-9", text: "mute / unmute that track (the numbers in the Tracks pane)"},
 	{key: "Esc s  n", text: "solo track n (0 clears)"},
 	{key: "Esc - / =", text: "level of the live_loop the cursor is in"},
+	{key: "Esc r", text: "switch the right-hand pane between Tracks and the piano roll"},
 	{key: "Esc t / a", text: "next theme / next audio output"},
 	{key: "Esc x", text: "export the set as a MIDI file (runs silently in a second sandbox)"},
 	{key: "Esc n / p", text: "perform: next / previous set in the set list"},

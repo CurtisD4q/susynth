@@ -30,6 +30,7 @@ end
 |---|---|
 | ![Playing](screenshots/play.png) **Play (F1):** four `live_loop`s running; the Tracks pane shows each loop's level, last sound and a one-bar step display. | ![An error in one loop](screenshots/error.png) **An error in one loop:** a typo on line 33 stops `:melody` and is marked in red; the other loops keep playing. |
 | ![First launch](screenshots/coldstart.png) **First launch:** the editor opens at once while Ruby compiles in the background; code you run now starts when Ruby is ready. | ![Sounds](screenshots/sounds.png) **Sounds (F4):** Sonic Pi synth, sample and effect names in folding groups; `Enter` previews, `i` inserts an example. |
+| ![Piano roll](screenshots/pianoroll.png) **Piano roll (`Esc r`):** every note each loop plays, scrolling live; colours match the key at the bottom, drums have their own lanes. | ![Copy and paste](screenshots/select.png) **Selecting:** Shift+arrows select, then `^C` / `^X` / `^V`. |
 | ![Settings](screenshots/settings.png) **Settings (F5):** audio output, OSC, MIDI, samples folder, theme. (Taken with audio off, so it shows `none`.) | ![Help](screenshots/help.png) **Help (F6):** keys and a Sonic Pi language reference. |
 
 ## How it works
@@ -244,7 +245,21 @@ On F5, highlight *Samples* and press `Enter` to reload after adding files.
 * `Esc s` then a number solos it; `Esc s 0` clears solo.
 * With the cursor inside a loop, `Esc -` and `Esc =` lower or raise its level.
 
-### 11. When something goes wrong
+### 11. Watch the piano roll
+
+Press `Esc r` to swap the Tracks pane for a live piano roll. It scrolls as the music plays:
+
+* time runs left to right, and the bright line near the right edge is *now*; shaded notes
+  past it are about to play
+* pitched notes sit on a semitone grid (note names down the left) that fits itself to what's
+  playing; drums and samples get their own lanes underneath
+* each live_loop has its own colour (key along the bottom); muted loops turn grey
+* dotted lines mark beats and dashed lines mark bars
+
+It shows what actually plays, so it's a quick way to see what `.choose`, `rrand` or `spread`
+are doing. Press `Esc r` again for Tracks. A wider terminal shows more history.
+
+### 12. When something goes wrong
 
 * **Syntax error:** nothing runs; a red row names the line. Fix it and press `^E` again.
 * **Error inside a loop** (a typo, a wrong name): that loop stops, the others keep playing.
@@ -253,7 +268,7 @@ On F5, highlight *Samples* and press `Enter` to reload after adding files.
 * `puts` anything to see it on the message row: `puts "bar #{tick}"`.
 * `^L` clears the error rows.
 
-### 12. Save, record and export
+### 13. Save, record and export
 
 * `^S` saves the set (as a `.rb` file); `^O` loads one. `F2` Sets lists them.
 * `^R` starts and stops recording what you hear to a WAV file; `F3` Recordings lists them.
@@ -262,7 +277,7 @@ On F5, highlight *Samples* and press `Enter` to reload after adding files.
 * Without the editor: `./susynth render -seconds 60 set.rb` writes a WAV and
   `./susynth midi -seconds 60 set.rb` writes a MIDI file.
 
-### 13. Perform a set list
+### 14. Perform a set list
 
 On `F2` Sets, highlight a set and press `a` to add it to the set list. On `F7` Perform,
 reorder with `[` / `]` and press `Enter` to go live with a set. During a show, `Esc n` and
@@ -293,6 +308,7 @@ Deleting the cache is safe; Ruby is compiled again on the next launch.
 | `^Z` / `^Y` | undo / redo · `^K` deletes the current line |
 | `Esc 1-9` · `Esc s n` | mute / solo a track (numbers in the Tracks pane) |
 | `Esc -` / `Esc =` | level of the live_loop the cursor is in |
+| `Esc r` | switch the right-hand pane between Tracks and the piano roll |
 | `Esc x` | export MIDI (runs silently in a second sandbox; the music keeps playing) |
 | `F1`–`F7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform |
 

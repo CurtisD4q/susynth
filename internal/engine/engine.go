@@ -9,6 +9,7 @@ import (
 	"context"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -67,6 +68,7 @@ type Engine struct {
 	anchorBeat float64 // beats since play at anchorS
 	queue      []Hit
 	tracks     map[string]*track
+	roll       []RollNote // recent notes for the piano roll
 	voices     []*Voice
 	seedCtr    uint32
 
@@ -175,6 +177,7 @@ func (e *Engine) stopLocked() {
 	e.playing = false
 	e.queue = nil
 	e.tracks = map[string]*track{}
+	e.roll = nil
 	for _, v := range e.voices {
 		v.Kill()
 	}
@@ -432,6 +435,7 @@ func (e *Engine) startHits(n int) {
 		t.hist = append(t.hist, stamp{h.At, h.Label})
 		t.lastHit = h.At
 		t.src = h.Word
+		e.roll = append(e.roll, rollNote(h, t))
 		if !audible(t, solo) {
 			continue
 		}
@@ -523,6 +527,15 @@ func (e *Engine) barSamples() int64 {
 // prune drops old step history and finished tracks that have gone quiet.
 func (e *Engine) prune() {
 	keep := e.samples - 3*e.barSamples()
+	if len(e.roll) > 0 {
+		i := 0
+		for i < len(e.roll) && (e.roll[i].End < e.samples-rollKeep*SampleRate || len(e.roll)-i > 4000) {
+			i++
+		}
+		if i > 0 {
+			e.roll = append(e.roll[:0:0], e.roll[i:]...)
+		}
+	}
 	for name, t := range e.tracks {
 		i := 0
 		for i < len(t.hist) && t.hist[i].at < keep {
@@ -682,4 +695,75 @@ func (e *Engine) clockSamples() int64 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.samples
+}
+
+// ---- piano roll ----------------------------------------------------------------
+
+// rollKeep is how many seconds of notes the piano roll remembers.
+const rollKeep = 30
+
+// RollNote is one note for the piano roll. Pitched notes have Note > 0;
+// drums and samples have Drum set instead.
+type RollNote struct {
+	At, End int64 // samples
+	Note    float64
+	Drum    string
+	Track   int // track number (for colour)
+	Name    string
+	Muted   bool
+}
+
+func rollNote(h Hit, t *track) RollNote {
+	n := RollNote{At: h.At, Track: t.id, Name: t.name, Muted: t.mute}
+	if h.Params.Note > 0 && h.Params.Wave != "" {
+		n.Note = h.Params.Note
+		n.End = h.At + int64(h.Gate) + int64(math.Max(h.Params.Release, 0.03)*SampleRate)
+	} else {
+		n.Drum = h.Word
+		if i := strings.IndexByte(n.Drum, ':'); i > 0 && !strings.HasPrefix(n.Drum, "tom") {
+			n.Drum = n.Drum[:i]
+		}
+		n.End = h.At + SampleRate/20
+	}
+	return n
+}
+
+// RollView is what the piano roll needs: notes around the audible moment and
+// how to turn samples into beats.
+type RollView struct {
+	Now            int64   // the sample being heard
+	Beat           float64 // beats since play at Now
+	SamplesPerBeat float64
+	Playing        bool
+	Notes          []RollNote
+}
+
+// Roll returns notes from pastBeats before the audible moment to futureBeats
+// after it (notes are scheduled slightly ahead, so a few are still to come).
+func (e *Engine) Roll(pastBeats, futureBeats float64) RollView {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	spb := 60 / e.bpm * SampleRate
+	now := e.samples - e.lead
+	v := RollView{Now: now, SamplesPerBeat: spb, Playing: e.playing}
+	if e.playing {
+		v.Beat = e.beatAt(now)
+	}
+	from, to := now-int64(pastBeats*spb), now+int64(futureBeats*spb)
+	for _, n := range e.roll {
+		if n.End >= from && n.At <= to {
+			v.Notes = append(v.Notes, n)
+		}
+	}
+	// notes Ruby has already scheduled but the engine hasn't started yet
+	for _, h := range e.queue {
+		if h.At > to {
+			break
+		}
+		t := e.track(h.Track)
+		if t.id > 0 {
+			v.Notes = append(v.Notes, rollNote(h, t))
+		}
+	}
+	return v
 }

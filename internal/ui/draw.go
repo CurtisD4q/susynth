@@ -77,7 +77,11 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	if a.page == pagePlay {
 		f.vline(ew, top, bot-top+1, '│', th.Divider)
 		cx, cy = a.drawEditor(f, 0, top, ew, bot-top+1)
-		a.drawTracks(f, ew+2, top, w-ew-3, bot-top+1, v)
+		if a.showRoll {
+			a.drawRoll(f, ew+2, top, w-ew-3, bot-top+1, v)
+		} else {
+			a.drawTracks(f, ew+2, top, w-ew-3, bot-top+1, v)
+		}
 	} else {
 		a.drawPage(f, 0, top, w, bot-top+1)
 	}
