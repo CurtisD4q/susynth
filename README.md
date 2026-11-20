@@ -28,10 +28,12 @@ end
 
 | | |
 |---|---|
-| ![Playing](screenshots/play.png) **Play (F1):** four `live_loop`s running; the Tracks pane shows each loop's level, last sound and a one-bar step display. | ![An error in one loop](screenshots/error.png) **An error in one loop:** a typo on line 33 stops `:melody` and is marked in red; the other loops keep playing. |
-| ![First launch](screenshots/coldstart.png) **First launch:** the editor opens at once while Ruby compiles in the background; code you run now starts when Ruby is ready. | ![Sounds](screenshots/sounds.png) **Sounds (F4):** Sonic Pi synth, sample and effect names in folding groups; `Enter` previews, `i` inserts an example. |
+| ![Playing](screenshots/play.png) **Play (`Esc 1`):** four `live_loop`s running; the Tracks pane shows each loop's level, last sound and a one-bar step display. | ![An error in one loop](screenshots/error.png) **An error in one loop:** a typo on line 33 stops `:melody` and is marked in red; the other loops keep playing. |
+| ![First launch](screenshots/coldstart.png) **First launch:** the editor opens at once while Ruby compiles in the background; code you run now starts when Ruby is ready. | ![Sounds](screenshots/sounds.png) **Sounds (`Esc 4`):** Sonic Pi synth, sample and effect names in folding groups; `Enter` previews, `i` inserts an example. |
 | ![Piano roll](screenshots/pianoroll.png) **Piano roll (`Esc r`):** every note each loop plays, scrolling live; colours match the key at the bottom, drums have their own lanes. | ![Copy and paste](screenshots/select.png) **Selecting:** Shift+arrows select, then `^C` / `^X` / `^V`. |
-| ![Settings](screenshots/settings.png) **Settings (F5):** audio output, OSC, MIDI, samples folder, theme. (Taken with audio off, so it shows `none`.) | ![Help](screenshots/help.png) **Help (F6):** keys and a Sonic Pi language reference. |
+| ![Settings](screenshots/settings.png) **Settings (`Esc 5`):** audio output, OSC, MIDI, samples folder, theme. (Taken with audio off, so it shows `none`.) | ![Help](screenshots/help.png) **Help (`Esc 6`):** keys and a Sonic Pi language reference. |
+
+The pictures above were taken when the tab row used F1–F7. The app now labels each tab with its Esc number (`Esc+ 1 Play`, `2 Sets`, …).
 
 ## How it works
 
@@ -62,7 +64,7 @@ end
 
 Sonic Pi's synth, sample and effect **names** work, but the sounds are susynth's own
 synthesised voices (no SuperCollider, no sample files): `:prophet` plays a supersaw,
-`:bd_haus` plays the built-in kick, and so on. F4 Sounds lists every name. Effects map onto
+`:bd_haus` plays the built-in kick, and so on. The Sounds page (`Esc 4`) lists every name. Effects map onto
 susynth's filters, bit crusher, distortion, echo and reverb; effects with no equivalent are
 skipped with a note. Put your own `.wav` files in the samples folder to use real samples
 (`sample :mybank, 2`, `sample :kick`, or `sample "~/path/to/file.wav"`).
@@ -167,7 +169,7 @@ end
 
 `^E` runs the Ruby block the cursor is in: the whole `live_loop` (or other `do`/`end`),
 even when that block has blank lines inside it. A dotted bar in the margin shows the lines
-that will run. `Esc Enter` runs the whole file again. On F5, **Start on next bar** makes a
+that will run. `Esc Enter` runs the whole file again. In Settings (`Esc 5`), **Start on next bar** makes a
 run wait for the next bar while something is already playing; the first run still starts
 immediately. The setting is saved.
 
@@ -227,24 +229,24 @@ end
 ```
 
 Available effects: `reverb`, `echo`, `lpf`, `hpf`, `bitcrusher`, `distortion`, `level` and
-`pan` (plus a few aliases). F4 Sounds lists them all.
+`pan` (plus a few aliases). The Sounds page (`Esc 4`) lists them all.
 
 ### 8. Find sounds
 
-Press `F4` for the Sounds page. Groups fold open and shut with `←` / `→`. Highlight a synth
-or sample and press `Enter` to hear it, or `i` to insert an example into your set. `F1`
-returns to the editor.
+Press `Esc` then `4` for the Sounds page (the number is on the tab). Groups fold open and
+shut with `←` / `→`. Highlight a synth or sample and press `Enter` to hear it, or `i` to
+insert an example into your set. `Esc` returns to the editor.
 
 ### 9. Use your own samples
 
-Put `.wav` files in the samples folder (shown on `F5` Settings; by default
+Put `.wav` files in the samples folder (shown on Settings, `Esc 5`; by default
 `~/.local/share/susynth/samples`):
 
 * a folder `samples/kit/` becomes `sample :kit, 0`, `sample :kit, 1`, …
 * a file anywhere in there, `kick.wav`, can also be played as `sample :kick`
 * or give a path: `sample "~/Music/loop.wav"`
 
-On F5, highlight *Samples* and press `Enter` to reload after adding files.
+On Settings (`Esc 5`), highlight *Samples* and press `Enter` to reload after adding files.
 
 ### 10. Mix while you play
 
@@ -285,8 +287,8 @@ are doing. Press `Esc r` again for Tracks. A wider terminal shows more history.
 
 ### 13. Save, record and export
 
-* `^S` saves the set (as a `.rb` file); `^O` loads one. `F2` Sets lists them.
-* `^R` starts and stops recording what you hear to a WAV file; `F3` Recordings lists them.
+* `^S` saves the set (as a `.rb` file); `^O` loads one. Sets (`Esc 2`) lists them.
+* `^R` starts and stops recording what you hear to a WAV file; Recordings (`Esc 3`) lists them.
 * `Esc x` exports a MIDI file. It runs your code silently in a second sandbox, so the music
   keeps playing.
 * Without the editor: `./susynth render -seconds 60 set.rb` writes a WAV and
@@ -294,9 +296,9 @@ are doing. Press `Esc r` again for Tracks. A wider terminal shows more history.
 
 ### 14. Perform a set list
 
-On `F2` Sets, highlight a set and press `a` to add it to the set list. On `F7` Perform,
-reorder with `[` / `]` and press `Enter` to go live with a set. During a show, `Esc n` and
-`Esc p` move to the next and previous set.
+On Sets (`Esc 2`), highlight a set and press `a` to add it to the set list. On Perform
+(`Esc 7`), reorder with `[` / `]` and press `Enter` to go live with a set. During a show,
+`Esc n` and `Esc p` move to the next and previous set.
 
 ### Where things are kept
 
@@ -328,13 +330,17 @@ Deleting the cache is safe; Ruby is compiled again on the next launch.
 | `Esc l` | session log in the right-hand pane (errors, `puts`, `cue`); Alt+↑↓ scrolls |
 | `Esc r` | switch the right-hand pane between Tracks and the piano roll |
 | `Esc x` | export MIDI (runs silently in a second sandbox; the music keeps playing) |
-| `F1`–`F7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform |
-| `Esc m` or `Esc ]` / `Esc M` or `Esc [` | next / previous page (no F-keys needed) · `Esc` alone goes back to Play |
+| `Esc 1` … `Esc 7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform (the number is on the tab) |
+| `Esc f` / `Esc b` | next / previous page · `Esc` alone goes back to Play |
 
-**Esc shortcuts** (`Esc r`, `Esc u`, `Esc Enter`…): press `Esc`, let go, then the key within
+**Esc shortcuts** (`Esc 4`, `Esc r`, `Esc u`, `Esc Enter`…): press `Esc`, let go, then the key within
 about 1.5 seconds — the transport shows `Esc…` while it waits — or hold `Alt` (or `Option`
 set to act as Meta on macOS) and press the key. `Esc` alone goes back to Play and does not
-clear the message row or the log.
+clear the message row or the log. Pages use that same prefix: `Esc` then `1`–`7`, or `Esc f` /
+`Esc b` to cycle. Those are plain Esc and digit/letter bytes, so they work over SSH, inside
+tmux, and on laptops where function keys need Fn or are taken by the desktop. `F1`–`F7` still
+open those pages when a terminal actually delivers them. `Esc ]` / `Esc [` and `Esc m` /
+`Esc M` still move next / previous, the same as `Esc f` / `Esc b`.
 
 As in Sonic Pi: re-running a `live_loop` swaps its body in on its next pass; an error inside
 a loop stops that loop only. A loop that never sleeps stops with `did not sleep` and the
@@ -378,5 +384,5 @@ close each Sonic Pi synth sounds to the original (it won't sound the same).
 ## Known gaps
 
 * No `control` (changing a note while it plays), no `sample` `start:`/`finish:`/`beat_stretch:`,
-  and only the effects listed on F4. MIDI/OSC calls in code are skipped; use F5 Settings.
+  and only the effects listed on Sounds (`Esc 4`). MIDI/OSC calls in code are skipped; use Settings (`Esc 5`).
 * Ruby's own `Thread` isn't available; Sonic Pi's `in_thread` and `live_loop` are.

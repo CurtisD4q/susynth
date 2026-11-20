@@ -41,7 +41,7 @@ func (a *App) saveSetlist() {
 func (a *App) addToSetlist(name string) {
 	a.setlist = append(a.setlist, name)
 	a.saveSetlist()
-	a.say(fmt.Sprintf("added \"%s\" to the set list (position %d) — F7 to perform", name, len(a.setlist)), false)
+	a.say(fmt.Sprintf("added \"%s\" to the set list (position %d) — Esc 7 to perform", name, len(a.setlist)), false)
 }
 
 func (a *App) removeFromSetlist(i int) {
@@ -101,7 +101,7 @@ func (a *App) goLive(i int) {
 // liveStep moves to the next (+1) or previous (-1) set in the list.
 func (a *App) liveStep(d int) {
 	if len(a.setlist) == 0 {
-		a.say("the set list is empty — add sets on F2 with 'a'", true)
+		a.say("the set list is empty — add sets on Esc 2 with 'a'", true)
 		return
 	}
 	i := a.live + d

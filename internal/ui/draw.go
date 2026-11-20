@@ -466,19 +466,30 @@ func (a *App) drawTransport(f *frame, y, w int, v engine.View) {
 }
 
 // drawTabs paints the page tabs after the title and returns the next free x.
+// The leading Esc+ is the prefix for the digit on each tab. Esc then that
+// digit opens the page; typing the digit alone still inserts it. A narrow
+// terminal shows only the current page, with its Esc number.
 func (a *App) drawTabs(f *frame, x, w int) int {
 	th := a.th
-	if w < 100 { // too narrow for all tabs: show only where you are
-		return f.text(x, 0, fmt.Sprintf("F%d %s  (F1-F7 pages)", int(a.page)+1, pageNames[a.page]), th.Muted, 0)
-	}
+	labels := make([]string, numPages)
+	need := len("Esc+ ")
 	for i, n := range pageNames {
+		if page(i) == a.page {
+			labels[i] = fmt.Sprintf("[%d %s]", i+1, n)
+		} else {
+			labels[i] = fmt.Sprintf("%d %s", i+1, n)
+		}
+		need += len(labels[i]) + 1
+	}
+	if x+need > w {
+		x = f.text(x, 0, fmt.Sprintf("Esc %d %s", int(a.page)+1, pageNames[a.page]), th.TabOn, 0)
+		return f.text(x, 0, "  (f next, b back)", th.Muted, 0)
+	}
+	x = f.text(x, 0, "Esc+ ", th.Muted, 0)
+	for i, lbl := range labels {
 		s := th.Muted
 		if page(i) == a.page {
 			s = th.TabOn
-		}
-		lbl := fmt.Sprintf(" F%d %s ", i+1, n)
-		if page(i) == a.page {
-			lbl = fmt.Sprintf("[F%d %s]", i+1, n)
 		}
 		x = f.text(x, 0, lbl, s, 0) + 1
 	}

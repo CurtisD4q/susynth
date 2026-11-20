@@ -29,6 +29,31 @@ const (
 
 var pageNames = [numPages]string{"Play", "Sets", "Recordings", "Sounds", "Settings", "Help", "Perform"}
 
+// pageByNumber maps the digit drawn on a tab to that page. '1' is Play.
+func pageByNumber(r rune) (page, bool) {
+	i := int(r - '1')
+	if i < 0 || i >= int(numPages) {
+		return 0, false
+	}
+	return page(i), true
+}
+
+// pageStep reports +1 or -1 for a next/previous page key, otherwise 0.
+// Esc f / Esc b (and Alt+f / Alt+b) are the pair to use: f and b are
+// unshifted on Latin keyboards, and a terminal sends Alt+letter as ESC
+// plus that letter. Esc ] / Esc [ and Esc m / Esc M are older aliases.
+// Alt+[ never arrives; ESC [ starts a cursor sequence.
+func pageStep(r rune) int {
+	switch r {
+	case 'f', 'F', ']', 'm':
+		return 1
+	case 'b', 'B', '[', 'M':
+		return -1
+	default:
+		return 0
+	}
+}
+
 type setInfo struct {
 	name          string
 	mod           time.Time
@@ -64,6 +89,19 @@ func (a *App) gotoPage(p page) {
 	case pageRecs:
 		a.refreshRecs()
 	}
+}
+
+// stepPage moves from a page by step, wrapping around the ends.
+// from is where the key counts from, which can differ from a.page: Esc
+// returns to Play before the following key arrives, and a cycle still
+// starts on the page Esc was pressed on.
+func (a *App) stepPage(from page, step int) {
+	n := int(numPages)
+	i := (int(from) + step) % n
+	if i < 0 {
+		i += n
+	}
+	a.gotoPage(page(i))
 }
 
 func (a *App) refreshSets() {
@@ -506,7 +544,7 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 		f.text(x+1+len(title)+2+2, y, fmt.Sprintf("set list · %d set(s)", len(a.setlist)), th.Muted, w-len(title)+2-4)
 		if len(a.setlist) == 0 {
 			f.text(x+2, y+2, "the set list is empty", th.Muted, w-3)
-			f.text(x+2, y+3, "open F2 Sets, select a set and press a to add it", th.Muted, w-3)
+			f.text(x+2, y+3, "open Esc 2 Sets, select a set and press a to add it", th.Muted, w-3)
 			return
 		}
 		now, next := "—", "—"
@@ -599,7 +637,7 @@ func (a *App) pageHint() string {
 	case pagePerform:
 		return "Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove · Esc back"
 	}
-	return "Shift+arrows select · ^C ^X ^V · Esc u mute · Esc k stop · Esc l log · F6 help"
+	return "Shift+arrows select · ^C ^X ^V · Esc u mute · Esc k stop · Esc l log · Esc 6 help"
 }
 
 type helpLine struct {
@@ -610,10 +648,11 @@ type helpLine struct {
 
 var helpLines = []helpLine{
 	{head: true, text: "PAGES"},
-	{key: "F1 … F7", text: "Play, Sets, Recordings, Sounds, Settings, Help, Perform"},
-	{key: "Esc m  /  Esc ]", text: "next page; Esc M or Esc [ goes back a page"},
+	{key: "Esc 1 … Esc 7", text: "Play, Sets, Recordings, Sounds, Settings, Help, Perform"},
+	{key: "Esc f  /  Esc b", text: "next / previous page"},
 	{key: "Esc", text: "from any page, back to Play"},
-	{text: "Esc shortcuts: press Esc, let go, then the key (within 1.5 s), or hold Alt."},
+	{text: "The number is on each tab. Press Esc, then the key within 1.5 s, or hold Alt."},
+	{text: "F1-F7 still open those pages when the terminal sends function keys."},
 	{text: ""},
 	{head: true, text: "PLAYING"},
 	{key: "^E", text: "run the block under the cursor (the whole live_loop; ┊ marks it)"},
@@ -645,7 +684,7 @@ var helpLines = []helpLine{
 	{head: true, text: "THE LANGUAGE  (Sonic Pi, running in real Ruby 3.4)"},
 	{key: "live_loop :name do", text: "a loop that runs forever; re-run it to change it on its next pass"},
 	{key: "  play :e3", text: "a note: :c4 :fs3 :eb2 or MIDI 60; chords: play chord(:e3, :minor)"},
-	{key: "  sample :bd_haus", text: "a sample (see F4 Sounds); sample :mybank, 2 for your own"},
+	{key: "  sample :bd_haus", text: "a sample (see Esc 4 Sounds); sample :mybank, 2 for your own"},
 	{key: "  sleep 0.5", text: "wait, in beats; every loop must sleep"},
 	{key: "end", text: ""},
 	{key: "use_bpm 120", text: "tempo (Sonic Pi starts at 60); with_bpm 90 do … end"},
@@ -669,7 +708,7 @@ var helpLines = []helpLine{
 	{text: "Your code runs in real Ruby inside a sandbox with no network or file access."},
 	{text: "Sonic Pi's synths, samples and effects are played by susynth's own sounds, so"},
 	{text: "the names work but the timbre is susynth's. MIDI and OSC calls in code are"},
-	{text: "skipped: use F5 Settings to send notes to MIDI devices or SuperDirt instead."},
+	{text: "skipped: use Esc 5 Settings to send notes to MIDI devices or SuperDirt instead."},
 	{text: ""},
 	{head: true, text: "WHEN SOMETHING GOES WRONG"},
 	{text: "A syntax error runs nothing, and a red row under the editor names the line."},
