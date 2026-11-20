@@ -610,7 +610,9 @@ type helpLine struct {
 var helpLines = []helpLine{
 	{head: true, text: "PAGES"},
 	{key: "F1 … F7", text: "Play, Sets, Recordings, Sounds, Settings, Help, Perform"},
-	{key: "Esc m", text: "next page (for keyboards without F-keys); Esc returns to Play"},
+	{key: "Esc m  /  Esc ]", text: "next page; Esc M or Esc [ goes back a page"},
+	{key: "Esc", text: "from any page, back to Play"},
+	{text: "Esc shortcuts: press Esc, let go, then the key (within 1.5 s), or hold Alt."},
 	{text: ""},
 	{head: true, text: "PLAYING"},
 	{key: "^E", text: "run the block under the cursor (statements up to the next blank line)"},

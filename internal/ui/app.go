@@ -99,6 +99,8 @@ type App struct {
 	waitToast bool
 	clipboard string // what ^C or ^X copied last
 	showRoll  bool   // right pane shows the piano roll instead of Tracks
+	escAt     time.Time
+	escFrom   page
 	laterMsgs chan laterMsg
 	marks     map[int]bool
 
@@ -323,10 +325,28 @@ func (a *App) trackOnCursor() (int, string, bool) {
 	return 0, "", false
 }
 
+// escWindow is how long after Esc the next key counts as an Esc shortcut.
+const escWindow = 1500 * time.Millisecond
+
 func (a *App) handleKey(k key) {
 	if a.prompt != nil {
+		a.escAt = time.Time{}
 		a.promptKey(k)
 		return
+	}
+	// "Esc, then a key" shortcuts: a person can't press the second key within
+	// the few milliseconds that mark an Alt+key, so a lone Esc arms the next
+	// key for a moment. Esc still does its usual job (back to Play, clear).
+	from := a.page // the page a page-cycling key counts from
+	if k.kind == kEsc && !k.alt {
+		a.escAt, a.escFrom = time.Now(), a.page
+	} else if !a.escAt.IsZero() {
+		armed := time.Since(a.escAt) < escWindow
+		a.escAt = time.Time{}
+		if armed && !k.alt && (k.kind == kRune || k.kind == kEnter) {
+			k.alt = true
+			from = a.escFrom // Esc already took us to Play; cycle from where we were
+		}
 	}
 	if a.awaiting == "solo" {
 		a.awaiting = ""
@@ -350,8 +370,12 @@ func (a *App) handleKey(k key) {
 		return
 	}
 	if k.alt {
-		if k.kind == kRune && k.r == 'm' {
-			a.gotoPage((a.page + 1) % numPages)
+		if k.kind == kRune && (k.r == 'm' || k.r == ']') {
+			a.gotoPage((from + 1) % numPages)
+			return
+		}
+		if k.kind == kRune && (k.r == 'M' || k.r == '[') {
+			a.gotoPage((from + numPages - 1) % numPages)
 			return
 		}
 		a.altKey(k)

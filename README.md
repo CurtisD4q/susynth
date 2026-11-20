@@ -311,6 +311,10 @@ Deleting the cache is safe; Ruby is compiled again on the next launch.
 | `Esc r` | switch the right-hand pane between Tracks and the piano roll |
 | `Esc x` | export MIDI (runs silently in a second sandbox; the music keeps playing) |
 | `F1`–`F7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform |
+| `Esc m` or `Esc ]` / `Esc M` or `Esc [` | next / previous page (no F-keys needed) · `Esc` alone goes back to Play |
+
+**Esc shortcuts** (`Esc r`, `Esc 1`, `Esc Enter`…): press `Esc`, let go, then the key within
+about 1.5 seconds, or hold `Alt` (or `Option` set to act as Meta on macOS) and press the key.
 
 As in Sonic Pi: re-running a `live_loop` swaps its body in on its next pass; a loop you
 delete from the text keeps playing until `^G`; an error inside a loop stops that loop only.
