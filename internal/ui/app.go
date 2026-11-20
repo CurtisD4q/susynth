@@ -34,6 +34,7 @@ type Options struct {
 const starter = `# susynth: Sonic Pi code, running in real Ruby.
 # ^E runs the block under the cursor, Esc-Enter runs everything.
 # ^G stops all loops. ^Q quits.
+# Esc then 1-7 changes page (the number is on the tab). Esc 6 is help.
 
 use_bpm 120
 
@@ -382,20 +383,24 @@ func (a *App) handleKey(k key) {
 		a.quitAsk = false
 	}
 	if k.kind == kFn {
-		if k.r >= 1 && int(k.r) <= int(numPages) {
-			a.gotoPage(page(k.r - 1))
+		// Optional alias. SSH, tmux, laptop Fn layers and desktop F-key grabs
+		// often swallow these; Esc then 1-7 is the binding the tabs show.
+		if p, ok := pageByNumber('0' + k.r); ok {
+			a.gotoPage(p)
 		}
 		return
 	}
+	if k.alt && k.kind == kRune {
+		if p, ok := pageByNumber(k.r); ok {
+			a.gotoPage(p)
+			return
+		}
+		if step := pageStep(k.r); step != 0 {
+			a.stepPage(from, step)
+			return
+		}
+	}
 	if k.alt {
-		if k.kind == kRune && (k.r == 'm' || k.r == ']') {
-			a.gotoPage((from + 1) % numPages)
-			return
-		}
-		if k.kind == kRune && (k.r == 'M' || k.r == '[') {
-			a.gotoPage((from + numPages - 1) % numPages)
-			return
-		}
 		a.altKey(k)
 		return
 	}
