@@ -168,25 +168,112 @@ end
 	}
 }
 
-func TestStuckLoopRestarts(t *testing.T) {
+func TestStuckLoopStopsOnlyItself(t *testing.T) {
 	v := vm(t)
-	_, err := v.Run(1, 0, 0, "loop do\n  1 + 1\nend\n")
+	cases := []struct {
+		name string
+		bad  string
+	}{
+		{"tight loop", "loop do\n    1 + 1\n  end\n  sleep 1\n"},
+		{"empty loop", "loop do\n  end\n  sleep 1\n"},
+		{"while true", "while true\n  end\n  sleep 1\n"},
+		{"sleep 0", "play 64\n  sleep 0\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			code := "live_loop :ok do\n  play 60\n  sleep 1\nend\nlive_loop :bad do\n  " + tc.bad + "end\n"
+			if _, err := v.StopAll(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := v.Run(1, 0, 0, code); err != nil {
+				t.Fatal(err)
+			}
+			ms, err := v.Advance(2)
+			if err != nil {
+				t.Fatalf("stuck loop took the VM down: %v", err)
+			}
+			var okN int
+			saw := false
+			for _, m := range ms {
+				if m.Kind() == "ev" && m.Arg(1) == "ok" {
+					okN++
+				}
+				if m.Kind() == "ev" && m.Arg(1) == "bad" && tc.name != "sleep 0" {
+					t.Errorf("bad loop still sounded: %v", m)
+				}
+				if m.Kind() == "err" && strings.Contains(strings.Join(m, " "), "did not sleep") && strings.Contains(strings.Join(m, " "), "bad") {
+					saw = true
+				}
+			}
+			if !saw {
+				t.Fatalf("no did-not-sleep for :bad: %v", flat(ms))
+			}
+			if okN < 2 {
+				t.Fatalf(":ok stopped too (%d events): %v", okN, flat(ms))
+			}
+			ms, err = v.Advance(3.5)
+			if err != nil {
+				t.Fatal(err)
+			}
+			okN = 0
+			for _, m := range ms {
+				if m.Kind() == "ev" && m.Arg(1) == "ok" {
+					okN++
+				}
+				if m.Kind() == "ev" && m.Arg(1) == "bad" {
+					t.Errorf("bad loop resumed: %v", m)
+				}
+			}
+			if okN < 1 {
+				t.Fatalf(":ok silent after the stuck loop was stopped: %v", flat(ms))
+			}
+		})
+	}
+}
+
+func TestKillOneLoop(t *testing.T) {
+	v := vm(t)
+	if _, err := v.StopAll(); err != nil {
+		t.Fatal(err)
+	}
+	code := "live_loop :keep do\n  play 60\n  sleep 1\nend\nlive_loop :drop do\n  play 64\n  sleep 1\nend\n"
+	if _, err := v.Run(1, 0, 0, code); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Advance(0.5); err != nil {
+		t.Fatal(err)
+	}
+	ms, err := v.Kill("drop")
 	if err != nil {
 		t.Fatal(err)
 	}
-	start := time.Now()
-	_, err = v.Advance(1)
-	if err != ErrStuck {
-		t.Fatalf("want ErrStuck, got %v", err)
+	ended := false
+	for _, m := range ms {
+		if m.Kind() == "thr-" && m.Arg(0) == "drop" {
+			ended = true
+		}
 	}
-	<-v.Ready()
-	if v.Err() != nil {
-		t.Fatal(v.Err())
+	if !ended {
+		t.Fatalf("kill did not end :drop: %v", ms)
 	}
-	t.Log("restarted in", time.Since(start))
-	evs, _ := run(t, v, "play 60\n", 1)
-	if len(evs) != 1 {
-		t.Errorf("after restart: %v", evs)
+	ms, err = v.Advance(2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keep, drop int
+	for _, m := range ms {
+		if m.Kind() != "ev" {
+			continue
+		}
+		if m.Arg(1) == "keep" {
+			keep++
+		}
+		if m.Arg(1) == "drop" {
+			drop++
+		}
+	}
+	if keep < 1 || drop != 0 {
+		t.Fatalf("after kill keep=%d drop=%d (%v)", keep, drop, flat(ms))
 	}
 }
 

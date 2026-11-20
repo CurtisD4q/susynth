@@ -87,13 +87,13 @@ func (a *App) goLive(i int) {
 	a.discardUntil = time.Time{}
 	name := a.setlist[i]
 	a.loadSet(name)
-	if a.toastErr {
+	if a.statusErr {
 		return
 	}
 	a.live = i
 	a.seq.Stop(false)
 	a.eval(true)
-	if !a.toastErr {
+	if !a.statusErr {
 		a.say(fmt.Sprintf("LIVE %d/%d: %s", i+1, len(a.setlist), name), false)
 	}
 }
@@ -129,7 +129,6 @@ func (a *App) exportMIDI(seconds int) {
 		for _, n := range ns {
 			a.errs = append(a.errs, codeErr{Line: n.Line - 1, Text: n.Text})
 		}
-		a.errRows = len(a.ed.lines)
 		a.say("cannot export: fix the syntax error first", true)
 		return
 	}

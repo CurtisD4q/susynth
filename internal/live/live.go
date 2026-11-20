@@ -26,13 +26,14 @@ const ahead = 0.25
 
 // Note is something for the screen: an error, a puts line, or "ran".
 type Note struct {
-	Kind   string // "err", "log", "ran", "info"
-	Line   int
-	Thread string
-	Text   string
-	First  int // ran: first and last line evaluated
-	Last   int
-	RunID  int
+	Kind      string // "err", "log", "ran", "info", "cue"
+	Line      int
+	Thread    string
+	Text      string
+	First     int // ran: first and last line evaluated
+	Last      int
+	RunID     int
+	Quantised bool // ran: the run was held until the next bar
 }
 
 // Seq runs code in Ruby and feeds the engine.
@@ -40,14 +41,15 @@ type Seq struct {
 	VM  *rubyvm.VM
 	Eng *engine.Engine
 
-	mu      sync.Mutex
-	notes   []Note
-	running bool
-	horizon float64
-	runID   int
-	pending *pendingRun
-	warned  map[string]bool
-	lastBPM float64
+	mu       sync.Mutex
+	notes    []Note
+	running  bool
+	horizon  float64
+	runID    int
+	pending  *pendingRun
+	warned   map[string]bool
+	lastBPM  float64
+	quantise bool // start runs on the next bar while something is already playing
 }
 
 type pendingRun struct {
@@ -132,10 +134,26 @@ func (s *Seq) tick() {
 	s.mu.Lock()
 	s.horizon = target
 	s.mu.Unlock()
-	s.dispatch(ms)
+	s.dispatch(ms, false)
 	if err != nil {
 		s.crashed(err)
 	}
+}
+
+// SetQuantise makes runs that happen while music is already playing wait for
+// the next bar. The first run still starts immediately: that is when the bar
+// itself begins.
+func (s *Seq) SetQuantise(on bool) {
+	s.mu.Lock()
+	s.quantise = on
+	s.mu.Unlock()
+}
+
+// Quantise reports whether runs wait for the next bar.
+func (s *Seq) Quantise() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.quantise
 }
 
 func (s *Seq) crashed(err error) {
@@ -181,13 +199,20 @@ func (s *Seq) run(code string, cursor int) {
 	s.mu.Lock()
 	s.runID++
 	id := s.runID
+	quantised := false
 	at := s.Eng.Now() + 0.03
+	if s.quantise && s.running {
+		if nb := s.Eng.NextBar(0.05); nb > at {
+			at = nb
+			quantised = true
+		}
+	}
 	if !s.running {
 		s.horizon = at
 	}
 	s.mu.Unlock()
 	ms, err := s.VM.Run(id, cursor, at, code)
-	s.dispatch(ms)
+	s.dispatch(ms, quantised)
 	if err != nil {
 		s.crashed(err)
 		return
@@ -206,13 +231,27 @@ func (s *Seq) Stop(hush bool) {
 	s.mu.Unlock()
 	if s.VM.IsReady() {
 		ms, _ := s.VM.StopAll()
-		s.dispatch(ms)
+		s.dispatch(ms, false)
 	}
 	if hush {
 		s.Eng.Hush()
 	} else {
 		s.Eng.Stop()
 	}
+}
+
+// StopOne stops a single live_loop or thread. Everything else keeps playing.
+func (s *Seq) StopOne(name string) error {
+	if !s.VM.IsReady() {
+		return errors.New("Ruby is not running")
+	}
+	ms, err := s.VM.Kill(name)
+	s.dispatch(ms, false)
+	s.Eng.SilenceTrack(name)
+	if err != nil {
+		s.crashed(err)
+	}
+	return err
 }
 
 // Check reports syntax errors without running anything.
@@ -235,7 +274,7 @@ func errNote(m rubyvm.Msg) Note {
 	return Note{Kind: "err", Line: line, Thread: m.Arg(1), Text: m.Arg(2)}
 }
 
-func (s *Seq) dispatch(ms []rubyvm.Msg) {
+func (s *Seq) dispatch(ms []rubyvm.Msg, quantised bool) {
 	var hits []engine.Hit
 	for _, m := range ms {
 		switch m.Kind() {
@@ -272,11 +311,13 @@ func (s *Seq) dispatch(ms []rubyvm.Msg) {
 			s.note(errNote(m))
 		case "log":
 			s.note(Note{Kind: "log", Text: m.Arg(0)})
+		case "cue":
+			s.note(Note{Kind: "cue", Text: "cue :" + m.Arg(0)})
 		case "ran":
 			id, _ := strconv.Atoi(m.Arg(0))
 			a, _ := strconv.Atoi(m.Arg(1))
 			b, _ := strconv.Atoi(m.Arg(2))
-			s.note(Note{Kind: "ran", RunID: id, First: a, Last: b})
+			s.note(Note{Kind: "ran", RunID: id, First: a, Last: b, Quantised: quantised && a > 0})
 		}
 	}
 	s.Eng.Schedule(hits...)
@@ -437,13 +478,13 @@ func Render(vm *rubyvm.VM, eng *engine.Engine, code string, seconds float64, wri
 		return nil, err
 	}
 	ms, err := vm.Run(1, 0, 0, code)
-	s.dispatch(ms)
+	s.dispatch(ms, false)
 	if err != nil {
 		return s.Notes(), err
 	}
 	err = eng.RenderOffline(seconds, func(until float64) error {
 		ms, err := vm.Advance(until)
-		s.dispatch(ms)
+		s.dispatch(ms, false)
 		return err
 	}, write)
 	vm.StopAll()

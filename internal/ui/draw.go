@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/susynth/susynth/internal/engine"
+	"github.com/susynth/susynth/internal/rubyvm"
 )
 
 const gutterW = 4
@@ -77,9 +77,12 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	if a.page == pagePlay {
 		f.vline(ew, top, bot-top+1, '│', th.Divider)
 		cx, cy = a.drawEditor(f, 0, top, ew, bot-top+1)
-		if a.showRoll {
+		switch a.side {
+		case sideRoll:
 			a.drawRoll(f, ew+2, top, w-ew-3, bot-top+1, v)
-		} else {
+		case sideLog:
+			a.drawLog(f, ew+2, top, w-ew-3, bot-top+1)
+		default:
 			a.drawTracks(f, ew+2, top, w-ew-3, bot-top+1, v)
 		}
 	} else {
@@ -112,9 +115,16 @@ func (a *App) drawEditor(f *frame, x, y, w, h int) (int, int) {
 	f.text(x+1, y, "▸ Editor", th.Pane, 0)
 	f.text(x+10, y, "^E run block · Esc-Enter run all", th.Muted, w-11)
 
+	maxErr := h / 4
+	if maxErr < 1 {
+		maxErr = 1
+	}
+	if maxErr > 8 {
+		maxErr = 8
+	}
 	errN := len(a.errs)
-	if errN > 3 {
-		errN = 3
+	if errN > maxErr {
+		errN = maxErr
 	}
 	textH := h - 1 - errN
 	if textH < 1 {
@@ -127,6 +137,7 @@ func (a *App) drawEditor(f *frame, x, y, w, h int) (int, int) {
 	for _, e := range a.errs {
 		bad[e.Line] = true
 	}
+	bf, bl, bok := rubyvm.BlockRange(a.ed.Text(), a.ed.row+1)
 	for i := 0; i < textH; i++ {
 		row := a.ed.top + i
 		if row >= len(a.ed.lines) {
@@ -138,13 +149,18 @@ func (a *App) drawEditor(f *frame, x, y, w, h int) (int, int) {
 			f.fill(x, yy, w, 1, th.CursorRow)
 			base = th.CursorRow
 		}
+		num := th.Gutter.over(base)
 		switch {
 		case bad[row]:
 			f.put(x, yy, '▌', th.GutterErr)
 		case a.marks[row]:
 			f.put(x, yy, '▌', th.GutterOK)
+		case bok && row+1 >= bf && row+1 <= bl:
+			// the statement ^E will run, including blank lines inside it
+			f.put(x, yy, '┊', th.Keyword.over(base))
+			num = th.Keyword.over(base)
 		}
-		f.text(x+1, yy, fmt.Sprintf("%2d", row+1), th.Gutter.over(base), 2)
+		f.text(x+1, yy, fmt.Sprintf("%2d", row+1), num, 2)
 		a.drawCode(f, x+gutterW, yy, a.ed.lines[row], a.ed.left, textW, base)
 		// selection: the selected characters, plus one cell for a selected line break
 		for c := a.ed.left; c <= len(a.ed.lines[row]) && c-a.ed.left < textW; c++ {
@@ -264,9 +280,14 @@ func (a *App) drawCode(f *frame, x, y int, line []rune, left, w int, base style)
 func (a *App) drawTracks(f *frame, x, y, w, h int, v engine.View) {
 	th := a.th
 	f.text(x, y, "┄ Tracks", th.Pane, 0)
+	f.text(x+10, y, "Esc k stops one", th.Muted, w-10)
+	names := map[string]bool{}
+	if a.ed != nil {
+		names = rubyvm.LiveLoopNames(a.ed.Text())
+	}
 	if len(v.Tracks) == 0 {
 		f.text(x, y+2, "nothing playing", th.Muted, w)
-		if a.seq.Waiting() {
+		if a.seq != nil && a.seq.Waiting() {
 			f.text(x, y+3, a.vm.Status(), th.Muted, w)
 			f.text(x, y+4, "your code runs when Ruby is ready", th.Muted, w)
 		} else {
@@ -325,6 +346,9 @@ func (a *App) drawTracks(f *frame, x, y, w, h int, v engine.View) {
 		if t.Solo {
 			cx = f.text(cx, yy, "[SOLO]", th.SoloTag, 0) + 1
 		}
+		if t.Loop && !names[t.Name] {
+			cx = f.text(cx, yy, "not in code", th.Pending, 0) + 1
+		}
 		if src := soundName(t.Src); cx < x+w && src != "" {
 			f.text(cx, yy, src, th.Muted, x+w-cx)
 		}
@@ -372,13 +396,17 @@ func (a *App) drawToast(f *frame, y, w int, cx, cy *int) {
 		*cx, *cy = x, y
 		return
 	}
-	if a.toast != "" && time.Now().Before(a.toastUntil) {
+	if a.status != "" {
 		s, glyph, gs := th.Toast, "● ", style{fg: 114, bg: th.Base.bg, bold: true}
-		if a.toastErr {
+		if a.statusErr {
 			s, glyph, gs = th.ToastErr, "✗ ", th.ToastErr
 		}
 		f.text(1, y, glyph, gs, 0)
-		f.text(3, y, a.toast, s, w-4)
+		msg := a.status
+		if !a.statusAt.IsZero() {
+			msg = a.statusAt.Format("15:04:05") + "  " + msg
+		}
+		f.text(3, y, msg, s, w-4)
 		return
 	}
 	if a.cfg.Hints {
@@ -421,6 +449,12 @@ func (a *App) drawTransport(f *frame, y, w int, v engine.View) {
 	if v.Pending > 0 {
 		x = f.text(x+1, y, "[next cycle]", th.Pending, 0) + 1
 	}
+	if label := a.pendingLabel(); label != "" {
+		x = f.text(x+1, y, label, th.Pending, 0) + 1
+	}
+	if a.seq != nil && a.seq.Quantise() {
+		x = f.text(x+1, y, "next bar", th.Pending, 0) + 1
+	}
 	if v.Underruns > 0 {
 		x = f.text(x+1, y, fmt.Sprintf("xruns %d", v.Underruns), th.BarKey, 0)
 	}
@@ -449,6 +483,45 @@ func (a *App) drawTabs(f *frame, x, w int) int {
 		x = f.text(x, 0, lbl, s, 0) + 1
 	}
 	return x
+}
+
+// drawLog is the session log in the right-hand pane: errors, puts and cues,
+// with the time they happened. It does not expire and it is not a dialog.
+func (a *App) drawLog(f *frame, x, y, w, h int) {
+	th := a.th
+	f.text(x, y, "┄ Log", th.Pane, 0)
+	f.text(x+7, y, "Alt+↑↓ scroll · Esc l tracks", th.Muted, w-7)
+	if len(a.log) == 0 {
+		f.text(x, y+2, "nothing yet", th.Muted, w)
+		f.text(x, y+3, "errors, puts and cue stay here", th.Muted, w)
+		return
+	}
+	visible := h - 1
+	if visible < 1 {
+		return
+	}
+	if a.logOff > len(a.log)-1 {
+		a.logOff = len(a.log) - 1
+	}
+	bottom := len(a.log) - 1 - a.logOff
+	top := bottom - visible + 1
+	if top < 0 {
+		top = 0
+	}
+	row := 0
+	for i := top; i <= bottom && row < visible; i++ {
+		e := a.log[i]
+		yy := y + 1 + row
+		row++
+		s := th.Text
+		if e.Kind == "err" {
+			s = style{fg: th.ErrRow.fg, bg: th.Base.bg, bold: true}
+		} else if e.Kind == "cue" {
+			s = th.Muted
+		}
+		f.text(x, yy, e.At.Format("15:04:05"), th.Muted, 8)
+		f.text(x+9, yy, e.Text, s, w-9)
+	}
 }
 
 // soundName shows what a track last played in readable form.

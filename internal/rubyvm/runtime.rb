@@ -2,7 +2,8 @@
 # talks to the Go side over stdin/stdout, one tab-separated line per message.
 #
 # Go -> Ruby                         Ruby -> Go
-#   run  id cursor at nbytes + code    ran  id first last     (code accepted)
+#   run  id first last at nbytes + code  ran  id first last   (code accepted)
+#   kill name                          cue  name
 #   chk  nbytes + code                 err  line thread message
 #   adv  t                             ev   t thread line kind name k=v,...
 #   stop                               log  text
@@ -53,6 +54,90 @@ $__waiting = Hash.new { |h, k| h[k] = [] }
 $__loops = {}
 $__seq = 0
 $__cur = nil
+$__cue_log = false
+$__nosleep_hit = false
+$__nosleep_line = 0
+$__nosleep_left = 0
+$__nosleep_n = 0
+$__nosleep_t0 = 0.0
+
+# A live_loop that never sleeps never yields its fiber, which used to wedge the
+# whole sandbox. While a fiber is resumed, count its own source lines (not the
+# runtime's) and abandon just that fiber if it runs on too long. Other loops
+# keep their place in the scheduler.
+$__guard = TracePoint.new(:line, :call, :b_call) do |tp|
+  next if $__nosleep_hit || tp.path == "-e"
+  $__nosleep_n += 1
+  overdue = $__nosleep_n >= 4_000
+  if !overdue && ($__nosleep_n & 15).zero?
+    overdue = Process.clock_gettime(Process::CLOCK_MONOTONIC) - $__nosleep_t0 > 0.25
+  end
+  next unless overdue
+  $__nosleep_hit = true
+  $__nosleep_line = tp.lineno
+  $__nosleep_n = 0
+  tp.disable
+  throw :susynth_nosleep
+end
+
+# An empty `while true; end` never changes line and never calls a method, so
+# the trace above does not see it. __arm_spins plants one __tick per pass in
+# while/until/for; __tick shares the same budget and abandons the fiber.
+def __tick
+  $__nosleep_n += 1
+  overdue = $__nosleep_n >= 4_000
+  if !overdue && ($__nosleep_n & 15).zero?
+    overdue = Process.clock_gettime(Process::CLOCK_MONOTONIC) - $__nosleep_t0 > 0.25
+  end
+  return unless overdue
+  $__nosleep_hit = true
+  $__nosleep_line = __buffer_line(caller_locations(1, 12))
+  $__nosleep_n = 0
+  throw :susynth_nosleep
+end
+
+def __walk_spins(node, edits)
+  return unless node.is_a?(RubyVM::AbstractSyntaxTree::Node)
+  case node.type
+  when :WHILE, :UNTIL
+    __mark_spin(node, node.children[1], edits)
+  when :FOR
+    __mark_spin(node, node.children[2], edits)
+  end
+  node.children.each do |c|
+    case c
+    when RubyVM::AbstractSyntaxTree::Node then __walk_spins(c, edits)
+    when Array then c.each { |x| __walk_spins(x, edits) }
+    end
+  end
+end
+
+def __mark_spin(node, _body, edits)
+  edits << node.last_lineno
+end
+
+def __arm_spins(code)
+  ast = __parse(code)
+  edits = []
+  __walk_spins(ast, edits)
+  return code if edits.empty?
+  lines = code.lines
+  edits.uniq.each do |ln|
+    i = ln - 1
+    next if i.negative? || i >= lines.size || lines[i].include?("__tick")
+    line = lines[i]
+    if line.match?(/\bend\b/)
+      # block form: the tick sits inside the body, on the end line, so an
+      # empty `while true; end` still calls __tick every pass
+      lines[i] = line.sub(/^(.*)\bend\b/, "\\1__tick; end")
+    elsif (m = line.match(/\A(.*)\b(while|until)\b(.*)\z/))
+      lines[i] = "(__tick; #{m[1].strip}) #{m[2]}#{m[3]}"
+    end
+  end
+  lines.join
+rescue SyntaxError
+  code
+end
 
 def __stable_hash(s)
   s.to_s.bytes.reduce(5381) { |h, b| ((h * 33) ^ b) & 0x7fffffff }
@@ -99,7 +184,13 @@ def __spawn(kind, name, parent, at, &body)
   th.ctx = __inherit(parent ? parent.ctx : $__main_ctx, __stable_hash(name))
   th.fiber = Fiber.new do
     begin
-      body.call(th)
+      catch(:susynth_nosleep) { body.call(th) }
+      if $__nosleep_hit
+        line = $__nosleep_line.to_i
+        $__nosleep_hit = false
+        where = th.kind == :loop ? "live_loop :#{th.name}: " : ""
+        __send("err", line, th.name, where + "did not sleep: add a sleep inside the loop")
+      end
     rescue SusynthStop
     rescue Exception => e
       __report(e, th)
@@ -115,14 +206,34 @@ def __finish(th)
   return unless th.alive
   th.alive = false
   $__run.delete(th)
+  $__waiting.each_value { |list| list.delete(th) }
   $__loops.delete(th.name) if th.kind == :loop && $__loops[th.name].equal?(th)
   __send("thr-", th.name, th.kind)
 end
 
+def __nosleep_finish(th)
+  return unless th && th.alive
+  line = 0
+  if th.block && (loc = th.block.source_location) && loc[0] == "buffer"
+    line = loc[1]
+  end
+  where = th.kind == :loop ? "live_loop :#{th.name}: " : ""
+  __send("err", line, th.name, where + "did not sleep: add a sleep inside the loop")
+  __finish(th)
+end
+
 def __step(th)
   $__cur = th
-  r = th.fiber.resume
-  $__cur = nil
+  $__nosleep_hit = false
+  $__nosleep_n = 0
+  $__nosleep_t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  $__guard.enable
+  begin
+    r = th.fiber.resume
+  ensure
+    $__guard.disable
+    $__cur = nil
+  end
   case r
   when :sleep
   when Array # [:sync, name]
@@ -135,11 +246,40 @@ def __step(th)
 end
 
 def __advance(limit)
+  steps = 0
+  idle = 0
   loop do
     th = $__run.min_by { |t| [t.time, t.seq] }
     break if th.nil? || th.time >= limit
+    before = th.time
     __step(th)
+    steps += 1
+    # sleep 0 yields, so the line guard never sees a long run, but virtual
+    # time does not move and this loop would never reach `limit`.
+    if th.alive && th.time <= before + 1e-9
+      idle += 1
+    else
+      idle = 0
+    end
+    if th.alive && idle >= 48
+      __nosleep_finish(th)
+      idle = 0
+    elsif steps >= 4_000
+      stuck = $__run.min_by { |t| [t.time, t.seq] }
+      __nosleep_finish(stuck) if stuck && stuck.time < limit
+      steps = 0
+    end
   end
+end
+
+def __kill_named(name)
+  name = name.to_s.sub(/\A:/, "").to_sym
+  list = ($__run + $__waiting.values.flatten).uniq.select { |th| th.alive && th.name == name }
+  if list.empty?
+    __send("log", ":#{name} is not running")
+    return
+  end
+  list.each { |th| __finish(th) }
 end
 
 def __stop_all
@@ -197,11 +337,10 @@ def sync(*names, **_opts)
 end
 alias sync_bpm sync
 
-def cue(name, *args, **kw)
+def __cue(name, val, log)
   th = $__cur
   t = th ? th.time : 0.0
   name = name.to_s.sub(/\A:/, "").to_sym
-  val = kw.empty? ? (args.size <= 1 ? args.first : args) : kw
   $__last_cue[name] = [t, val]
   list = $__waiting.delete(name) || []
   keep = []
@@ -215,7 +354,13 @@ def cue(name, *args, **kw)
     end
   end
   $__waiting[name] = keep unless keep.empty?
+  __send("cue", name.to_s) if log
   nil
+end
+
+def cue(name, *args, **kw)
+  val = kw.empty? ? (args.size <= 1 ? args.first : args) : kw
+  __cue(name, val, true)
 end
 
 def stop
@@ -247,7 +392,7 @@ def live_loop(name = nil, **opts, &blk)
         me.ctx = nc
         me.next_block = nil
       end
-      cue(name)
+      __cue(name, nil, $__cue_log)
       me.slept = false
       me.block.call(iteration)
       iteration += 1
@@ -784,10 +929,22 @@ end
   end
 end
 
-%i[use_debug use_cue_logging use_arg_checks use_timing_guarantees use_real_time use_sched_ahead_time
+%i[use_debug use_arg_checks use_timing_guarantees use_real_time use_sched_ahead_time
    set_sched_ahead_time! set_volume! set_mixer_control! use_osc use_midi_defaults set_audio_latency!
    set_cent_tuning! use_tuning use_cent_tuning].each do |m|
   define_method(m) { |*_a, **_o| nil }
+end
+
+def use_cue_logging(on = true, &blk)
+  return ($__cue_log = !!on) && nil unless blk
+  old = $__cue_log
+  $__cue_log = !!on
+  begin
+    blk.call
+  ensure
+    $__cue_log = old
+  end
+  nil
 end
 
 def set(k, v) = ($__store[k] = v) && nil
@@ -833,45 +990,29 @@ def __parse(code)
   RubyVM::AbstractSyntaxTree.parse(code)
 end
 
-# __block_lines finds the top-level statements around the cursor, stopping at
-# blank lines between statements (blank lines inside a do ... end don't count).
-def __block_lines(code, cursor)
-  ast = __parse(code)
-  body = ast.children[2]
-  return [1, 0] if body.nil?
-  stmts = body.type == :BLOCK ? body.children : [body]
-  stmts = stmts.select { |s| s.respond_to?(:first_lineno) }
-  return [1, 0] if stmts.empty?
-  lines = code.lines
-  blank_between = lambda do |a, b|
-    (a.last_lineno + 1...b.first_lineno).any? { |l| lines[l - 1].to_s.strip.empty? }
-  end
-  i = stmts.index { |s| cursor >= s.first_lineno && cursor <= s.last_lineno } ||
-      stmts.index { |s| s.first_lineno > cursor } || stmts.size - 1
-  a = b = i
-  a -= 1 while a.positive? && !blank_between.call(stmts[a - 1], stmts[a])
-  b += 1 while b < stmts.size - 1 && !blank_between.call(stmts[b], stmts[b + 1])
-  [stmts[a].first_lineno, stmts[b].last_lineno]
-end
-
-def __run(id, cursor, at, code)
+# first/last are 1-based inclusive lines chosen by the editor (so the highlight
+# and the code that runs can't disagree). first <= 0 runs the whole buffer and
+# resets top-level defaults, the way Sonic Pi's Run does.
+def __run(id, first, last, at, code)
   begin
     __parse(code)
-    first, last = cursor.positive? ? __block_lines(code, cursor) : [1, code.lines.size]
   rescue SyntaxError => e
     __send("err", __syntax_line(e), "", __syntax_msg(e))
     __send("ran", id, 0, 0)
     return
   end
-  if last < first
-    __send("ran", id, 0, 0)
-    return
-  end
-  slice = code.lines[(first - 1)..(last - 1)].join
-  unless cursor.positive? # a full run starts from Sonic Pi's defaults, like Run
+  lines = code.lines
+  if first <= 0
+    first, last = 1, lines.size
     $__main_ctx = __default_ctx
     __send("bpm", 60.0)
   end
+  if last < first || lines.empty? || first > lines.size
+    __send("ran", id, 0, 0)
+    return
+  end
+  last = lines.size if last > lines.size
+  slice = __arm_spins(lines[(first - 1)..(last - 1)].join)
   __spawn(:run, :main, nil, at) do
     TOPLEVEL_BINDING.eval(slice, "buffer", first)
   end
@@ -889,14 +1030,16 @@ def __main
     cmd, *args = line.chomp.split("\t", -1)
     case cmd
     when "run"
-      code = $stdin.read(args[3].to_i).to_s.force_encoding("UTF-8")
-      __run(args[0], args[1].to_i, args[2].to_f, code)
+      code = $stdin.read(args[4].to_i).to_s.force_encoding("UTF-8")
+      __run(args[0], args[1].to_i, args[2].to_i, args[3].to_f, code)
     when "chk"
       __check($stdin.read(args[0].to_i).to_s.force_encoding("UTF-8"))
     when "adv"
       __advance(args[0].to_f)
     when "stop"
       __stop_all
+    when "kill"
+      __kill_named(args[0])
     when "syn"
       $__synths = args[0].to_s.split(",")
     when "smp"

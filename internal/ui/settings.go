@@ -16,6 +16,7 @@ const (
 	setTheme = iota
 	setAudio
 	setTempo
+	setStartBar
 	setInternal
 	setOSC
 	setOSCAddr
@@ -34,6 +35,7 @@ var settingRows = [numSettings]settingRow{
 	setTheme:     {"Theme", "default, large (projector) or contrast (washed-out projectors)"},
 	setAudio:     {"Audio output", "auto = built-in (native), then PipeWire/PulseAudio/ALSA players; none = silent (recording still works)"},
 	setTempo:     {"Tempo (BPM)", "bar counter and MIDI clock until your code calls use_bpm (Sonic Pi starts at 60)"},
+	setStartBar:  {"Start on next bar", "while music is playing, ^E and Run wait for the next bar"},
 	setInternal:  {"Internal synth", "off = only OSC/MIDI devices make sound (events still flow)"},
 	setOSC:       {"OSC → SuperDirt", "send every note to SuperDirt as /dirt/play bundles over UDP"},
 	setOSCAddr:   {"OSC address", "Enter to edit host:port (SuperDirt default 127.0.0.1:57120)"},
@@ -60,6 +62,8 @@ func (a *App) settingValue(i int) string {
 		return a.cfg.Sink
 	case setTempo:
 		return fmt.Sprintf("%.0f", a.eng.BPM())
+	case setStartBar:
+		return onOff(a.cfg.StartOnBar)
 	case setInternal:
 		return onOff(a.cfg.Internal)
 	case setOSC:
@@ -112,6 +116,11 @@ func (a *App) changeSetting(i, d int, enter bool) {
 	case setTempo:
 		a.eng.SetBPM(a.eng.BPM() + float64(d))
 		a.cfg.BPM = a.eng.BPM()
+	case setStartBar:
+		a.cfg.StartOnBar = !a.cfg.StartOnBar
+		if a.seq != nil {
+			a.seq.SetQuantise(a.cfg.StartOnBar)
+		}
 	case setInternal:
 		a.cfg.Internal = !a.cfg.Internal
 		a.applyOutputs()
@@ -181,7 +190,7 @@ func (a *App) stepAudio(d int) {
 	}
 	a.cfg.Sink = opts[((idx+d)%len(opts)+len(opts))%len(opts)]
 	a.startAudio(a.cfg.Sink)
-	if !a.toastErr {
+	if !a.statusErr {
 		a.say("audio: "+a.sink.Name()+" (setting: "+a.cfg.Sink+")", false)
 	}
 }
@@ -241,7 +250,7 @@ func (a *App) reloadSamples(report bool) {
 	switch {
 	case err != nil:
 		a.say(fmt.Sprintf("samples: %d banks, %d files loaded — %v", banks, files, err), true)
-	case a.toastErr && !report:
+	case a.statusErr && !report:
 		// keep an earlier error (e.g. no audio player) on screen
 	case report || banks > 0:
 		if banks == 0 {

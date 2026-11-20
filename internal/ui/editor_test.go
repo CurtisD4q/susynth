@@ -93,7 +93,8 @@ func TestShiftArrowsAndBracketedPaste(t *testing.T) {
 		"1;2D": {kind: kLeft, shift: true},
 		"1;2H": {kind: kHome, shift: true},
 		"5;2~": {kind: kPgUp, shift: true},
-		"1;5C": {kind: kRight}, // Ctrl+Right: not a selection
+		"1;5C": {kind: kRight},         // Ctrl+Right: not a selection
+		"1;3A": {kind: kUp, alt: true}, // Alt+Up
 		"B":    {kind: kDown},
 	} {
 		if got := parseCSI(feed(in)); got != want {

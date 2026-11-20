@@ -145,6 +145,31 @@ func (e *Engine) Now() float64 {
 	return float64(e.samples) / SampleRate
 }
 
+// NextBar is the engine time, in seconds, of the next bar line that is at
+// least minAhead seconds after Now. A stopped transport has not started a
+// bar yet (Play puts one at Now), so NextBar returns Now.
+func (e *Engine) NextBar(minAhead float64) float64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	now := float64(e.samples) / SampleRate
+	if !e.playing || e.bpm <= 0 {
+		return now
+	}
+	if minAhead < 0 {
+		minAhead = 0
+	}
+	beat := e.beatAt(e.samples)
+	bar := float64(BeatsPerCycle)
+	n := math.Floor(beat/bar) + 1
+	for step := 0; step < 8; step++ {
+		t := float64(e.sampleAtBeat((n+float64(step))*bar)) / SampleRate
+		if t >= now+minAhead {
+			return t
+		}
+	}
+	return now + bar*60/e.bpm
+}
+
 // Playing reports whether the transport is running.
 func (e *Engine) Playing() bool {
 	e.mu.Lock()
@@ -240,8 +265,8 @@ func (e *Engine) Schedule(hs ...Hit) {
 }
 
 // track returns (creating) the track for a thread name. Tracks get a number
-// (for Esc 1-9) only once they are worth showing: a live_loop, or a thread
-// that played something. One-off runs that only define loops stay hidden.
+// (for Esc u / Esc k) only once they are worth showing: a live_loop, or a
+// thread that played something. One-off runs that only define loops stay hidden.
 func (e *Engine) track(name string) *track {
 	t, ok := e.tracks[name]
 	if !ok {
@@ -337,6 +362,42 @@ func (e *Engine) SetSolo(id int) bool {
 		t.solo = !t.solo
 	}
 	return t != nil
+}
+
+// TrackName is the thread name shown at a track number.
+func (e *Engine) TrackName(id int) (string, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	t := e.trackByID(id)
+	if t == nil {
+		return "", false
+	}
+	return t.name, true
+}
+
+// SilenceTrack drops a track's queued hits and fades notes it is already playing.
+func (e *Engine) SilenceTrack(name string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	t, ok := e.tracks[name]
+	if !ok {
+		return false
+	}
+	q := e.queue[:0]
+	for _, h := range e.queue {
+		if h.Track != name {
+			q = append(q, h)
+		}
+	}
+	e.queue = q
+	if t.id > 0 {
+		for _, v := range e.voices {
+			if v.Track == t.id {
+				v.Kill()
+			}
+		}
+	}
+	return true
 }
 
 // AdjustLevel nudges a track's level by delta (clamped 0..1.5).

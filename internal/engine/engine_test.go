@@ -93,6 +93,52 @@ func TestMuteSoloLevelByTrackNumber(t *testing.T) {
 	}
 }
 
+func TestNextBarSkipsABoundaryThatIsTooClose(t *testing.T) {
+	e := New()
+	e.SetBPM(60) // one bar is 4 seconds
+	if math.Abs(e.NextBar(0.05)) > 1e-6 {
+		t.Fatalf("stopped transport: %v", e.NextBar(0.05))
+	}
+	e.Play()
+	if math.Abs(e.NextBar(0.05)-4) > 1e-3 {
+		t.Fatalf("from the downbeat: %v", e.NextBar(0.05))
+	}
+	e.Render(48000) // beat 1
+	if math.Abs(e.NextBar(0.05)-4) > 2e-2 {
+		t.Fatalf("after one second: %v", e.NextBar(0.05))
+	}
+	e.Render(143520) // 10 ms before the 4 s bar
+	if got, now := e.NextBar(0.05), e.Now(); math.Abs(got-8) > 0.05 {
+		t.Fatalf("10 ms before the bar: next=%v now=%v", got, now)
+	}
+}
+
+func TestSilenceTrack(t *testing.T) {
+	e := New()
+	e.Play()
+	e.ThreadStarted("drums", true)
+	e.Schedule(hit(100, "drums", "bd"), hit(90000, "drums", "bd"))
+	if rms(e.Render(4800), 0, 4800) < 100 {
+		t.Fatal("expected the first hit")
+	}
+	if !e.SilenceTrack("drums") {
+		t.Fatal("silence")
+	}
+	buf := e.Render(9600)
+	if rms(buf, 2000, 9600) > 20 {
+		t.Fatalf("track still sounding after stop: %.1f", rms(buf, 2000, 9600))
+	}
+	for e.Now() < 3 {
+		buf = append(buf, e.Render(4800)...)
+	}
+	if rms(buf, len(buf)/4, len(buf)/2) > 20 {
+		t.Fatal("a queued hit survived the stop")
+	}
+	if e.SilenceTrack("missing") {
+		t.Fatal("missing track")
+	}
+}
+
 func TestStepDisplayShowsTheCurrentBar(t *testing.T) {
 	e := New() // 60 bpm: a bar is 4 s = 192000 frames, a cell 12000
 	e.Play()
