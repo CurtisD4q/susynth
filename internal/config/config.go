@@ -16,9 +16,10 @@ type Config struct {
 	BPM   float64 `json:"bpm"`
 	Set   string  `json:"last_set"`
 
-	AutoLoad bool `json:"auto_load_last_set"` // reopen the last set on start
-	Hints    bool `json:"show_key_hints"`     // key hint row under the editor
-	FrameHz  int  `json:"frame_hz"`           // screen redraw rate: 15, 30 or 60
+	AutoLoad   bool `json:"auto_load_last_set"` // reopen the last set on start
+	Hints      bool `json:"show_key_hints"`     // key hint row under the editor
+	StartOnBar bool `json:"start_on_bar"`       // ^E and Run wait for the next bar
+	FrameHz    int  `json:"frame_hz"`           // screen redraw rate: 15, 30 or 60
 
 	Internal   bool   `json:"internal_synth"` // play through the built-in synth
 	OSC        bool   `json:"osc_enabled"`    // send notes to SuperDirt

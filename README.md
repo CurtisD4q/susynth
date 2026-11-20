@@ -123,11 +123,14 @@ finishes, and anything you run in the meantime starts as soon as Ruby is ready.
 The screen has four parts:
 
 * **Editor** (left): your code. A green bar in the left margin marks lines that are running;
-  a red bar marks a line with an error.
+  a red bar marks a line with an error. A dotted bar (`┊`) marks the block `^E` will run.
 * **Tracks** (right): one row per running `live_loop`, with its number, level, the last sound
-  it played, and a one-bar step display. The `◆` is where the bar is now.
-* **Message row**: what just happened, errors, and `puts` output.
-* **Transport bar** (bottom): playing or stopped, tempo, bar and beat, recording.
+  it played, and a one-bar step display. The `◆` is where the bar is now. `Esc l` swaps this
+  pane for the session log; `Esc r` swaps it for the piano roll.
+* **Message row**: the latest error, `puts` or action, with the time it happened. It stays
+  until something newer replaces it. `Esc` does not clear it.
+* **Transport bar** (bottom): playing or stopped, tempo, bar and beat, recording. While
+  `Esc` is waiting for a shortcut it shows `Esc…`.
 
 ### 2. Play the starter set
 
@@ -162,8 +165,11 @@ live_loop :beat do
 end
 ```
 
-`^E` runs only the block the cursor is in (up to the nearest blank lines), so you can change
-one loop without touching the others. `Esc Enter` runs the whole file again.
+`^E` runs the Ruby block the cursor is in: the whole `live_loop` (or other `do`/`end`),
+even when that block has blank lines inside it. A dotted bar in the margin shows the lines
+that will run. `Esc Enter` runs the whole file again. On F5, **Start on next bar** makes a
+run wait for the next bar while something is already playing; the first run still starts
+immediately. The setting is saved.
 
 ### 5. Copy, cut, paste and undo
 
@@ -183,7 +189,8 @@ A handy live move: duplicate a loop with `^C` `^V`, rename the copy, change it a
 
 ### 6. Add more loops and keep them in time
 
-Separate loops with a blank line. Use `sync` so a new loop starts on the beat of another:
+A blank line between loops is for you, not for `^E` — the block follows `do`/`end`. Use
+`sync` so a new loop starts on the beat of another:
 
 ```ruby
 use_bpm 120
@@ -241,9 +248,14 @@ On F5, highlight *Samples* and press `Enter` to reload after adding files.
 
 ### 10. Mix while you play
 
-* `Esc` then a number mutes or unmutes that track (numbers are in the Tracks pane).
-* `Esc s` then a number solos it; `Esc s 0` clears solo.
+* `Esc u`, then a track number, mutes or unmutes it. The transport shows `mute…` while it
+  waits, so a stray digit cannot mute anything.
+* `Esc k`, then a number, stops that one track. `Esc k` then `Enter` stops the loop the
+  cursor is in. `^G` still stops everything.
+* `Esc s` then a number solos a track; `Esc s 0` clears solo.
 * With the cursor inside a loop, `Esc -` and `Esc =` lower or raise its level.
+* A `live_loop` you delete (or rename) keeps playing until you stop it, and its row says
+  **not in code** so it is not invisible.
 
 ### 11. Watch the piano roll
 
@@ -263,10 +275,13 @@ are doing. Press `Esc r` again for Tracks. A wider terminal shows more history.
 
 * **Syntax error:** nothing runs; a red row names the line. Fix it and press `^E` again.
 * **Error inside a loop** (a typo, a wrong name): that loop stops, the others keep playing.
-* **A loop with no `sleep`:** Ruby freezes; susynth restarts it within about 2 seconds and every
-  loop stops. Add a `sleep` and run again.
-* `puts` anything to see it on the message row: `puts "bar #{tick}"`.
-* `^L` clears the error rows.
+* **A loop with no `sleep`:** that loop stops with `did not sleep`. Every other loop keeps
+  playing. Add a `sleep` and press `^E` again.
+* `puts "bar #{tick}"` and `cue :drop` are written to the log, with the time. `Esc l` opens
+  it in the right-hand pane (Alt+↑ / Alt+↓ scroll, or `Esc` then ↑ / ↓). It lasts for the
+  session. `use_cue_logging true` also logs each `live_loop`'s own cue.
+* An error marker follows the code: inserting or deleting a line above it moves the red
+  bar instead of clearing it. `^L` clears the markers; the log keeps the text.
 
 ### 13. Save, record and export
 
@@ -297,7 +312,7 @@ Deleting the cache is safe; Ruby is compiled again on the next launch.
 
 | key | action |
 |---|---|
-| `^E` | run the block under the cursor (top-level statements up to a blank line) |
+| `^E` | run the block under the cursor (the whole `live_loop` / `do`…`end`; `┊` marks it) |
 | `Esc Enter` | run the whole buffer (Sonic Pi's Run) |
 | `^G` | stop every loop and thread (Sonic Pi's Stop) |
 | `^P` | stop, or run the whole buffer again |
@@ -306,20 +321,26 @@ Deleting the cache is safe; Ruby is compiled again on the next launch.
 | `^C` / `^X` / `^V` | copy / cut / paste the selection (with nothing selected: the whole line) |
 | `Backspace` / `Delete` | delete the selection, or one character |
 | `^Z` / `^Y` | undo / redo · `^K` deletes the current line |
-| `Esc 1-9` · `Esc s n` | mute / solo a track (numbers in the Tracks pane) |
+| `Esc u` then a number | mute / unmute that track. A digit with no prefix does not mute |
+| `Esc k` then a number | stop that track (`Enter` stops the loop under the cursor) |
+| `Esc s` then a number | solo that track (`0` clears solo) |
 | `Esc -` / `Esc =` | level of the live_loop the cursor is in |
+| `Esc l` | session log in the right-hand pane (errors, `puts`, `cue`); Alt+↑↓ scrolls |
 | `Esc r` | switch the right-hand pane between Tracks and the piano roll |
 | `Esc x` | export MIDI (runs silently in a second sandbox; the music keeps playing) |
 | `F1`–`F7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform |
 | `Esc m` or `Esc ]` / `Esc M` or `Esc [` | next / previous page (no F-keys needed) · `Esc` alone goes back to Play |
 
-**Esc shortcuts** (`Esc r`, `Esc 1`, `Esc Enter`…): press `Esc`, let go, then the key within
-about 1.5 seconds, or hold `Alt` (or `Option` set to act as Meta on macOS) and press the key.
+**Esc shortcuts** (`Esc r`, `Esc u`, `Esc Enter`…): press `Esc`, let go, then the key within
+about 1.5 seconds — the transport shows `Esc…` while it waits — or hold `Alt` (or `Option`
+set to act as Meta on macOS) and press the key. `Esc` alone goes back to Play and does not
+clear the message row or the log.
 
-As in Sonic Pi: re-running a `live_loop` swaps its body in on its next pass; a loop you
-delete from the text keeps playing until `^G`; an error inside a loop stops that loop only.
-A loop that never sleeps would freeze Ruby, so susynth restarts the sandbox after 2 seconds
-and stops everything.
+As in Sonic Pi: re-running a `live_loop` swaps its body in on its next pass; an error inside
+a loop stops that loop only. A loop that never sleeps stops with `did not sleep` and the
+others keep playing. A loop you delete from the text is marked **not in code** and keeps
+playing until `Esc k` (that track) or `^G` (everything). **Start on next bar** in Settings
+holds a run until the next bar.
 
 ## Build
 

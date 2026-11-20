@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -90,6 +91,72 @@ func rms(buf []int16, from, to int) float64 {
 		s += float64(buf[i]) * float64(buf[i])
 	}
 	return math.Sqrt(s / float64((to-from)*2))
+}
+
+// A live_loop that never sleeps must not restart Ruby or hush the other loops.
+func TestStuckLoopLeavesTheOthersRunning(t *testing.T) {
+	v := vm(t)
+	e := engine.New()
+	s := New(v, e)
+	s.Run("live_loop :ok do\n  sample :bd_haus\n  sleep 1\nend\nlive_loop :bad do\n  loop do\n    1 + 1\n  end\nend\n", 0)
+	if !s.Running() {
+		t.Fatal("run did not start")
+	}
+	s.tick()
+	if !s.Running() {
+		t.Fatal("a stuck loop stopped every loop")
+	}
+	if e.Snapshot().Hushed {
+		t.Fatal("the engine was silenced")
+	}
+	saw := false
+	for _, n := range s.Notes() {
+		if n.Kind == "err" && strings.Contains(n.Text, "did not sleep") && strings.Contains(n.Text, "bad") {
+			saw = true
+		}
+	}
+	if !saw {
+		t.Fatal("no did-not-sleep error for :bad")
+	}
+}
+
+// With "start on next bar", a run while music is already playing waits for
+// the bar. The first run still starts at once, because that starts the bar.
+func TestQuantiseSecondRunLandsOnTheBar(t *testing.T) {
+	v := vm(t)
+	e := engine.New()
+	e.SetBPM(60)
+	s := New(v, e)
+	s.SetQuantise(true)
+	s.Run("use_bpm 60\nsample :bd_haus\n", 0)
+	s.Run("sample :bd_haus\n", 0)
+	s.tick() // the immediate hit is due now; the bar hit waits until Ruby is advanced to it
+	var out []int16
+	for i := 0; i < 450; i++ { // 4.5 s, one bar is 4 s
+		out = append(out, e.Render(480)...)
+		s.tick()
+	}
+	if rms(out, 1400, 4000) < 200 {
+		t.Error("the first run should sound straight away")
+	}
+	if rms(out, 170000, 188000) > 40 {
+		t.Errorf("second hit arrived before the bar (rms %.0f)", rms(out, 170000, 188000))
+	}
+	if rms(out, 192000, 196000) < 200 {
+		t.Errorf("second hit was not on the bar (rms %.0f)", rms(out, 192000, 196000))
+	}
+	var quantised bool
+	for _, n := range s.Notes() {
+		if n.Kind == "ran" && n.Quantised {
+			quantised = true
+		}
+		if n.Kind == "err" {
+			t.Errorf("error: %+v", n)
+		}
+	}
+	if !quantised {
+		t.Error("the second run was not marked as waiting for the bar")
+	}
 }
 
 // Real time: the sequencer keeps Ruby ahead of the audio clock, and a

@@ -153,8 +153,15 @@ func parseCSI(next func(time.Duration) (byte, bool)) key {
 			mod, num = num, first
 		}
 		k := csiFinal(c, num)
-		if mod > 1 && (mod-1)&1 == 1 {
-			k.shift = true
+		// xterm: modifier is 1 + shift + 2*alt + 4*ctrl
+		if mod > 1 {
+			bits := mod - 1
+			if bits&1 != 0 {
+				k.shift = true
+			}
+			if bits&2 != 0 {
+				k.alt = true
+			}
 		}
 		return k
 	}

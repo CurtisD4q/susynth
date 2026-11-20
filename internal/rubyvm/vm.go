@@ -50,9 +50,10 @@ func (m Msg) Arg(i int) string {
 	return ""
 }
 
-// ErrStuck means Ruby did not answer in time (usually a loop that never
-// sleeps). The VM is restarted and every running loop is lost.
-var ErrStuck = errors.New("Ruby stopped responding (a loop that never sleeps?) and was restarted")
+// ErrStuck means Ruby did not answer in time, so the VM was restarted and
+// every running loop was lost. A live_loop that never sleeps is stopped on
+// its own inside Ruby and does not take this path; this is only a real hang.
+var ErrStuck = errors.New("Ruby stopped responding and was restarted")
 
 // VM is one Ruby sandbox. Calls are serialised.
 type VM struct {
@@ -334,10 +335,25 @@ func (v *VM) Close() {
 
 // Convenience wrappers ---------------------------------------------------------
 
-// Run evaluates code. cursor > 0 runs only the block of statements around
-// that line; 0 runs everything. at is the start time in seconds.
+// Run evaluates code. cursor > 0 runs the top-level statement around that
+// 1-based line (a whole live_loop, not a blank-line slice); 0 runs everything.
+// at is the start time in seconds.
 func (v *VM) Run(id int, cursor int, at float64, code string) ([]Msg, error) {
-	return v.Call(fmt.Sprintf("run\t%d\t%d\t%.6f\t%d", id, cursor, at, len(code)), code, 5*time.Second)
+	first, last := 0, 0
+	if cursor > 0 {
+		var ok bool
+		first, last, ok = BlockRange(code, cursor)
+		if !ok {
+			return []Msg{{"ran", fmt.Sprint(id), "0", "0"}}, nil
+		}
+	}
+	return v.Call(fmt.Sprintf("run\t%d\t%d\t%d\t%.6f\t%d", id, first, last, at, len(code)), code, 5*time.Second)
+}
+
+// Kill stops one live_loop or thread by name. The others keep running.
+func (v *VM) Kill(name string) ([]Msg, error) {
+	name = strings.ReplaceAll(name, "\t", " ")
+	return v.Call("kill\t"+name, "", 2*time.Second)
 }
 
 // Check reports syntax errors without running anything.

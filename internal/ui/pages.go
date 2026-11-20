@@ -259,13 +259,14 @@ func (a *App) pageKey(k key) {
 		switch {
 		case k.kind == kEnter && a.ps.sel < len(a.ps.sets):
 			a.loadSet(a.ps.sets[a.ps.sel].name)
-			if !a.toastErr {
+			if !a.statusErr {
 				a.gotoPage(pagePlay)
 			}
 		case isRune('a') && a.ps.sel < len(a.ps.sets):
 			a.addToSetlist(a.ps.sets[a.ps.sel].name)
 		case isRune('n'):
 			a.ed.SetText(starter)
+			a.lineSnap = a.ed.Lines()
 			a.setName, a.dirty = "", false
 			a.errs, a.marks = nil, map[int]bool{}
 			a.say("new set — starter text loaded", false)
@@ -598,7 +599,7 @@ func (a *App) pageHint() string {
 	case pagePerform:
 		return "Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove · Esc back"
 	}
-	return "Shift+arrows select · ^C ^X ^V copy cut paste · ^Z undo · Esc+1-9 mute · F6 help"
+	return "Shift+arrows select · ^C ^X ^V · Esc u mute · Esc k stop · Esc l log · F6 help"
 }
 
 type helpLine struct {
@@ -615,14 +616,16 @@ var helpLines = []helpLine{
 	{text: "Esc shortcuts: press Esc, let go, then the key (within 1.5 s), or hold Alt."},
 	{text: ""},
 	{head: true, text: "PLAYING"},
-	{key: "^E", text: "run the block under the cursor (statements up to the next blank line)"},
+	{key: "^E", text: "run the block under the cursor (the whole live_loop; ┊ marks it)"},
 	{key: "Esc Enter", text: "run the whole buffer, like Sonic Pi's Run"},
 	{key: "^G", text: "stop every live_loop and thread, like Sonic Pi's Stop"},
 	{key: "^P", text: "stop, or run the whole buffer again"},
 	{key: "^R", text: "start / stop recording a WAV"},
 	{key: "^S  ^O", text: "save / load a set by name (sets are .rb files)"},
-	{key: "Esc 1-9", text: "mute / unmute that track (the numbers in the Tracks pane)"},
+	{key: "Esc u  n", text: "mute / unmute track n — a digit alone does nothing"},
+	{key: "Esc k  n", text: "stop that track (Enter stops the loop under the cursor)"},
 	{key: "Esc s  n", text: "solo track n (0 clears)"},
+	{key: "Esc l", text: "session log (errors, puts, cue) in the right pane; Alt+↑↓ scrolls"},
 	{key: "Esc - / =", text: "level of the live_loop the cursor is in"},
 	{key: "Esc r", text: "switch the right-hand pane between Tracks and the piano roll"},
 	{key: "Esc t / a", text: "next theme / next audio output"},
@@ -660,7 +663,7 @@ var helpLines = []helpLine{
 	{key: "chord(:e3, :m7)", text: "also :major :minor :dom7 :sus4 :dim; invert: 1"},
 	{key: "rrand(0.5, 1)", text: "rrand_i choose dice one_in rand — repeatable, like Sonic Pi"},
 	{key: "define :riff do |n|", text: "your own functions; or plain Ruby def, each, map, hashes…"},
-	{key: "puts x", text: "shows x on the message row"},
+	{key: "puts x", text: "prints x to the log (Esc l); cue :name does too"},
 	{text: ""},
 	{head: true, text: "HOW IT RUNS"},
 	{text: "Your code runs in real Ruby inside a sandbox with no network or file access."},
@@ -671,6 +674,7 @@ var helpLines = []helpLine{
 	{head: true, text: "WHEN SOMETHING GOES WRONG"},
 	{text: "A syntax error runs nothing, and a red row under the editor names the line."},
 	{text: "An error inside a live_loop stops that loop only; the others keep playing."},
-	{text: "A loop that never sleeps freezes Ruby: susynth restarts it within 2 seconds"},
-	{text: "and every loop stops. Add a sleep and press ^E again."},
+	{text: "A loop that never sleeps stops, with a \"did not sleep\" error. The others"},
+	{text: "keep playing. A loop you delete is marked \"not in code\"; Esc k stops it."},
+	{text: "Errors stay in the log for the session. Inserting a line moves their marker."},
 }

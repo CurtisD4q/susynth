@@ -90,26 +90,29 @@ type App struct {
 	dirty   bool
 	quitAsk bool
 
-	errs    []codeErr
-	errRows int // editor line count when errs were recorded
+	errs     []codeErr
+	lineSnap []string // buffer lines when the markers were last aligned
 
 	vm        *rubyvm.VM
 	seq       *live.Seq
 	seqCancel context.CancelFunc
 	waitToast bool
 	clipboard string // what ^C or ^X copied last
-	showRoll  bool   // right pane shows the piano roll instead of Tracks
+	side      sidePane
 	escAt     time.Time
 	escFrom   page
 	laterMsgs chan laterMsg
 	marks     map[int]bool
 
-	toast      string
-	toastErr   bool
-	toastUntil time.Time
+	log       []logLine // session log: errors, puts, cues, what you did
+	logOff    int       // lines above the newest; 0 keeps the latest in view
+	status    string    // the message row; it does not expire
+	statusErr bool
+	statusAt  time.Time
 
 	prompt   *prompt
-	awaiting string // "solo" while waiting for a track digit
+	awaiting string // "mute", "solo" or "stop" while a track number is expected
+	awaitBuf string
 
 	page page
 	ps   pageState
@@ -144,6 +147,7 @@ func Run(o Options) error {
 	// Ruby boots in the background; the editor is usable straight away
 	a.vm = rubyvm.Start(paths.CacheDir())
 	a.seq = live.New(a.vm, a.eng)
+	a.seq.SetQuantise(cfg.StartOnBar)
 	sctx, scancel := context.WithCancel(context.Background())
 	a.seqCancel = scancel
 	a.seq.Start(sctx)
@@ -151,7 +155,7 @@ func Run(o Options) error {
 	a.loadInitial(o, first)
 	a.loadSetlist()
 	a.startAudio(cfg.Sink)
-	if first && !a.toastErr {
+	if first && !a.statusErr {
 		a.say("welcome! ^E runs the block under the cursor — audio: "+a.sink.Name(), false)
 	}
 	a.reloadSamples(false)
@@ -175,6 +179,7 @@ func (a *App) loadInitial(o Options, first bool) {
 		}
 	}
 	a.ed = newEditor(text)
+	a.lineSnap = a.ed.Lines()
 	// start on the first real statement so ^E does something straight away
 	for i := range a.ed.lines {
 		if t := strings.TrimSpace(a.ed.Line(i)); t != "" && !strings.HasPrefix(t, "#") {
@@ -202,10 +207,22 @@ func (a *App) shutdown() {
 }
 
 func (a *App) say(msg string, isErr bool) {
-	a.toast, a.toastErr = msg, isErr
-	a.toastUntil = time.Now().Add(4 * time.Second)
+	kind := "info"
 	if isErr {
-		a.toastUntil = time.Now().Add(7 * time.Second)
+		kind = "err"
+	}
+	a.addLog(kind, msg, 0)
+}
+
+// addLog keeps one session line. Cues are recorded but do not replace the
+// message row, so a stream of cues cannot hide an error.
+func (a *App) addLog(kind, text string, line int) {
+	a.log = append(a.log, logLine{At: time.Now(), Kind: kind, Text: text, Line: line})
+	if len(a.log) > 400 {
+		a.log = append([]logLine(nil), a.log[len(a.log)-400:]...)
+	}
+	if kind != "cue" {
+		a.status, a.statusErr, a.statusAt = text, kind == "err", time.Now()
 	}
 }
 
@@ -278,6 +295,9 @@ func (a *App) loop() error {
 		case <-tick.C:
 		}
 		a.pollSeq()
+		if !a.escAt.IsZero() && time.Since(a.escAt) >= escWindow {
+			a.escAt = time.Time{}
+		}
 		if a.cfg.FrameHz != hz {
 			hz = a.cfg.FrameHz
 			tick.Reset(time.Second / time.Duration(hz))
@@ -331,34 +351,32 @@ const escWindow = 1500 * time.Millisecond
 func (a *App) handleKey(k key) {
 	if a.prompt != nil {
 		a.escAt = time.Time{}
+		a.awaiting, a.awaitBuf = "", ""
 		a.promptKey(k)
+		return
+	}
+	if a.awaiting != "" {
+		a.trackCommand(k)
 		return
 	}
 	// "Esc, then a key" shortcuts: a person can't press the second key within
 	// the few milliseconds that mark an Alt+key, so a lone Esc arms the next
-	// key for a moment. Esc still does its usual job (back to Play, clear).
+	// key for a moment. The transport shows Esc… while it is armed. Esc goes
+	// back to Play; it does not clear the log or an error.
 	from := a.page // the page a page-cycling key counts from
 	if k.kind == kEsc && !k.alt {
 		a.escAt, a.escFrom = time.Now(), a.page
 	} else if !a.escAt.IsZero() {
 		armed := time.Since(a.escAt) < escWindow
 		a.escAt = time.Time{}
+		if armed && !k.alt && a.side == sideLog && isLogScroll(k) {
+			a.scrollLog(k, 8)
+			return
+		}
 		if armed && !k.alt && (k.kind == kRune || k.kind == kEnter) {
 			k.alt = true
 			from = a.escFrom // Esc already took us to Play; cycle from where we were
 		}
-	}
-	if a.awaiting == "solo" {
-		a.awaiting = ""
-		if k.kind == kRune && k.r >= '0' && k.r <= '9' {
-			id := int(k.r - '0')
-			if !a.eng.SetSolo(id) {
-				a.say(fmt.Sprintf("no track %d to solo", id), true)
-			} else if id == 0 {
-				a.say("solo cleared", false)
-			}
-		}
-		return
 	}
 	if k.kind != kCtrl || k.r != 'q' {
 		a.quitAsk = false
@@ -449,7 +467,6 @@ func (a *App) editorKey(k key) {
 		}
 	case kEsc:
 		ed.Unmark()
-		a.toast = ""
 	case kRune:
 		kind := "type"
 		if k.r == ' ' {
@@ -527,21 +544,44 @@ func (a *App) copySelection(cut bool) {
 
 func (a *App) edited() {
 	a.dirty = true
-	if len(a.ed.lines) != a.errRows {
-		a.errs, a.marks = nil, map[int]bool{} // rows moved: old markers would point at the wrong lines
+	lines := a.ed.Lines()
+	if a.lineSnap != nil && len(lines) != len(a.lineSnap) {
+		a.errs = remapErrs(a.errs, a.lineSnap, lines)
+		a.marks = remapMarks(a.marks, a.lineSnap, lines)
 	}
+	a.lineSnap = lines
 }
 
 func (a *App) altKey(k key) {
+	if isLogScroll(k) {
+		if a.page == pagePlay && a.side == sideLog {
+			a.scrollLog(k, 8)
+			return
+		}
+		// Alt+arrows are not a shortcut. Treat them as plain movement, which is
+		// what they did before the log learned to scroll.
+		k.alt = false
+		if a.page == pagePlay {
+			a.editorKey(k)
+		} else {
+			a.pageKey(k)
+		}
+		return
+	}
 	switch {
 	case k.kind == kEnter:
 		a.eval(true)
 	case k.kind != kRune:
 	case k.r >= '1' && k.r <= '9':
-		id := int(k.r - '0')
-		if !a.eng.ToggleMute(id) {
-			a.say(fmt.Sprintf("no track %d playing", id), true)
-		}
+		// A digit on its own used to mute. That caught people who were still
+		// in the Esc window. Mute and stop now ask for a number on purpose.
+		a.say("tracks: Esc u then a number mutes, Esc k then a number stops, Esc s solos", false)
+	case k.r == 'u':
+		a.awaiting, a.awaitBuf = "mute", ""
+		a.say("mute: track number (Enter confirms)", false)
+	case k.r == 'k':
+		a.awaiting, a.awaitBuf = "stop", ""
+		a.say("stop: track number, or Enter for the loop under the cursor", false)
 	case k.r == 's':
 		a.awaiting = "solo"
 		a.say("solo: press a track number (0 clears)", false)
@@ -564,15 +604,28 @@ func (a *App) altKey(k key) {
 		}
 	case k.r == ',' || k.r == '.' || k.r == '<' || k.r == '>':
 		a.say("tempo comes from your code: change use_bpm and press ^E", false)
+	case k.r == 'l':
+		if a.page != pagePlay {
+			a.gotoPage(pagePlay)
+		}
+		if a.side == sideLog {
+			a.side = sideTracks
+			a.say("tracks — Esc l shows the log", false)
+		} else {
+			a.side = sideLog
+			a.logOff = 0
+			a.say("log — Alt+↑↓ scrolls, Esc l goes back to tracks", false)
+		}
 	case k.r == 'r':
 		if a.page != pagePlay {
 			a.gotoPage(pagePlay)
 		}
-		a.showRoll = !a.showRoll
-		if a.showRoll {
-			a.say("piano roll — Esc r goes back to Tracks", false)
+		if a.side == sideRoll {
+			a.side = sideTracks
+			a.say("tracks — Esc r shows the piano roll, Esc l the log", false)
 		} else {
-			a.say("tracks — Esc r shows the piano roll", false)
+			a.side = sideRoll
+			a.say("piano roll — Esc r goes back to Tracks", false)
 		}
 	case k.r == 'x':
 		a.startPrompt("midi", "export MIDI, seconds (1-600): ", "30")
@@ -613,7 +666,7 @@ func (a *App) ctrlKey(r rune) {
 		a.say("sets: "+a.listSets(), false)
 	case 'l':
 		a.errs = nil
-		a.say("errors cleared", false)
+		a.say("error markers cleared — the log keeps them (Esc l)", false)
 	case 'q':
 		if a.dirty && !a.quitAsk {
 			a.quitAsk = true
@@ -645,7 +698,7 @@ func (a *App) eval(all bool) {
 	if all {
 		cursor = 0
 	}
-	a.errs, a.errRows = nil, len(a.ed.lines)
+	a.errs = nil
 	a.seq.Run(a.ed.Text(), cursor)
 	if !a.vm.IsReady() {
 		if err := a.vm.Err(); err != nil {
@@ -678,6 +731,7 @@ func (a *App) pollSeq() {
 	if a.waitToast && a.vm.IsReady() && !a.seq.Waiting() {
 		a.waitToast = false
 	}
+	sawErr := false
 	for _, n := range a.seq.Notes() {
 		switch n.Kind {
 		case "err":
@@ -686,10 +740,12 @@ func (a *App) pollSeq() {
 			if len(a.errs) > 20 {
 				a.errs = a.errs[len(a.errs)-20:]
 			}
-			a.errRows = len(a.ed.lines)
-			a.say(e.String(), true)
+			a.addLog("err", e.String(), n.Line)
+			sawErr = true
 		case "log":
-			a.say("puts: "+n.Text, false)
+			a.addLog("puts", n.Text, 0)
+		case "cue":
+			a.addLog("cue", n.Text, 0)
 		case "ran":
 			if n.First == 0 {
 				continue
@@ -697,8 +753,19 @@ func (a *App) pollSeq() {
 			for i := n.First - 1; i <= n.Last-1; i++ {
 				a.marks[i] = true
 			}
-			if !a.toastErr || time.Now().After(a.toastUntil) {
-				a.say(fmt.Sprintf("running lines %d–%d", n.First, n.Last), false)
+			msg := fmt.Sprintf("running lines %d–%d", n.First, n.Last)
+			if n.Quantised {
+				msg += " on the next bar"
+			}
+			a.addLog("info", msg, 0)
+		}
+	}
+	if sawErr {
+		// an error in the same batch stays on the message row
+		for i := len(a.log) - 1; i >= 0; i-- {
+			if a.log[i].Kind == "err" {
+				a.status, a.statusErr, a.statusAt = a.log[i].Text, true, a.log[i].At
+				break
 			}
 		}
 	}
@@ -805,6 +872,7 @@ func (a *App) loadSet(name string) {
 		return
 	}
 	a.ed.SetText(string(b))
+	a.lineSnap = a.ed.Lines()
 	a.setName, a.dirty = strings.TrimSuffix(name, ".rb"), false
 	a.errs, a.marks = nil, map[int]bool{}
 	a.say("loaded "+a.setName+" — ^E runs a block, Esc-Enter runs everything", false)

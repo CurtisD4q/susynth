@@ -1,6 +1,10 @@
 package ui
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/susynth/susynth/internal/rubyvm"
+)
 
 // Editor is a small multi-line text editor (runes) with a selection and undo.
 type Editor struct {
@@ -47,6 +51,15 @@ func (e *Editor) Line(i int) string {
 		return ""
 	}
 	return string(e.lines[i])
+}
+
+// Lines is a copy of the buffer, one string per row.
+func (e *Editor) Lines() []string {
+	out := make([]string, len(e.lines))
+	for i, l := range e.lines {
+		out[i] = string(l)
+	}
+	return out
 }
 
 func (e *Editor) Insert(r rune) {
@@ -148,20 +161,14 @@ func (e *Editor) Vert(d int) {
 func (e *Editor) Home() { e.col, e.want = 0, 0 }
 func (e *Editor) End()  { e.col = len(e.lines[e.row]); e.want = e.col }
 
-// Block returns the first and last row of the blank-line-delimited block at row.
+// Block returns the 0-based rows of the statement ^E would run with the cursor
+// on row: a whole do/end or live_loop, blank lines inside it included.
 func (e *Editor) Block(row int) (int, int, bool) {
-	blank := func(i int) bool { return strings.TrimSpace(string(e.lines[i])) == "" }
-	if row < 0 || row >= len(e.lines) || blank(row) {
+	first, last, ok := rubyvm.BlockRange(e.Text(), row+1)
+	if !ok {
 		return 0, 0, false
 	}
-	s, t := row, row
-	for s > 0 && !blank(s-1) {
-		s--
-	}
-	for t+1 < len(e.lines) && !blank(t+1) {
-		t++
-	}
-	return s, t, true
+	return first - 1, last - 1, true
 }
 
 // scroll keeps the cursor inside a w x h text viewport.
