@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/CurtisD4q/pmin-base/selfinstall"
 	"github.com/susynth/susynth/internal/audio"
 	"github.com/susynth/susynth/internal/engine"
 	"github.com/susynth/susynth/internal/live"
@@ -27,6 +28,8 @@ usage:
   susynth midi [flags] set.rb      export a set as a Standard MIDI File
   susynth samples                  list the sample banks found in the samples folder
   susynth devices                  list detected audio outputs and MIDI devices
+  susynth install [--system]       put susynth on your PATH (~/.local/bin, or /usr/local)
+  susynth uninstall                take it off again; your sets and samples are kept
 
 flags (editor):
   -sink auto|native|pipewire|pulseaudio|alsa|none
@@ -41,6 +44,11 @@ which takes a while; later runs start in about a second.
 `
 
 func main() {
+	// `susynth install` puts this program on the PATH; `susynth uninstall`
+	// takes it off again.
+	if ok, code := selfinstall.Handle(selfinstall.Program{Name: "susynth"}, os.Args[1:], os.Stdout, os.Stderr); ok {
+		os.Exit(code)
+	}
 	args := os.Args[1:]
 	if len(args) > 0 {
 		switch args[0] {

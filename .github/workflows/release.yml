@@ -1,0 +1,22 @@
+name: release
+
+# Pushing a tag such as v1.0.0 builds the archives and publishes a release.
+# Made from pmin/templates/program/release.yml; the work is in pmin's shared
+# workflow.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    uses: CurtisD4q/pmin/.github/workflows/release.yml@main
+    with:
+      name: "susynth"
+      files: ""
+      targets: "linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"
+    secrets: inherit

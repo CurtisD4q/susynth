@@ -93,17 +93,44 @@ To **build** from source:
 | make | Optional | For `make build`, `make dist` and `make test`; plain `go build` works too. |
 | C compiler + cgo | Optional | Only for `go test -race`. |
 
-## Quick start
+## Install
+
+Download, check and install the latest release in one go (Linux and macOS; on Windows, unpack the archive and put `susynth.exe` in a folder on your PATH):
 
 ```
-make build                            # CGO_ENABLED=0 go build -o susynth ./cmd/susynth
-./susynth                             # open the live editor
-./susynth examples/first.rb
-./susynth render -seconds 30 set.rb   # render a WAV, no sound device needed
-./susynth midi -seconds 30 set.rb     # export a Standard MIDI File
-./susynth check set.rb                # syntax check, then run 8 s silently to catch errors
-./susynth samples                     # list loaded sample banks
-./susynth devices                     # audio outputs and MIDI devices
+gh api repos/CurtisD4q/susynth/contents/install.sh -H 'Accept: application/vnd.github.raw' | sh
+```
+
+While the repository is private this needs the [GitHub CLI](https://cli.github.com), logged in (`gh auth login`). Once it is public, `curl -fsSL https://raw.githubusercontent.com/CurtisD4q/susynth/main/install.sh | sh` does the same. Add `-s -- --system` after `sh` to install for everyone in `/usr/local`.
+
+Or by hand: download the archive for your machine from Releases, check it against `SHA256SUMS`, unpack it and run `./susynth install`. Either way susynth ends up in `~/.local/bin`, and the download can be deleted.
+
+To remove it: `susynth uninstall`. Your settings and data are kept.
+
+### Build from source
+
+Needs Go 1.25 or newer. Every library is vendored, so nothing else is fetched:
+
+```
+git clone https://github.com/CurtisD4q/susynth
+cd susynth
+make install        # builds, then installs into ~/.local/bin
+```
+
+After `make install` the cloned folder can be deleted. To clone over SSH instead, use `git@github.com:CurtisD4q/susynth.git`; when updating the vendored pmin libraries (`go get`, `go mod vendor`), tell git once to fetch them over SSH too: `git config --global url."git@github.com:".insteadOf "https://github.com/"`.
+
+## Quick start
+
+Once installed:
+
+```
+susynth                             # open the live editor
+susynth examples/first.rb
+susynth render -seconds 30 set.rb   # render a WAV, no sound device needed
+susynth midi -seconds 30 set.rb     # export a Standard MIDI File
+susynth check set.rb                # syntax check, then run 8 s silently to catch errors
+susynth samples                     # list loaded sample banks
+susynth devices                     # audio outputs and MIDI devices
 ```
 
 **First launch:** Ruby is compiled to machine code the first time (about 10–15 s, cached in
@@ -353,7 +380,7 @@ holds a run until the next bar.
 Needs Go 1.25+. Dependencies are vendored, so it builds offline.
 
 ```
-make dist     # linux amd64/arm64, macOS amd64/arm64, windows amd64 -> dist/
+make dist     # archives for linux amd64/arm64, macOS amd64/arm64, windows amd64, with SHA256SUMS -> dist/
 make test     # vet + tests (the race detector needs CGO_ENABLED=1)
 ```
 

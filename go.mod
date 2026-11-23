@@ -3,7 +3,7 @@ module github.com/susynth/susynth
 go 1.25.0
 
 require (
-	github.com/CurtisD4q/pmin-base v0.0.0-20261122210958-3f655e147c59
+	github.com/CurtisD4q/pmin-base v0.0.0-20261123203826-23ade10c5ef5
 	github.com/ebitengine/oto/v3 v3.5.1
 	github.com/tetratelabs/wazero v1.11.0
 )
