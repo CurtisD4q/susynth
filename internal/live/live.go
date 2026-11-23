@@ -48,7 +48,6 @@ type Seq struct {
 	runID    int
 	pending  *pendingRun
 	warned   map[string]bool
-	lastBPM  float64
 	quantise bool // start runs on the next bar while something is already playing
 }
 

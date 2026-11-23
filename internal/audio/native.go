@@ -141,8 +141,6 @@ func (s *nativeSink) Close() error {
 	s.closed = true
 	s.cond.Broadcast()
 	s.mu.Unlock()
-	if s.player == nil {
-		return nil
-	}
-	return s.player.Close()
+	// oto (v3.4 on) frees a player itself, so there is nothing to close.
+	return nil
 }

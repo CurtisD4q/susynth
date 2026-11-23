@@ -133,7 +133,6 @@ type Voice struct {
 	lp        float32
 	gate      int
 	rel       int
-	relStart  int
 	killed    bool
 	killStart int
 	done      bool
