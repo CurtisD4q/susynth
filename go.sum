@@ -1,3 +1,5 @@
+github.com/CurtisD4q/pmin-base v0.0.0-20261122210958-3f655e147c59 h1:klCDraHyXNsTNj3iVxstEsGyfaWKilCs3IEb9cwhly0=
+github.com/CurtisD4q/pmin-base v0.0.0-20261122210958-3f655e147c59/go.mod h1:HN1tNRcYB9Xb0Zgji5fy0moaCgHZi8mDrlatMRr1J00=
 github.com/ebitengine/oto/v3 v3.5.1 h1:7gL5DxxSQp8S1Me2jDSp+gSAyondYxpjM5RPBBqLT0c=
 github.com/ebitengine/oto/v3 v3.5.1/go.mod h1:Elkm7yzTRns3w2efvibzVOoQ65YOwmec9a76dCiK10o=
 github.com/ebitengine/purego v0.11.0 h1:jhp/D+Nyv7UUW8HAcmcjt2N2rYrYi9m3SL21k0Ua/NI=

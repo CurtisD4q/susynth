@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# The shared pmin CI: gofmt, vet, tests with the race detector, staticcheck
+# and the layering check. See CurtisD4q/pmin/.github/workflows/go.yml.
+# susynth ships for Linux, macOS and Windows, so it also builds for each.
+jobs:
+  go:
+    uses: CurtisD4q/pmin/.github/workflows/go.yml@main
+    secrets: inherit
+    with:
+      extra: >-
+        for t in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
+        GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -o /dev/null ./cmd/susynth || exit 1; done

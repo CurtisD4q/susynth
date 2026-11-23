@@ -1,3 +1,8 @@
+# github.com/CurtisD4q/pmin-base v0.0.0-20261122210958-3f655e147c59
+## explicit; go 1.21
+github.com/CurtisD4q/pmin-base/clean
+github.com/CurtisD4q/pmin-base/text
+github.com/CurtisD4q/pmin-base/values
 # github.com/ebitengine/oto/v3 v3.5.1
 ## explicit; go 1.25.0
 github.com/ebitengine/oto/v3

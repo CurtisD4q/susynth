@@ -1,10 +1,16 @@
 // Package ui is the terminal front end: editor, track panes, step display,
 // transport bar and toasts. It lays out the screen the way Mint apps do
-// (title, one divider, panes side by side, pinned bar) so it can move onto
-// mint-kit unchanged once that is available.
+// (title, one divider, panes side by side, pinned bar). The screen code is
+// its own, because susynth also runs on Windows and redraws many times a
+// second; the small helpers (wording, clipping, cleaning text, checking
+// paths) come from pmin-base.
 package ui
 
 import (
+	"github.com/CurtisD4q/pmin-base/clean"
+	txt "github.com/CurtisD4q/pmin-base/text"
+	"github.com/CurtisD4q/pmin-base/values"
+
 	"context"
 	"errors"
 	"fmt"
@@ -175,7 +181,11 @@ func (a *App) loadInitial(o Options, first bool) {
 			a.setName = strings.TrimSuffix(filepath.Base(o.File), ".rb")
 		}
 	case !first && a.cfg.AutoLoad && a.cfg.Set != "":
-		if b, err := os.ReadFile(filepath.Join(paths.SetsDir(), a.cfg.Set+".rb")); err == nil {
+		// The name comes from config.json, which anything could have
+		// written: only read a set that is inside the sets folder.
+		if p := filepath.Join(paths.SetsDir(), a.cfg.Set+".rb"); !values.Within(paths.SetsDir(), p) {
+			a.say("not loading "+clean.Line(a.cfg.Set)+": it is outside the sets folder", true)
+		} else if b, err := os.ReadFile(p); err == nil {
 			text, a.setName = string(b), a.cfg.Set
 		}
 	}
@@ -528,9 +538,9 @@ func (a *App) copySelection(cut bool) {
 	a.clipboard = text
 	a.term.copyToSystem(text)
 	n := strings.Count(strings.TrimSuffix(text, "\n"), "\n") + 1
-	what := fmt.Sprintf("%d line(s)", n)
+	what := txt.Count(n, "line")
 	if !whole && n == 1 {
-		what = fmt.Sprintf("%d character(s)", len([]rune(text)))
+		what = txt.Count(len([]rune(text)), "character")
 	}
 	if !cut {
 		ed.Unmark()

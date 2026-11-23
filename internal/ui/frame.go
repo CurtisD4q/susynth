@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"github.com/CurtisD4q/pmin-base/clean"
+
 	"fmt"
 	"strings"
 )
@@ -36,12 +38,19 @@ func (f *frame) put(x, y int, r rune, s style) {
 	if x < 0 || y < 0 || x >= f.w || y >= f.h {
 		return
 	}
+	if r < 0x20 || (r >= 0x7f && r < 0xa0) { // a control character would reach the terminal raw
+		r = '·'
+	}
 	f.cells[y*f.w+x] = cell{r, s}
 }
 
 // text draws str at (x,y) clipped to maxw columns (0 = to the edge). It
 // returns the x after the last drawn rune. A clipped string ends in "…".
+// Names, messages and log lines can come from files or from Ruby, so the
+// text is cleaned first: escape sequences and control characters cannot
+// reach the terminal, and characters that reorder text are shown.
 func (f *frame) text(x, y int, str string, s style, maxw int) int {
+	str = clean.Line(str)
 	if maxw <= 0 || x+maxw > f.w {
 		maxw = f.w - x
 	}

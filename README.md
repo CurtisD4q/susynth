@@ -366,6 +366,12 @@ provenance and licences in `internal/rubyvm/LICENSES`).
 * [ruby.wasm](https://github.com/ruby/ruby.wasm) 2.7.1 build of CRuby 3.4.1 (Ruby/BSD; MIT).
 * [oto](https://github.com/ebitengine/oto) v3.5.1 for audio output, with purego, jfreymuth/pulse
   and x/sys.
+* [pmin-base](https://github.com/CurtisD4q/pmin-base), the first layer of the pmin foundation:
+  wording (`text`), cleaning text before it reaches the terminal (`clean`) and keeping paths
+  inside a folder (`values`). susynth is one of the programs built with pmin (tier `example`
+  in `pmin.json`): it uses only the foundation, and its screen code stays its own so it keeps
+  running on Windows. pmin-base is a private repository; it is vendored like the rest, so the
+  build still works offline, and updating it needs `GOPRIVATE='github.com/CurtisD4q/*'`.
 
 The sandbox blocked the Go module proxy and checksum database, so modules were fetched from
 GitHub with checksum verification off; run `go mod verify` on a networked machine.

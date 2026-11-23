@@ -1,6 +1,8 @@
 package ui
 
 import (
+	txt "github.com/CurtisD4q/pmin-base/text"
+
 	"fmt"
 	"strconv"
 	"strings"
@@ -318,7 +320,7 @@ func (a *App) drawTracks(f *frame, x, y, w, h int, v engine.View) {
 	}
 	for i, t := range v.Tracks {
 		if i >= maxT {
-			f.text(x, y+1+i*block, fmt.Sprintf("+%d more track(s)", len(v.Tracks)-i), th.Muted, w)
+			f.text(x, y+1+i*block, "+"+txt.Count(len(v.Tracks)-i, "more track"), th.Muted, w)
 			break
 		}
 		yy := y + 1 + i*block

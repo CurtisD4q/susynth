@@ -1,6 +1,8 @@
 package ui
 
 import (
+	txt "github.com/CurtisD4q/pmin-base/text"
+
 	"fmt"
 	"os"
 	"path/filepath"
@@ -189,7 +191,7 @@ func (a *App) sounds() []soundItem {
 	}
 	for _, b := range synth.Banks() {
 		out = append(out, soundItem{name: b.Name, group: "Sample banks",
-			desc:    fmt.Sprintf("%d file(s), %.1fs — sample :%s, 0 / 1 / … picks a file", len(b.Samples), b.Seconds(), b.Name),
+			desc:    fmt.Sprintf("%s, %.1fs — sample :%s, 0 / 1 / … picks a file", txt.Count(len(b.Samples), "file"), b.Seconds(), b.Name),
 			example: fmt.Sprintf("sample :%s, 0", b.Name), word: b.Name + ":0"})
 	}
 	return out
@@ -425,14 +427,8 @@ func (a *App) pageKey(k key) {
 // ---- drawing ----------------------------------------------------------------------
 
 func pad(s string, n int) string {
-	r := []rune(s)
-	if len(r) > n {
-		if n < 1 {
-			return ""
-		}
-		return string(r[:n-1]) + "…"
-	}
-	return s + strings.Repeat(" ", n-len(r))
+	s = txt.Clip(s, n)
+	return s + strings.Repeat(" ", n-len([]rune(s)))
 }
 
 func (a *App) drawPage(f *frame, x, y, w, h int) {
@@ -464,9 +460,9 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 		rows := []string{pad("FILE", 32) + pad("LENGTH", 9) + pad("SIZE", 10) + "RECORDED"}
 		for _, r := range a.ps.recs {
 			s := int(r.dur.Seconds())
-			length, size := fmt.Sprintf("%d:%02d", s/60, s%60), fmt.Sprintf("%.1f MB", float64(r.size)/1e6)
+			length, size := fmt.Sprintf("%d:%02d", s/60, s%60), txt.Bytes(r.size)
 			if strings.HasSuffix(r.name, ".mid") {
-				length, size = "midi", fmt.Sprintf("%.1f KB", float64(r.size)/1e3)
+				length = "midi"
 			}
 			rows = append(rows, pad(r.name, 32)+pad(length, 9)+pad(size, 10)+r.mod.Format("2006-01-02 15:04"))
 		}
@@ -541,7 +537,7 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 		f.hline(x+1, y+h-3, w-2, '─', th.Divider)
 		f.text(x+2, y+h-2, settingRows[a.ps.sel].hint, th.Muted, w-3)
 	case pagePerform:
-		f.text(x+1+len(title)+2+2, y, fmt.Sprintf("set list · %d set(s)", len(a.setlist)), th.Muted, w-len(title)+2-4)
+		f.text(x+1+len(title)+2+2, y, "set list · "+txt.Count(len(a.setlist), "set"), th.Muted, w-len(title)+2-4)
 		if len(a.setlist) == 0 {
 			f.text(x+2, y+2, "the set list is empty", th.Muted, w-3)
 			f.text(x+2, y+3, "open Esc 2 Sets, select a set and press a to add it", th.Muted, w-3)
