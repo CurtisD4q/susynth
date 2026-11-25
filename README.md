@@ -4,6 +4,8 @@ A terminal instrument for live-coding music in **Sonic Pi's language**. You writ
 `live_loop`s in an editor pane, press `^E`, and hear the change on the loop's next
 pass. One standalone Go binary: no cgo, no Ruby to install, no external player programs.
 
+**Install:** `curl -fsSL https://raw.githubusercontent.com/CurtisD4q/susynth/main/install.sh | sh` (Linux and macOS; [more ways below](#install)).
+
 ```ruby
 use_bpm 120
 
@@ -95,15 +97,15 @@ To **build** from source:
 
 ## Install
 
-Download, check and install the latest release in one go (Linux and macOS; on Windows, unpack the archive and put `susynth.exe` in a folder on your PATH):
+One command downloads the latest release, checks it against its checksum and installs it (Linux and macOS):
 
 ```
-gh api repos/CurtisD4q/susynth/contents/install.sh -H 'Accept: application/vnd.github.raw' | sh
+curl -fsSL https://raw.githubusercontent.com/CurtisD4q/susynth/main/install.sh | sh
 ```
 
-While the repository is private this needs the [GitHub CLI](https://cli.github.com), logged in (`gh auth login`). Once it is public, `curl -fsSL https://raw.githubusercontent.com/CurtisD4q/susynth/main/install.sh | sh` does the same. Add `-s -- --system` after `sh` to install for everyone in `/usr/local`.
+That is the whole job: no Go, no source checkout and no access to any other repository is needed. `susynth` goes into `~/.local/bin`. If that folder is not on your PATH, the installer prints the line to add. After that, run `susynth` from anywhere. To install for everyone in `/usr/local` instead, add `-s -- --system` after `sh`. On Windows, unpack the `windows-amd64` archive and put `susynth.exe` in a folder on your PATH.
 
-Or by hand: download the archive for your machine from Releases, check it against `SHA256SUMS`, unpack it and run `./susynth install`. Either way susynth ends up in `~/.local/bin`, and the download can be deleted.
+Or by hand: download the archive for your machine from Releases, check it against `SHA256SUMS`, unpack it and run `./susynth install`. The download can be deleted afterwards.
 
 To remove it: `susynth uninstall`. Your settings and data are kept.
 
