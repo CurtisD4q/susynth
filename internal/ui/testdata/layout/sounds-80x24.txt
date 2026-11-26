@@ -1,24 +1,24 @@
 
-  ◇ susynth   Esc 4 Sounds  (f next, b back)          night-drive • · no audio
- ─────────────────────────────────────────────────────────────────────────────
+ ◇ susynth › Sounds · night-drive • · no audio
 
-  Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ fo…
- ╭────────────────────────────────────────────────────────────────────────────╮
- │ ▾ Synths  46                                                               │
- │    beep                 pure sine (Sonic Pi's default)                     │
- │    sine                 pure sine                                          │
- │    mod_sine             sine                                               │
- │    mod_beep             sine                                               │
- │    saw                  saw, gently low-passed                             │
- │    mod_saw              saw                                                │
- │    tb303                acid bass: saw, use cutoff:                        │
- │    zawa                 saw                                                │
- │    growl                saw                                                │
- │    winwood_lead         saw lead                                           │
- │ ────────────────────────────────────────────────────────────────────────── │
- │  use_synth :name, then play notes; each plays the nearest susynth voice    │
- │  Enter or ←→ opens and folds this group                                    │
- │                                                                            │
- ╰────────────────────────────────────────────────────────────────────────────╯
+     Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→…
+     ──────────────────────────────────────────────────────────────────────────
+  1    ▾ Synths  46
+  2       beep                 pure sine (Sonic Pi's default)
+  3       sine                 pure sine
+  4       mod_sine             sine
+  5       mod_beep             sine
+  6       saw                  saw, gently low-passed
+  7       mod_saw              saw
+          tb303                acid bass: saw, use cutoff:
+          zawa                 saw
+          growl                saw
+          winwood_lead         saw lead
+          bass_foundation      saw bass
+       ──────────────────────────────────────────────────────────────────────
+        use_synth :name, then play notes; each plays the nearest susynth voi…
+        Enter or ←→ opens and folds this group
+
+
 
   ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off

@@ -40,7 +40,7 @@ type Options struct {
 const starter = `# susynth: Sonic Pi code, running in real Ruby.
 # ^E runs the block under the cursor, Esc-Enter runs everything.
 # ^G stops all loops. ^Q quits.
-# Esc then 1-7 changes page (the number is on the tab). Esc 6 is help.
+# Esc then 1-7 changes page (the numbers are down the left). Esc 6 is help.
 
 use_bpm 120
 
@@ -82,6 +82,9 @@ type prompt struct {
 
 // App is the whole UI state.
 type App struct {
+	railOn  bool // the page rail has the keys (Esc m)
+	railSel int  // the page selected in the rail
+
 	term *Term
 	cfg  config.Config
 	eng  *engine.Engine
@@ -370,6 +373,9 @@ func (a *App) handleKey(k key) {
 		a.trackCommand(k)
 		return
 	}
+	if a.railKey(k) {
+		return
+	}
 	// "Esc, then a key" shortcuts: a person can't press the second key within
 	// the few milliseconds that mark an Alt+key, so a lone Esc arms the next
 	// key for a moment. The transport shows Esc… while it is armed. Esc goes
@@ -394,10 +400,14 @@ func (a *App) handleKey(k key) {
 	}
 	if k.kind == kFn {
 		// Optional alias. SSH, tmux, laptop Fn layers and desktop F-key grabs
-		// often swallow these; Esc then 1-7 is the binding the tabs show.
+		// often swallow these; Esc then 1-7 is the binding the rail shows.
 		if p, ok := pageByNumber('0' + k.r); ok {
 			a.gotoPage(p)
 		}
+		return
+	}
+	if k.alt && k.kind == kRune && k.r == 'm' {
+		a.railOn, a.railSel = true, int(a.page)
 		return
 	}
 	if k.alt && k.kind == kRune {

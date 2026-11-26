@@ -1,32 +1,32 @@
 
-  ◇ susynth   Esc+ 1 Play [2 Sets] 3 Recordings 4 Sounds 5 Settings 6 Help 7 Perform
- ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ◇ susynth › Sets · night-drive • · no audio
 
-  Sets · 3 saved · /tmp/susynth-layout/data/sets              Details
- ╭──────────────────────────────────────────────────────────╮╭──────────────────────────────────────────────╮
- │    Name                          Tracks  Lines           ││ night-drive                                  │
- │    ────────────────────────────  ──────  ─────           ││ 13 lines · modified 2026-11-20 21:30         │
- │ ›● night-drive                        3     13           ││ live loops: :bass :drums :hats               │
- │    opener                             1      4           ││ open in the editor, with unsaved changes     │
- │    a-very-long-set-name-that-w…       2      8           ││                                              │
- │                                                          ││ use_bpm 96                                   │
- │                                                          ││ live_loop :drums do                          │
- │                                                          ││   sample :bd_haus                            │
- │                               ╭─ Delete set opener? ─────────────────────╮                               │
- │                               │                                          │                               │
- │                               │ It cannot be brought back.               │s do                           │
- │                               │                                          │aus                            │
- │                               ╰────── d delete · any other key keeps it ─╯                               │
- │                                                          ││ end                                          │
- │                                                          ││ live_loop :bass do                           │
- │                                                          ││   sample :bd_haus                            │
- │                                                          ││   sleep 1                                    │
- │                                                          ││ end                                          │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- ╰──────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
+ Pages            Sets · 3 saved · /tmp/susynth-layout/data/sets     Details
+ ──────────────── ────────────────────────────────────────────────── ────────────────────────────────────────
+  1 Play               Name                          Tracks  Lines    night-drive
+  2 Sets        ◂      ────────────────────────────  ──────  ─────    13 lines · modified 2026-11-20 21:30
+  3 Recordings      ›● night-drive                        3     13    live loops: :bass :drums :hats
+  4 Sounds             opener                             1      4    open in the editor, with unsaved cha…
+  5 Settings           a-very-long-set-name-that-w…       2      8
+  6 Help                                                              use_bpm 96
+  7 Perform                                                           live_loop :drums do
+                                                                        sample :bd_haus
+                                                                        sleep 1
+                                 ╭─ Delete set opener? ─────────────────────╮
+                                 │                                          │op :hats do
+                                 │ It cannot be brought back.               │e :bd_haus
+                                 │                                          │ 1
+                                 ╰────── d delete · any other key keeps it ─╯
+                                                                      live_loop :bass do
+                                                                        sample :bd_haus
+                                                                        sleep 1
+                                                                      end
+
+
+
+
+
+
+
 
   ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off               ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit

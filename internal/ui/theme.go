@@ -7,7 +7,6 @@ type Theme struct {
 	Base      style // background for the whole screen
 	Frame     style // the rounded border around the window
 	Rule      style // dividing lines inside the frame
-	TabOn     style // the selected page tab
 	Title     style
 	Divider   style
 	Text      style
@@ -72,7 +71,6 @@ func themeDefault() *Theme {
 		Base:      st(253, -1),
 		Frame:     st(109, -1),
 		Rule:      st(109, -1),
-		TabOn:     style{fg: bright, bg: -1, bold: true},
 		Title:     style{fg: accent, bg: -1, bold: true},
 		Divider:   st(109, -1),
 		Text:      st(253, -1),
@@ -127,7 +125,6 @@ func themeContrast() *Theme {
 	t.Base = style{fg: 15, bg: 0, bold: true}
 	t.Frame = style{fg: 15, bg: 0, bold: true}
 	t.Rule = st(15, 0)
-	t.TabOn = style{fg: 0, bg: 11, bold: true}
 	t.Title = style{fg: 11, bg: 0, bold: true}
 	t.Divider = st(15, 0)
 	t.Text = style{fg: 15, bg: 0, bold: true}

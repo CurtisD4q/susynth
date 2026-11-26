@@ -1,45 +1,45 @@
 
-  ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds [5 Settings] 6 Help 7 Perform                                                  night-drive • · no audio
- ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ◇ susynth › Settings · night-drive • · no audio
 
-  Settings · saved automatically
- ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
- │  Theme                   ‹ default                      ›                                                                                                  │
- │                                                                                                                                                            │
- │  Audio output            ‹                              ›                                                                                                  │
- │                                                                                                                                                            │
- │  Tempo (BPM)             ‹ 60                           ›                                                                                                  │
- │                                                                                                                                                            │
- │  Start on next bar       ‹ off                          ›                                                                                                  │
- │                                                                                                                                                            │
- │  Internal synth          ‹ off                          ›                                                                                                  │
- │                                                                                                                                                            │
- │  OSC → SuperDirt         ‹ off                          ›                                                                                                  │
- │                                                                                                                                                            │
- │  OSC address             ‹                              ›                                                                                                  │
- │                                                                                                                                                            │
- │  MIDI output             ‹ off                          ›                                                                                                  │
- │                                                                                                                                                            │
- │  MIDI clock              ‹ off                          ›                                                                                                  │
- │                                                                                                                                                            │
- │  Samples                 ‹ 0 banks, 0 files             ›                                                                                                  │
- │                                                                                                                                                            │
- │  Reopen last set         ‹ off                          ›                                                                                                  │
- │                                                                                                                                                            │
- │  Screen refresh          ‹ 0 Hz                         ›                                                                                                  │
- │                                                                                                                                                            │
- │                                                                                                                                                            │
- │                                                                                                                                                            │
- │                                                                                                                                                            │
- │                                                                                                                                                            │
- │                                                                                                                                                            │
- │                                                                                                                                                            │
- │                                                                                                                                                            │
- │                                                                                                                                                            │
- │                                                                                                                                                            │
- │ ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── │
- │  default, large (projector) or contrast (washed-out projectors)                                                                                            │
- │                                                                                                                                                            │
- ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ Pages            Settings · saved automatically
+ ──────────────── ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  1 Play             Theme                   ‹ default                      ›
+  2 Sets
+  3 Recordings       Audio output            ‹                              ›
+  4 Sounds
+  5 Settings    ◂    Tempo (BPM)             ‹ 60                           ›
+  6 Help
+  7 Perform          Start on next bar       ‹ off                          ›
+
+                     Internal synth          ‹ off                          ›
+
+                     OSC → SuperDirt         ‹ off                          ›
+
+                     OSC address             ‹                              ›
+
+                     MIDI output             ‹ off                          ›
+
+                     MIDI clock              ‹ off                          ›
+
+                     Samples                 ‹ 0 banks, 0 files             ›
+
+                     Reopen last set         ‹ off                          ›
+
+                     Screen refresh          ‹ 0 Hz                         ›
+
+
+
+
+
+
+
+
+
+
+
+                    ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                     default, large (projector) or contrast (washed-out projectors)
+
+
 
   ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                                                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit

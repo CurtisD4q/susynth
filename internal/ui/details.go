@@ -19,7 +19,7 @@ import (
 // the start of its code; for a recording, how long it is and where it is.
 
 // detailsMinW is the narrowest window that has room for a Details box.
-const detailsMinW = 100
+const detailsMinW = 80
 
 // setPreview is a set's code, read once and kept until the set changes.
 type setPreview struct {

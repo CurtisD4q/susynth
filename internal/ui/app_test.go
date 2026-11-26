@@ -93,7 +93,8 @@ func TestMuteAndStopNeedAShownPrefix(t *testing.T) {
 
 func TestDeletedLoopIsMarkedNotInCode(t *testing.T) {
 	a := testApp()
-	got := frameText(a)
+	wide, _, _ := a.draw(140, 32)
+	got := strings.Join(wide.rows(), "\n")
 	if !strings.Contains(got, "not in code") {
 		t.Fatal("drums was removed from the text but is not marked")
 	}
@@ -281,7 +282,7 @@ func TestPageKeysLeaveTransportAndTrackShortcuts(t *testing.T) {
 	}
 }
 
-func TestTabsShowEscNumbers(t *testing.T) {
+func TestRailShowsEscNumbers(t *testing.T) {
 	a := testApp()
 	wide, _, _ := a.draw(110, 32)
 	title := plain(wide.rows()[1])
@@ -293,27 +294,45 @@ func TestTabsShowEscNumbers(t *testing.T) {
 	if strings.Contains(screen, "Shift+arrows select") {
 		t.Fatalf("the hint line is still drawn:\n%s", screen)
 	}
-	for _, want := range []string{"Esc+ [1 Play]", "2 Sets", "3 Recordings", "4 Sounds", "5 Settings", "6 Help", "7 Perform"} {
-		if !strings.Contains(title, want) {
-			t.Errorf("title %q missing %q", title, want)
+	// The pages run down the left, numbered as Esc then the number opens
+	// them; the top line is the trail.
+	for _, want := range []string{"Pages", "1 Play", "2 Sets", "3 Recordings", "4 Sounds", "5 Settings", "6 Help", "7 Perform"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the rail lacks %q:\n%s", want, screen)
 		}
+	}
+	if !strings.Contains(title, "susynth › Play") {
+		t.Errorf("trail %q", title)
 	}
 	if strings.Contains(title, "F1") || strings.Contains(title, "F4") {
 		t.Fatalf("title still advertises function keys: %q", title)
 	}
 
 	a.gotoPage(pageSounds)
-	title = plain(a.drawRow(110, 1))
-	if !strings.Contains(title, "[4 Sounds]") || !strings.Contains(title, "Esc+") {
-		t.Fatalf("sounds title %q", title)
+	if title = plain(a.drawRow(110, 1)); !strings.Contains(title, "susynth › Sounds") {
+		t.Fatalf("sounds trail %q", title)
+	}
+	// Under 80 columns the rail shows the numbers only.
+	narrow := plain(strings.Join(a.drawRows(70), "\n"))
+	if strings.Contains(narrow, "Pages") || strings.Contains(narrow, "3 Recordings") || !strings.Contains(narrow, " 7 ") {
+		t.Fatalf("narrow rail:\n%s", narrow)
 	}
 
-	narrow := plain(a.drawRow(80, 1))
-	if !strings.Contains(narrow, "Esc 4 Sounds") || !strings.Contains(narrow, "f next") {
-		t.Fatalf("narrow title %q", narrow)
+	// Esc m moves the keys into the rail; Enter opens the page chosen.
+	a.gotoPage(pagePlay)
+	a.handleKey(key{kind: kRune, r: 'm', alt: true})
+	if !a.railOn {
+		t.Fatal("Esc m did not open the rail")
 	}
-	if strings.Contains(narrow, "F4") || strings.Contains(narrow, "2 Sets") {
-		t.Fatalf("narrow title %q", narrow)
+	a.handleKey(key{kind: kDown})
+	a.handleKey(key{kind: kEnter})
+	if a.railOn || a.page != pageSets {
+		t.Fatalf("Enter in the rail: rail %v, page %v", a.railOn, a.page)
+	}
+	a.handleKey(key{kind: kRune, r: 'm', alt: true})
+	a.handleKey(key{kind: kEsc})
+	if a.railOn || a.page != pageSets {
+		t.Fatalf("Esc in the rail: rail %v, page %v", a.railOn, a.page)
 	}
 
 	a.gotoPage(pageHelp)

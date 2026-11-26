@@ -1,32 +1,32 @@
 
-  ◇ susynth   Esc+ [1 Play] 2 Sets 3 Recordings 4 Sounds 5 Settings 6 Help 7 Perform
- ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ◇ susynth › Play · night-drive • · no audio
 
-  Editor · ^E run block · Esc-Enter run all                   Tracks · 2 playing · Esc k stops one
- ╭──────────────────────────────────────────────────────────╮╭──────────────────────────────────────────────╮
- │┊ 1 use_bpm 120                                           ││ 1 :drums       ▮▮▮▮▮▮▮▮ 100% not in code     │
- │  2 live_loop :bass do                                    ││  ◆ · · ·  · · · ·  · · · ·  · · · ·          │
- │  3   play 60                                             ││                                              │
- │  4                                                       ││ 2 :bass        ▮▮▮▮▮▮▮▮ 100%                 │
- │  5   sleep 1                                             ││  ◆ · · ·  · · · ·  · · · ·  · · · ·          │
- │  6 end                                                   ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- │                                                          ││                                              │
- ╰──────────────────────────────────────────────────────────╯╰──────────────────────────────────────────────╯
+ Pages            Editor · ^E run block · Esc-Enter run all          Tracks · 2 playing · Esc k stops one
+ ──────────────── ────────────────────────────────────────────────── ────────────────────────────────────────
+  1 Play        ◂  ┊ 1 use_bpm 120                                    1 :drums       ▮▮▮▮▮▮▮▮ 100% not in c…
+  2 Sets             2 live_loop :bass do                              ◆ · · ·  · · · ·  · · · ·  · · · ·
+  3 Recordings       3   play 60
+  4 Sounds           4                                                2 :bass        ▮▮▮▮▮▮▮▮ 100%
+  5 Settings         5   sleep 1                                       ◆ · · ·  · · · ·  · · · ·  · · · ·
+  6 Help             6 end
+  7 Perform
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   ▸ save set as: night-drive
   ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off               ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit

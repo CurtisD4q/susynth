@@ -31,7 +31,7 @@ const (
 
 var pageNames = [numPages]string{"Play", "Sets", "Recordings", "Sounds", "Settings", "Help", "Perform"}
 
-// pageByNumber maps the digit drawn on a tab to that page. '1' is Play.
+// pageByNumber maps the digit drawn in the rail to that page. '1' is Play.
 func pageByNumber(r rune) (page, bool) {
 	i := int(r - '1')
 	if i < 0 || i >= int(numPages) {
@@ -610,7 +610,8 @@ var helpLines = []helpLine{
 	{key: "Esc 1 … Esc 7", text: "Play, Sets, Recordings, Sounds, Settings, Help, Perform"},
 	{key: "Esc f  /  Esc b", text: "next / previous page"},
 	{key: "Esc", text: "from any page, back to Play"},
-	{text: "The number is on each tab. Press Esc, then the key within 1.5 s, or hold Alt."},
+	{key: "Esc m", text: "the pages down the left: ↑↓ choose, Enter open, Esc back"},
+	{text: "The numbers are down the left. Press Esc, then the key within 1.5 s, or hold Alt."},
 	{text: "F1-F7 still open those pages when the terminal sends function keys."},
 	{head: true, text: "KEYS ON EACH PAGE"},
 	{key: "Sets", text: "↑↓ select · Enter load · a add to the set list · n new · d delete (twice)"},

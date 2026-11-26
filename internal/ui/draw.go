@@ -42,28 +42,41 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	f := newFrame(w, h, th.Base)
 	v := a.eng.Snapshot()
 
-	// Row 0: the title and the page tabs. Row 1 is the rule under them,
-	// as Mint's other programs draw it; row 2 is blank, and row 3 holds
-	// each pane's title, above its box.
-	f.text(1, 0, "◇ susynth", th.Title, 0)
-	tx := a.drawTabs(f, 13, w)
-	set := a.setName
-	if set == "" {
-		set = "untitled"
+	// Row 0 is the trail and row 1 is blank. The rail and the panes have
+	// their titles on row 2 and their rules on row 3; a pane draws its rows
+	// from row 4, under its rule.
+	a.drawTrail(f, w)
+	rw := railWidth(w)
+	top, bot := 3, h-3
+	a.drawRail(f, rw, top-1, bot)
+	// The panes are laid out as if they had the window to themselves,
+	// beside the rail, then copied over.
+	pw := w - rw
+	pf := newFrame(pw, h, th.Base)
+	cx, cy := a.drawPanes(pf, pw, top, bot, v)
+	for y := top - 1; y <= bot; y++ {
+		copy(f.cells[y*w+rw:y*w+rw+pw], pf.cells[y*pw:(y+1)*pw])
 	}
-	if a.dirty {
-		set += " •"
+	if cx >= 0 {
+		cx += rw
 	}
-	right := fmt.Sprintf("%s · %s", set, a.sinkName())
-	if rx := w - len([]rune(right)) - 1; rx > tx+2 {
-		f.text(rx, 0, right, th.Muted, 0)
+
+	a.drawToast(f, h-2, w, &cx, &cy)
+	a.drawTransport(f, h-1, w, v)
+	if a.prompt == nil && cx >= 0 && cy > bot {
+		cx = -1
 	}
-	// The boxes run from row top (their top border) to row bot (their
-	// bottom border). A pane draws its rows from top+1, as it did under its
-	// own heading line, which is now the box's top border.
-	f.hline(0, 1, w-1, '─', style{fg: th.Rule.fg, bg: th.Rule.bg, dim: true})
-	top, bot := 4, h-3
-	iw := w - 2 // the width the panes were laid out in, inside the old frame
+	if p, ok := a.currentPopup(); ok {
+		cx, cy = a.drawPopup(f, p)
+	}
+	return f, cx, cy
+}
+
+// drawPanes draws the page's panes in a frame w columns wide, their rules
+// on row top and their rows down to bot. It returns the cursor, or -1.
+func (a *App) drawPanes(f *frame, w, top, bot int, v engine.View) (int, int) {
+	th := a.th
+	iw := w - 2 // the width the panes were laid out in
 	ew := iw * 11 / 20
 	if iw >= 110 {
 		ew = iw * 3 / 5
@@ -76,13 +89,13 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	}
 	cx, cy := -1, -1
 	if a.page == pagePlay {
-		// The editor box keeps the code exactly as wide as before: columns
-		// 1..ew. The side box is beside it, with a space inside its edge.
-		a.drawPane(f, 0, top, ew+1, bot, "Editor", "^E run block · Esc-Enter run all", true)
+		// The editor's code is in columns 1..ew, under its rule; the side
+		// pane is beside it, after one blank column.
+		a.drawPane(f, 0, top, ew+1, bot, "Editor", "^E run block · Esc-Enter run all", !a.railOn)
 		cx, cy = a.drawEditor(f, 1, top, ew, bot-top)
 		sx, sw := ew+4, w-ew-5
 		title, info := a.sideLabel(v)
-		a.drawPane(f, ew+2, top, w-1, bot, title, info, false)
+		a.drawPane(f, ew+3, top, w-1, bot, title, info, false)
 		switch a.side {
 		case sideRoll:
 			a.drawRoll(f, sx, top, sw, bot-top, v)
@@ -94,25 +107,15 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	} else if a.ps.split = a.hasDetails(w); a.ps.split {
 		// A list and, beside it, the row under the cursor in full.
 		lw := iw * 11 / 20
-		a.drawPane(f, 0, top, lw+1, bot, pageNames[a.page], a.pageInfo(), true)
+		a.drawPane(f, 0, top, lw+1, bot, pageNames[a.page], a.pageInfo(), !a.railOn)
 		a.drawPage(f, 1, top, lw, bot-top)
-		a.drawPane(f, lw+2, top, w-1, bot, "Details", "", false)
+		a.drawPane(f, lw+3, top, w-1, bot, "Details", "", false)
 		a.drawDetails(f, lw+4, top, w-lw-6, bot-top)
 	} else {
-		// The page's own heading line is now its box's top border.
-		a.drawPane(f, 0, top, w-1, bot, pageNames[a.page], a.pageInfo(), true)
+		a.drawPane(f, 0, top, w-1, bot, pageNames[a.page], a.pageInfo(), !a.railOn)
 		a.drawPage(f, 1, top, w-2, bot-top)
 	}
-
-	a.drawToast(f, h-2, w, &cx, &cy)
-	a.drawTransport(f, h-1, w, v)
-	if a.prompt == nil && cx >= 0 && cy > bot {
-		cx = -1
-	}
-	if p, ok := a.currentPopup(); ok {
-		cx, cy = a.drawPopup(f, p)
-	}
-	return f, cx, cy
+	return cx, cy
 }
 
 func (a *App) sinkName() string {
@@ -479,37 +482,6 @@ func (a *App) drawTransport(f *frame, y, w int, v engine.View) {
 		f.text(hx, y, hint, th.BarKey, 0)
 	}
 	_ = strings.TrimSpace
-}
-
-// drawTabs paints the page tabs after the title and returns the next free x.
-// The leading Esc+ is the prefix for the digit on each tab. Esc then that
-// digit opens the page; typing the digit alone still inserts it. A narrow
-// terminal shows only the current page, with its Esc number.
-func (a *App) drawTabs(f *frame, x, w int) int {
-	th := a.th
-	labels := make([]string, numPages)
-	need := len("Esc+ ")
-	for i, n := range pageNames {
-		if page(i) == a.page {
-			labels[i] = fmt.Sprintf("[%d %s]", i+1, n)
-		} else {
-			labels[i] = fmt.Sprintf("%d %s", i+1, n)
-		}
-		need += len(labels[i]) + 1
-	}
-	if x+need > w {
-		x = f.text(x, 0, fmt.Sprintf("Esc %d %s", int(a.page)+1, pageNames[a.page]), th.TabOn, 0)
-		return f.text(x, 0, "  (f next, b back)", th.Muted, 0)
-	}
-	x = f.text(x, 0, "Esc+ ", th.Muted, 0)
-	for i, lbl := range labels {
-		s := th.Muted
-		if page(i) == a.page {
-			s = th.TabOn
-		}
-		x = f.text(x, 0, lbl, s, 0) + 1
-	}
-	return x
 }
 
 // drawLog is the session log in the right-hand pane: errors, puts and cues,
