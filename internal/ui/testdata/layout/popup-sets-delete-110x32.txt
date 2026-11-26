@@ -1,0 +1,32 @@
+ ◇ susynth   Esc+ 1 Play [2 Sets] 3 Recordings 4 Sounds 5 Settings 6 Help 7 Perform
+ ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭─ Sets · 3 saved · /tmp/susynth-layout/data/sets ───────────────────────────────────────────────────────────╮
+│    Name                          Tracks  Lines  Modified                                                   │
+│    ────────────────────────────  ──────  ─────  ────────                                                   │
+│ ›● night-drive                        0     12  2026-11-20 21:30                                           │
+│    opener                             0      4  2026-11-20 20:30                                           │
+│    a-very-long-set-name-that-w…       0      8  2026-11-18 21:30                                           │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                ╭─ Delete set opener? ─────────────────────╮                                │
+│                                │                                          │                                │
+│                                │ It cannot be brought back.               │                                │
+│                                │                                          │                                │
+│                                ╰────── d delete · any other key keeps it ─╯                                │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+│                                                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit

@@ -93,6 +93,9 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	if a.prompt == nil && cx >= 0 && cy > bot {
 		cx = -1
 	}
+	if p, ok := a.currentPopup(); ok {
+		cx, cy = a.drawPopup(f, p)
+	}
 	return f, cx, cy
 }
 
@@ -390,7 +393,7 @@ func (a *App) drawTracks(f *frame, x, y, w, h int, v engine.View) {
 
 func (a *App) drawToast(f *frame, y, w int, cx, cy *int) {
 	th := a.th
-	if a.prompt != nil {
+	if a.prompt != nil && a.page == pagePlay { // off the Play page it is a pop-up
 		x := f.text(1, y, "▸ "+a.prompt.label, th.Pane, 0)
 		x = f.text(x, y, string(a.prompt.buf), style{fg: th.Toast.fg, bg: th.Toast.bg, bold: true}, w-x-1)
 		*cx, *cy = x, y
