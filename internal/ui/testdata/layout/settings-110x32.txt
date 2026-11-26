@@ -2,7 +2,7 @@
  ◇ susynth › Settings · night-drive • · no audio
  ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-      Settings · saved automatically
+  m   Settings · saved automatically
       ───────────────────────────────────────────────────────────────────────────────────────────────────────
   ▶      Theme                   ‹ default                      ›
   ≡      Audio output            ‹                              ›

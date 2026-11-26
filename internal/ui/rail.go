@@ -4,10 +4,10 @@ import "strings"
 
 // The page rail.
 //
-// The pages run down the left of the window as icons. Esc m opens the
-// rail over the page, with names and the numbers that open each page
-// (Esc then the number), and moves the keys into it: ↑↓ choose a page, Enter
-// opens it, Esc or m goes back and shuts it.
+// The pages run down the left of the window as icons, with an m above them.
+// Esc m opens the pages as a pop-up pane beside the icons, with names and the
+// numbers that open each page (Esc then the number), and moves the keys into
+// it: ↑↓ choose a page, Enter opens it, Esc or m goes back and shuts it.
 //
 // The top line is the trail: susynth › the page · the set · the audio.
 
@@ -21,71 +21,80 @@ func railWidth(w int) int {
 // pageIcons are the pages' icons, in page order.
 var pageIcons = []string{"▶", "≡", "●", "♪", "⚙", "?", "◈"}
 
-// railOpenWidth is the columns the open rail covers, with names.
-func railOpenWidth(w int) int {
+// railPopW is the pop-up's own width: the icon, the name, the number, the
+// marker and the two sides.
+func railPopW(w int) int {
 	n := len("Pages")
 	for _, p := range pageNames {
 		n = max(n, len([]rune(p)))
 	}
-	return min(n+8, max(railWidth(w), w-10)) // " ▶ ", the name, the number, the marker and the edge
+	return max(12, min(n+10, w-railWidth(w)-4))
 }
 
-// drawRail draws the shut rail: its title on row y, the rule under it, and
-// the page numbers from y+2 to bot.
+// drawRail draws the icons, with an m above them (where the pop-up's title
+// goes) that opens the pop-up. They are in the rows the pages' own rows use.
 func (a *App) drawRail(f *frame, rw, y, bot int) {
-	a.drawRailAt(f, rw, y, bot, false)
-}
-
-// drawRailOpen draws the open rail over the page: the page under it is
-// cleared, the names are shown, and an edge runs down its right side.
-func (a *App) drawRailOpen(f *frame, ow, y, bot int) {
 	th := a.th
-	for r := y; r <= bot; r++ {
-		for x := 0; x < ow; x++ {
-			f.text(x, r, " ", th.Text, 1)
-		}
-		f.text(ow-1, r, "│", a.boxLine(true), 1)
+	mark := th.Muted
+	if a.railOn {
+		mark = th.Pane
 	}
-	a.drawRailAt(f, ow, y, bot, true)
-}
-
-func (a *App) drawRailAt(f *frame, rw, y, bot int, open bool) {
-	th := a.th
-	right := rw - 2 // the last column the rail draws in
-	if open {
-		f.text(0, y, "Pages", th.Pane, right+1)
-		f.hline(0, y+1, right+1, '─', a.boxLine(true))
-	}
-	// Shut, it is only the icons, in the rows the page's own rows use.
-	for i, name := range pageNames {
+	f.text(1, y, "m", mark, 1)
+	for i := range pageNames {
 		row := y + 2 + i
 		if row > bot {
 			break
-		}
-		text := " " + pageIcons[i]
-		if open {
-			text += " " + name
 		}
 		st := th.Text
 		if page(i) == a.page {
 			st = th.Pane
 		}
-		if open {
-			// The number that opens the page (Esc then the number) at the
-			// right, then the marker for the page being shown.
-			tail := string(rune('1' + i))
-			if page(i) == a.page {
-				tail += "◂"
-			} else {
-				tail += " "
-			}
-			text += strings.Repeat(" ", max(1, right+1-len([]rune(text))-len([]rune(tail)))) + tail
+		f.text(1, row, pageIcons[i], st, 1)
+	}
+}
+
+// drawRailOpen draws the pages as a pop-up pane just right of the icons,
+// which stay where they are: a bordered box with a title and a rule under
+// it, then a row per page, level with its icon, and the number that opens
+// it (Esc then the number) at the right.
+func (a *App) drawRailOpen(f *frame, rw, y, bot int) {
+	th := a.th
+	line := a.boxLine(true)
+	l := rw - 1
+	pw := railPopW(f.w)
+	r := l + pw - 1
+	shown := min(len(pageNames), bot-(y+2))
+	f.fill(l, y-1, pw, shown+4, th.Text)
+	f.put(l, y-1, '╭', line)
+	f.hline(l+1, y-1, pw-2, '─', line)
+	f.put(r, y-1, '╮', line)
+	f.vline(l, y, shown+2, '│', line)
+	f.vline(r, y, shown+2, '│', line)
+	f.text(l+2, y, "Pages", th.Pane, pw-3)
+	f.hline(l+1, y+1, pw-2, '─', line)
+	for i := 0; i < shown; i++ {
+		row := y + 2 + i
+		text := " " + pageIcons[i] + " " + pageNames[i]
+		tail := string(rune('1' + i))
+		if page(i) == a.page {
+			tail += "◂"
+		} else {
+			tail += " "
 		}
-		if open && i == a.railSel {
+		inner := pw - 2
+		text += strings.Repeat(" ", max(1, inner-len([]rune(text))-len([]rune(tail)))) + tail
+		st := th.Text
+		if page(i) == a.page {
+			st = th.Pane
+		}
+		if i == a.railSel {
 			st = th.CursorRow
 		}
-		f.text(0, row, text, st, right+1)
+		f.text(l+1, row, text, st, inner)
 	}
+	f.put(l, y+2+shown, '╰', line)
+	f.hline(l+1, y+2+shown, pw-2, '─', line)
+	f.put(r, y+2+shown, '╯', line)
 }
 
 // railKey takes the keys while the rail has them. It reports whether it

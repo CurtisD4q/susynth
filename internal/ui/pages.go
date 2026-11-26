@@ -610,7 +610,7 @@ var helpLines = []helpLine{
 	{key: "Esc 1 … Esc 7", text: "Play, Sets, Recordings, Sounds, Settings, Help, Perform"},
 	{key: "Esc f  /  Esc b", text: "next / previous page"},
 	{key: "Esc", text: "from any page, back to Play"},
-	{key: "Esc m", text: "the pages down the left: ↑↓ choose, Enter open, Esc back"},
+	{key: "Esc m", text: "the pages pop-up beside the icons: ↑↓ choose, Enter open, Esc back"},
 	{text: "Esc m shows the numbers. Press Esc, then the key within 1.5 s, or hold Alt."},
 	{text: "F1-F7 still open those pages when the terminal sends function keys."},
 	{head: true, text: "KEYS ON EACH PAGE"},

@@ -2,7 +2,7 @@
  ◇ susynth › Recordings · night-drive • · no audio
  ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-      Recordings · 2 recorded · /tmp/susynth-layout/data/reco…  Details
+  m   Recordings · 2 recorded · /tmp/susynth-layout/data/reco…  Details
       ───────────────────────────────────────────────────────── ─────────────────────────────────────────────
   ▶      File                              Length      Size      set-20261120-2100.wav
   ≡      ────────────────────────────────  ──────      ────      3:25 · 37.5 MB

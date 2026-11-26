@@ -2,7 +2,7 @@
  ◇ susynth › Sounds · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────
 
-      Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←…
+  m   Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←…
       ─────────────────────────────────────────────────────────────────────────
   ▶     ▾ Synths  46
   ≡        beep                 pure sine (Sonic Pi's default)

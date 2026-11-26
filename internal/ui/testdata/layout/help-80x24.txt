@@ -2,13 +2,13 @@
  ◇ susynth › Help · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────
 
-      Help · ↑↓ PgUp PgDn scroll
+  m   Help · ↑↓ PgUp PgDn scroll
       ─────────────────────────────────────────────────────────────────────────
   ▶      PAGES
   ≡      Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, He…
   ●      Esc f  /  Esc b        next / previous page
   ♪      Esc                    from any page, back to Play
-  ⚙      Esc m                  the pages down the left: ↑↓ choose, Enter op…
+  ⚙      Esc m                  the pages pop-up beside the icons: ↑↓ choose…
   ?      Esc m shows the numbers. Press Esc, then the key within 1.5 s, or h…
   ◈      F1-F7 still open those pages when the terminal sends function keys.
          KEYS ON EACH PAGE

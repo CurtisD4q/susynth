@@ -62,8 +62,8 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 		cx += rw
 	}
 	if a.railOn {
-		// The open rail covers the left of the page.
-		a.drawRailOpen(f, railOpenWidth(w), top-1, bot)
+		// The pop-up covers the left of the page, beside the icons.
+		a.drawRailOpen(f, rw, top-1, bot)
 		cx, cy = -1, -1
 	}
 
