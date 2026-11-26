@@ -1,5 +1,6 @@
 
  ◇ susynth › Help · night-drive • · no audio
+ ─────────────────────────────────────────────────────────────────────────────
 
      Help · ↑↓ PgUp PgDn scroll
      ──────────────────────────────────────────────────────────────────────────
@@ -18,7 +19,6 @@
         Help                   ↑↓ PgUp PgDn scroll
         Perform                Enter go live · Esc n / Esc p next / previous…
 
-        PLAYING
 
 
   ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off

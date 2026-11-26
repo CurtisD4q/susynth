@@ -42,12 +42,13 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	f := newFrame(w, h, th.Base)
 	v := a.eng.Snapshot()
 
-	// Row 0 is the trail and row 1 is blank. The rail and the panes have
-	// their titles on row 2 and their rules on row 3; a pane draws its rows
-	// from row 4, under its rule.
+	// Row 0 is the trail, row 1 its rule and row 2 is blank. The rail and
+	// the panes have their titles on row 3 and their rules on row 4; a pane
+	// draws its rows from row 5, under its rule.
 	a.drawTrail(f, w)
+	f.hline(0, 1, w-1, '─', style{fg: th.Rule.fg, bg: th.Rule.bg, dim: true})
 	rw := railWidth(w)
-	top, bot := 3, h-3
+	top, bot := 4, h-3
 	a.drawRail(f, rw, top-1, bot)
 	// The panes are laid out as if they had the window to themselves,
 	// beside the rail, then copied over.

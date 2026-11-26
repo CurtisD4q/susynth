@@ -1,5 +1,6 @@
 
  ◇ susynth › Sounds · night-drive • · no audio
+ ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
  Pages            Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ fold a group
  ──────────────── ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -35,7 +36,6 @@
                        mod_tri              triangle
                        fm                   two-operator FM
                        mod_fm               FM
-                       pretty_bell          FM bell
                     ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
                      use_synth :name, then play notes; each plays the nearest susynth voice
                      Enter or ←→ opens and folds this group

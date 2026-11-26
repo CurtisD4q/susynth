@@ -1,5 +1,6 @@
 
  ◇ susynth › Help · night-drive • · no audio
+ ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
  Pages            Help · ↑↓ PgUp PgDn scroll
  ──────────────── ───────────────────────────────────────────────────────────────────────────────────────────
@@ -26,7 +27,6 @@
                      ^R                     start / stop recording a WAV
                      ^S  ^O                 save / load a set by name (sets are .rb files)
                      Esc u  n               mute / unmute track n — a digit alone does nothing
-                     Esc k  n               stop that track (Enter stops the loop under the cursor)
 
 
   ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off               ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit

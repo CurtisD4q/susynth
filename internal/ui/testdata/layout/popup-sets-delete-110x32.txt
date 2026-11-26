@@ -1,5 +1,6 @@
 
  ◇ susynth › Sets · night-drive • · no audio
+ ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
  Pages            Sets · 3 saved · /tmp/susynth-layout/data/sets     Details
  ──────────────── ────────────────────────────────────────────────── ────────────────────────────────────────
@@ -11,17 +12,16 @@
   6 Help                                                              use_bpm 96
   7 Perform                                                           live_loop :drums do
                                                                         sample :bd_haus
-                                                                        sleep 1
-                                 ╭─ Delete set opener? ─────────────────────╮
-                                 │                                          │op :hats do
-                                 │ It cannot be brought back.               │e :bd_haus
-                                 │                                          │ 1
-                                 ╰────── d delete · any other key keeps it ─╯
+                                 ╭─ Delete set opener? ─────────────────────╮ 1
+                                 │                                          │
+                                 │ It cannot be brought back.               │op :hats do
+                                 │                                          │e :bd_haus
+                                 ╰────── d delete · any other key keeps it ─╯ 1
+                                                                      end
                                                                       live_loop :bass do
                                                                         sample :bd_haus
                                                                         sleep 1
                                                                       end
-
 
 
 

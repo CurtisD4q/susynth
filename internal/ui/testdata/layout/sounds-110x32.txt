@@ -1,5 +1,6 @@
 
  ◇ susynth › Sounds · night-drive • · no audio
+ ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
  Pages            Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ fold a group
  ──────────────── ───────────────────────────────────────────────────────────────────────────────────────────
@@ -22,7 +23,6 @@
                        prophet              wide analogue-style pad
                        blade                detuned saws
                        hoover               detuned saws
-                       tech_saws            detuned saws
                     ───────────────────────────────────────────────────────────────────────────────────────
                      use_synth :name, then play notes; each plays the nearest susynth voice
                      Enter or ←→ opens and folds this group

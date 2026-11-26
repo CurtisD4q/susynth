@@ -1,5 +1,6 @@
 
  ◇ susynth › Sounds · night-drive • · no audio
+ ─────────────────────────────────────────────────────────────────────────────
 
      Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→…
      ──────────────────────────────────────────────────────────────────────────
@@ -14,7 +15,6 @@
           zawa                 saw
           growl                saw
           winwood_lead         saw lead
-          bass_foundation      saw bass
        ──────────────────────────────────────────────────────────────────────
         use_synth :name, then play notes; each plays the nearest susynth voi…
         Enter or ←→ opens and folds this group

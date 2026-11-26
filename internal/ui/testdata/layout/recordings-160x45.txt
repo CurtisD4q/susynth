@@ -1,5 +1,6 @@
 
  ◇ susynth › Recordings · night-drive • · no audio
+ ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
  Pages            Recordings · 2 recorded · /tmp/susynth-layout/data/recordings                  Details
  ──────────────── ────────────────────────────────────────────────────────────────────────────── ──────────────────────────────────────────────────────────────
@@ -10,7 +11,6 @@
   5 Settings                                                                                      WAV audio, 16-bit stereo at 48000 Hz
   6 Help
   7 Perform                                                                                       /tmp/susynth-layout/data/recordings/set-20261120-2100.wav
-
 
 
 
