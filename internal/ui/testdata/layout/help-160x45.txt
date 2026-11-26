@@ -1,0 +1,45 @@
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds 5 Settings [6 Help] 7 Perform                                                       untitled · no audio │
+│ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│ ▸ Help  ↑↓ PgUp PgDn scroll                                                                                                                                  │
+│  PAGES                                                                                                                                                       │
+│  Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform                                                                              │
+│  Esc f  /  Esc b        next / previous page                                                                                                                 │
+│  Esc                    from any page, back to Play                                                                                                          │
+│  The number is on each tab. Press Esc, then the key within 1.5 s, or hold Alt.                                                                               │
+│  F1-F7 still open those pages when the terminal sends function keys.                                                                                         │
+│                                                                                                                                                              │
+│  PLAYING                                                                                                                                                     │
+│  ^E                     run the block under the cursor (the whole live_loop; ┊ marks it)                                                                     │
+│  Esc Enter              run the whole buffer, like Sonic Pi's Run                                                                                            │
+│  ^G                     stop every live_loop and thread, like Sonic Pi's Stop                                                                                │
+│  ^P                     stop, or run the whole buffer again                                                                                                  │
+│  ^R                     start / stop recording a WAV                                                                                                         │
+│  ^S  ^O                 save / load a set by name (sets are .rb files)                                                                                       │
+│  Esc u  n               mute / unmute track n — a digit alone does nothing                                                                                   │
+│  Esc k  n               stop that track (Enter stops the loop under the cursor)                                                                              │
+│  Esc s  n               solo track n (0 clears)                                                                                                              │
+│  Esc l                  session log (errors, puts, cue) in the right pane; Alt+↑↓ scrolls                                                                    │
+│  Esc - / =              level of the live_loop the cursor is in                                                                                              │
+│  Esc r                  switch the right-hand pane between Tracks and the piano roll                                                                         │
+│  Esc t / a              next theme / next audio output                                                                                                       │
+│  Esc x                  export the set as a MIDI file (runs silently in a second sandbox)                                                                    │
+│  Esc n / p              perform: next / previous set in the set list                                                                                         │
+│  ^Q                     quit (asks once if there are unsaved changes)                                                                                        │
+│                                                                                                                                                              │
+│  EDITING                                                                                                                                                     │
+│  Shift + arrows         select text (also Shift+Home/End/PgUp/PgDn); ^A selects everything                                                                   │
+│  ^C  ^X  ^V             copy / cut / paste; with nothing selected, copy or cut the whole line                                                                │
+│  terminal paste         Ctrl+Shift+V (Linux) or Cmd+V (macOS) pastes from other apps                                                                         │
+│  Backspace  Delete      delete the selection (or one character)                                                                                              │
+│  ^Z  ^Y                 undo / redo                                                                                                                          │
+│  ^K                     delete the current line                                                                                                              │
+│  Copies also go to the system clipboard in terminals that support it (OSC 52).                                                                               │
+│                                                                                                                                                              │
+│  THE LANGUAGE  (Sonic Pi, running in real Ruby 3.4)                                                                                                          │
+│  live_loop :name do     a loop that runs forever; re-run it to change it on its next pass                                                                    │
+│    play :e3             a note: :c4 :fs3 :eb2 or MIDI 60; chords: play chord(:e3, :minor)                                                                    │
+│    sample :bd_haus      a sample (see Esc 4 Sounds); sample :mybank, 2 for your own                                                                          │
+│                                                                                                                                                              │
+│ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                                                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
