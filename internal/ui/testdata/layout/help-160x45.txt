@@ -1,5 +1,7 @@
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│  ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds 5 Settings [6 Help] 7 Perform                                                night-drive • · no audio  │
+│ ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds 5 Settings [6 Help] 7 Perform                                                 night-drive • · no audio  │
+│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│                                                                                                                                                              │
 │  Help · ↑↓ PgUp PgDn scroll                                                                                                                                  │
 │ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
 │ │  PAGES                                                                                                                                                   │ │
@@ -37,8 +39,6 @@
 │ │  EDITING                                                                                                                                                 │ │
 │ │  Shift + arrows         select text (also Shift+Home/End/PgUp/PgDn); ^A selects everything                                                               │ │
 │ │  ^C  ^X  ^V             copy / cut / paste; with nothing selected, copy or cut the whole line                                                            │ │
-│ │  terminal paste         Ctrl+Shift+V (Linux) or Cmd+V (macOS) pastes from other apps                                                                     │ │
-│ │  Backspace  Delete      delete the selection (or one character)                                                                                          │ │
 │ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
 │                                                                                                                                                              │
 │  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                                               ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit  │

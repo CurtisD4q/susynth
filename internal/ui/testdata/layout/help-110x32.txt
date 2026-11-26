@@ -1,5 +1,7 @@
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│  ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds 5 Settings [6 Help] 7 Perform                        │
+│ ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds 5 Settings [6 Help] 7 Perform                         │
+│─────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│                                                                                                            │
 │  Help · ↑↓ PgUp PgDn scroll                                                                                │
 │ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
 │ │  PAGES                                                                                                 │ │
@@ -24,8 +26,6 @@
 │ │  ^R                     start / stop recording a WAV                                                   │ │
 │ │  ^S  ^O                 save / load a set by name (sets are .rb files)                                 │ │
 │ │  Esc u  n               mute / unmute track n — a digit alone does nothing                             │ │
-│ │  Esc k  n               stop that track (Enter stops the loop under the cursor)                        │ │
-│ │  Esc s  n               solo track n (0 clears)                                                        │ │
 │ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
 │                                                                                                            │
 │  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off             ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit  │

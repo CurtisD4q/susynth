@@ -1,5 +1,7 @@
 ╭──────────────────────────────────────────────────────────────────────────────╮
-│  ◇ susynth   Esc 6 Help  (f next, b back)          night-drive • · no audio  │
+│ ◇ susynth   Esc 6 Help  (f next, b back)           night-drive • · no audio  │
+│───────────────────────────────────────────────────────────────────────────── │
+│                                                                              │
 │  Help · ↑↓ PgUp PgDn scroll                                                  │
 │ ╭──────────────────────────────────────────────────────────────────────────╮ │
 │ │  PAGES                                                                   │ │
@@ -16,8 +18,6 @@
 │ │  Help                   ↑↓ PgUp PgDn scroll                              │ │
 │ │  Perform                Enter go live · Esc n / Esc p next / previous ·… │ │
 │ │                                                                          │ │
-│ │  PLAYING                                                                 │ │
-│ │  ^E                     run the block under the cursor (the whole live_… │ │
 │ ╰──────────────────────────────────────────────────────────────────────────╯ │
 │                                                                              │
 │  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                     │

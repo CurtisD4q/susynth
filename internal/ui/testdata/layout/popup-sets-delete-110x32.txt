@@ -1,5 +1,7 @@
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│  ◇ susynth   Esc+ 1 Play [2 Sets] 3 Recordings 4 Sounds 5 Settings 6 Help 7 Perform                        │
+│ ◇ susynth   Esc+ 1 Play [2 Sets] 3 Recordings 4 Sounds 5 Settings 6 Help 7 Perform                         │
+│─────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│                                                                                                            │
 │  Sets · 3 saved · /tmp/susynth-layout/data/sets             Details                                        │
 │ ╭─────────────────────────────────────────────────────────╮╭─────────────────────────────────────────────╮ │
 │ │    Name                          Tracks  Lines          ││ night-drive                                 │ │
@@ -9,19 +11,17 @@
 │ │    a-very-long-set-name-that-w…       2      8          ││                                             │ │
 │ │                                                         ││ use_bpm 96                                  │ │
 │ │                                                         ││ live_loop :drums do                         │ │
-│ │                                                         ││   sample :bd_haus                           │ │
-│ │                                                         ││   sleep 1                                   │ │
-│ │                              ╭─ Delete set opener? ─────────────────────╮                              │ │
-│ │                              │                                          │s do                          │ │
-│ │                              │ It cannot be brought back.               │aus                           │ │
+│ │                              ╭─ Delete set opener? ─────────────────────╮aus                           │ │
 │ │                              │                                          │                              │ │
-│ │                              ╰────── d delete · any other key keeps it ─╯                              │ │
+│ │                              │ It cannot be brought back.               │                              │ │
+│ │                              │                                          │s do                          │ │
+│ │                              ╰────── d delete · any other key keeps it ─╯aus                           │ │
+│ │                                                         ││   sleep 1                                   │ │
+│ │                                                         ││ end                                         │ │
 │ │                                                         ││ live_loop :bass do                          │ │
 │ │                                                         ││   sample :bd_haus                           │ │
 │ │                                                         ││   sleep 1                                   │ │
 │ │                                                         ││ end                                         │ │
-│ │                                                         ││                                             │ │
-│ │                                                         ││                                             │ │
 │ │                                                         ││                                             │ │
 │ │                                                         ││                                             │ │
 │ │                                                         ││                                             │ │

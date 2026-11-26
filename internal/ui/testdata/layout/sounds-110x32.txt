@@ -1,5 +1,7 @@
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│  ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings [4 Sounds] 5 Settings 6 Help 7 Perform                        │
+│ ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings [4 Sounds] 5 Settings 6 Help 7 Perform                         │
+│─────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│                                                                                                            │
 │  Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ fold a group                     │
 │ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
 │ │ ▾ Synths  46                                                                                           │ │
@@ -20,8 +22,6 @@
 │ │    supersaw             five detuned saws                                                              │ │
 │ │    prophet              wide analogue-style pad                                                        │ │
 │ │    blade                detuned saws                                                                   │ │
-│ │    hoover               detuned saws                                                                   │ │
-│ │    tech_saws            detuned saws                                                                   │ │
 │ │ ────────────────────────────────────────────────────────────────────────────────────────────────────── │ │
 │ │  use_synth :name, then play notes; each plays the nearest susynth voice                                │ │
 │ │  Enter or ←→ opens and folds this group                                                                │ │

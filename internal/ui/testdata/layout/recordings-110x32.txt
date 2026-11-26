@@ -1,5 +1,7 @@
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│  ◇ susynth   Esc+ 1 Play 2 Sets [3 Recordings] 4 Sounds 5 Settings 6 Help 7 Perform                        │
+│ ◇ susynth   Esc+ 1 Play 2 Sets [3 Recordings] 4 Sounds 5 Settings 6 Help 7 Perform                         │
+│─────────────────────────────────────────────────────────────────────────────────────────────────────────── │
+│                                                                                                            │
 │  Recordings · 2 recorded · /tmp/susynth-layout/data/recor…  Details                                        │
 │ ╭─────────────────────────────────────────────────────────╮╭─────────────────────────────────────────────╮ │
 │ │  File                              Length      Size     ││ set-20261120-2100.wav                       │ │
@@ -9,8 +11,6 @@
 │ │                                                         ││ WAV audio, 16-bit stereo at 48000 Hz        │ │
 │ │                                                         ││                                             │ │
 │ │                                                         ││ /tmp/susynth-layout/data/recordings/set-20… │ │
-│ │                                                         ││                                             │ │
-│ │                                                         ││                                             │ │
 │ │                                                         ││                                             │ │
 │ │                                                         ││                                             │ │
 │ │                                                         ││                                             │ │

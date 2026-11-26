@@ -37,6 +37,10 @@ func (a *App) draw(w, h int) (*frame, int, int) {
 	out.put(w-1, 0, '╮', th.Frame)
 	out.put(0, h-1, '╰', th.Frame)
 	out.put(w-1, h-1, '╯', th.Frame)
+	// The rule under the title row, as cairn and jobwatch draw it: from
+	// the column inside the frame to one short of its right edge, in the
+	// rule colour, dimmed.
+	out.hline(1, 2, w-3, '─', style{fg: th.Rule.fg, bg: th.Rule.bg, dim: true})
 	if cx >= 0 {
 		cx, cy = cx+2, cy+1
 	}
@@ -49,9 +53,11 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	f := newFrame(w, h, th.Base)
 	v := a.eng.Snapshot()
 
-	// title, page tabs, and the single divider under them
-	f.text(1, 0, "◇ susynth", th.Title, 0)
-	tx := a.drawTabs(f, 13, w)
+	// Row 0: the title and the page tabs. Row 1 is the rule under them
+	// (drawn by draw, edge to edge as in Mint's other programs), row 2 is
+	// blank, and row 3 holds each pane's title, above its box.
+	f.text(0, 0, "◇ susynth", th.Title, 0)
+	tx := a.drawTabs(f, 12, w)
 	set := a.setName
 	if set == "" {
 		set = "untitled"
@@ -63,12 +69,10 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	if rx := w - len([]rune(right)) - 1; rx > tx+2 {
 		f.text(rx, 0, right, th.Muted, 0)
 	}
-	// Row 1 holds each pane's title, above its box.
-
 	// The boxes run from row top (their top border) to row bot (their
 	// bottom border). A pane draws its rows from top+1, as it did under its
 	// own heading line, which is now the box's top border.
-	top, bot := 2, h-3
+	top, bot := 4, h-3
 	iw := w - 2 // the width the panes were laid out in, inside the old frame
 	ew := iw * 11 / 20
 	if iw >= 110 {

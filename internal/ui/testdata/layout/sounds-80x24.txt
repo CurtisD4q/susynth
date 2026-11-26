@@ -1,5 +1,7 @@
 ╭──────────────────────────────────────────────────────────────────────────────╮
-│  ◇ susynth   Esc 4 Sounds  (f next, b back)        night-drive • · no audio  │
+│ ◇ susynth   Esc 4 Sounds  (f next, b back)         night-drive • · no audio  │
+│───────────────────────────────────────────────────────────────────────────── │
+│                                                                              │
 │  Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ …  │
 │ ╭──────────────────────────────────────────────────────────────────────────╮ │
 │ │ ▾ Synths  46                                                             │ │
@@ -12,8 +14,6 @@
 │ │    tb303                acid bass: saw, use cutoff:                      │ │
 │ │    zawa                 saw                                              │ │
 │ │    growl                saw                                              │ │
-│ │    winwood_lead         saw lead                                         │ │
-│ │    bass_foundation      saw bass                                         │ │
 │ │ ──────────────────────────────────────────────────────────────────────── │ │
 │ │  use_synth :name, then play notes; each plays the nearest susynth voice  │ │
 │ │  Enter or ←→ opens and folds this group                                  │ │
