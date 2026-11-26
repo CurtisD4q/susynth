@@ -46,7 +46,7 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	// the panes have their titles on row 3 and their rules on row 4; a pane
 	// draws its rows from row 5, under its rule.
 	a.drawTrail(f, w)
-	f.hline(0, 1, w-1, '─', style{fg: th.Rule.fg, bg: th.Rule.bg, dim: true})
+	f.hline(0, 1, w-1, '─', th.Rule)
 	rw := railWidth(w)
 	top, bot := 4, h-3
 	a.drawRail(f, rw, top-1, bot)
@@ -391,16 +391,13 @@ func (a *App) drawTracks(f *frame, x, y, w, h int, v engine.View) {
 				ch = rune(t.Steps[c].Label)
 			}
 			if quiet {
-				s = style{fg: s.fg, bg: s.bg, dim: true}
+				s = style{fg: th.Muted.fg, bg: s.bg}
 				if !t.Steps[c].On {
 					s = th.StepOff
 				}
 			}
 			if c == playCell {
 				s = th.Playhead
-				if quiet {
-					s.dim = true
-				}
 			}
 			if c == playCell && !t.Steps[c].On {
 				ch = '◆'

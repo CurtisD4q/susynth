@@ -78,7 +78,7 @@ func themeDefault() *Theme {
 		Pane:      style{fg: accent, bg: -1, bold: true},
 		CursorRow: st(255, slate),
 		Select:    st(255, 24),
-		Gutter:    st(243, -1),
+		Gutter:    st(245, -1),
 		GutterOK:  st(114, -1),
 		GutterErr: st(203, -1),
 		Comment:   st(245, -1),
