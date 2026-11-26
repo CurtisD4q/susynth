@@ -3,9 +3,9 @@
 ╭─ Sets · 3 saved · /tmp/susynth-layout/data/sets ─────────────────────────────╮
 │    Name                          Tracks  Lines  Modified                     │
 │    ────────────────────────────  ──────  ─────  ────────                     │
-│ ›● night-drive                        0     12  2026-11-20 21:30             │
-│    opener                             0      4  2026-11-20 20:30             │
-│    a-very-long-set-name-that-w…       0      8  2026-11-18 21:30             │
+│ ›● night-drive                        3     13  2026-11-20 21:30             │
+│    opener                             1      4  2026-11-20 20:30             │
+│    a-very-long-set-name-that-w…       2      8  2026-11-18 21:30             │
 │                                                                              │
 │                                                                              │
 │                                                                              │

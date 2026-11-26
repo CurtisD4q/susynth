@@ -69,10 +69,10 @@ func seedLayoutData(t *testing.T, data string) {
 			t.Fatal(err)
 		}
 	}
-	loop := "live_loop :drums do\n  sample :bd_haus\n  sleep 1\nend\n"
-	write(filepath.Join(data, "sets", "night-drive.syn"), []byte(loop+loop+loop), 0, 0)
-	write(filepath.Join(data, "sets", "opener.syn"), []byte(loop), 0, time.Hour)
-	write(filepath.Join(data, "sets", "a-very-long-set-name-that-will-not-fit-the-column.syn"), []byte(loop+loop), 0, 48*time.Hour)
+	loop := func(name string) string { return "live_loop :" + name + " do\n  sample :bd_haus\n  sleep 1\nend\n" }
+	write(filepath.Join(data, "sets", "night-drive.rb"), []byte("use_bpm 96\n"+loop("drums")+loop("hats")+loop("bass")), 0, 0)
+	write(filepath.Join(data, "sets", "opener.rb"), []byte(loop("pad")), 0, time.Hour)
+	write(filepath.Join(data, "sets", "a-very-long-set-name-that-will-not-fit-the-column.rb"), []byte(loop("a")+loop("b")), 0, 48*time.Hour)
 	// 44-byte header, then 4 bytes a frame: 3 minutes 25 seconds.
 	write(filepath.Join(data, "recordings", "set-20261120-2100.wav"), nil, 44+205*engine.SampleRate*4, 30*time.Minute)
 	write(filepath.Join(data, "recordings", "set-20261119-2200.mid"), []byte("MThd"), 0, 24*time.Hour)

@@ -82,6 +82,13 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 		default:
 			a.drawTracks(f, sx, top, sw, bot-top, v)
 		}
+	} else if a.ps.split = a.hasDetails(w); a.ps.split {
+		// A list and, beside it, the row under the cursor in full.
+		lw := iw * 11 / 20
+		a.drawBox(f, 0, top, lw+1, bot, pageNames[a.page], a.pageInfo(), true)
+		a.drawPage(f, 1, top, lw, bot-top)
+		a.drawBox(f, lw+2, top, w-1, bot, "Details", "", false)
+		a.drawDetails(f, lw+4, top, w-lw-6, bot-top)
 	} else {
 		// The page's own heading line is now its box's top border.
 		a.drawBox(f, 0, top, w-1, bot, pageNames[a.page], a.pageInfo(), true)

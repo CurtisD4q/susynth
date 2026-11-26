@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/susynth/susynth/internal/engine"
 	"github.com/susynth/susynth/internal/paths"
+	"github.com/susynth/susynth/internal/rubyvm"
 	"github.com/susynth/susynth/internal/synth"
 )
 
@@ -75,9 +75,9 @@ type pageState struct {
 	recs     []recInfo
 	armed    string          // item armed for deletion (press d twice)
 	closed   map[string]bool // Sounds groups that are folded up
+	preview  setPreview      // the set shown in the Details box
+	split    bool            // a Details box is beside the list this frame
 }
-
-var trackLineRe = regexp.MustCompile(`(?m)^\s*d\d+\b`)
 
 func (a *App) gotoPage(p page) {
 	if p == a.page {
@@ -110,7 +110,7 @@ func (a *App) refreshSets() {
 	a.ps.sets = nil
 	ents, _ := os.ReadDir(paths.SetsDir())
 	for _, e := range ents {
-		name, ok := strings.CutSuffix(e.Name(), ".syn")
+		name, ok := strings.CutSuffix(e.Name(), ".rb") // as ^S saves them
 		if !ok {
 			continue
 		}
@@ -121,7 +121,7 @@ func (a *App) refreshSets() {
 		si := setInfo{name: name, mod: info.ModTime()}
 		if b, err := os.ReadFile(filepath.Join(paths.SetsDir(), e.Name())); err == nil {
 			si.lines = strings.Count(string(b), "\n")
-			si.tracks = len(trackLineRe.FindAllString(string(b), -1))
+			si.tracks = len(rubyvm.LiveLoopNames(string(b)))
 		}
 		a.ps.sets = append(a.ps.sets, si)
 	}
@@ -454,6 +454,9 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 			}
 			marks = append(marks, m)
 		}
+		if a.ps.split {
+			cols = cols[:3] // the Details box shows when it was modified
+		}
 		a.drawTable(f, x, y+1, w, h-1, cols, rows, marks, a.ps.sel)
 	case pageRecs:
 		if len(a.ps.recs) == 0 {
@@ -469,6 +472,9 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 				length = "midi"
 			}
 			rows = append(rows, []string{r.name, length, size, r.mod.Format("2006-01-02 15:04")})
+		}
+		if a.ps.split {
+			cols = cols[:3] // the Details box shows when it was recorded
 		}
 		a.drawTable(f, x, y+1, w, h-1, cols, rows, nil, a.ps.sel)
 	case pageSounds:
@@ -565,7 +571,7 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 			if i == a.live {
 				state, m = "live", mark{'▶', th.StepOn}
 			}
-			if _, err := os.Stat(filepath.Join(paths.SetsDir(), n+".syn")); err != nil {
+			if p, err := setPath(n); err != nil || !exists(p) {
 				state = strings.TrimSpace(state + " file missing")
 				m = mark{'!', th.ToastErr}
 			}
@@ -707,4 +713,9 @@ func (a *App) pageInfo() string {
 		return "↑↓ PgUp PgDn scroll"
 	}
 	return ""
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

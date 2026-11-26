@@ -46,7 +46,9 @@ func (a *App) drawTable(f *frame, x, y, w, h int, cols []column, rows [][]string
 	cx := left
 	for i, c := range cols {
 		wd := c.width
-		if i == len(cols)-1 || cx+wd > end {
+		// The last column takes the rest of the row, unless it is lined up
+		// on the right: then it keeps its width, next to the others.
+		if (i == len(cols)-1 && !c.right) || cx+wd > end {
 			wd = end - cx + 1
 		}
 		if wd < 0 {
