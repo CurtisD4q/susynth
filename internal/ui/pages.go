@@ -433,42 +433,45 @@ func pad(s string, n int) string {
 
 func (a *App) drawPage(f *frame, x, y, w, h int) {
 	th := a.th
-	title := pageNames[a.page]
-	f.text(x+1, y, "▸ "+title, th.Pane, 0)
 	switch a.page {
 	case pageSets:
-		f.text(x+1+len(title)+2+2, y, fmt.Sprintf("%d saved · %s", len(a.ps.sets), paths.SetsDir()), th.Muted, w-len(title)+2-4)
 		if len(a.ps.sets) == 0 {
 			f.text(x+2, y+2, "no saved sets yet — press ^S on the Play page", th.Muted, w-3)
 			return
 		}
-		rows := []string{pad("NAME", 28) + pad("TRACKS", 8) + pad("LINES", 8) + "MODIFIED"}
+		cols := []column{{title: "Name", width: 28}, {title: "Tracks", width: 6, right: true}, {title: "Lines", width: 5, right: true, dim: true}, {title: "Modified", width: 16, dim: true}}
+		var rows [][]string
+		var marks []mark
 		for _, s := range a.ps.sets {
-			cur := ""
+			rows = append(rows, []string{s.name, fmt.Sprint(s.tracks), fmt.Sprint(s.lines), s.mod.Format("2006-01-02 15:04")})
+			var m mark
 			if s.name == a.setName {
-				cur = " ●"
+				// ● the open set: accent, or amber with unsaved changes
+				m = mark{'●', th.Pane}
+				if a.dirty {
+					m = mark{'●', th.Pending}
+				}
 			}
-			rows = append(rows, pad(s.name+cur, 28)+pad(fmt.Sprint(s.tracks), 8)+pad(fmt.Sprint(s.lines), 8)+s.mod.Format("2006-01-02 15:04"))
+			marks = append(marks, m)
 		}
-		a.drawList(f, x, y+1, w, h-1, rows, a.ps.sel)
+		a.drawTable(f, x, y+1, w, h-1, cols, rows, marks, a.ps.sel)
 	case pageRecs:
-		f.text(x+1+len(title)+2+2, y, fmt.Sprintf("%d recorded · %s", len(a.ps.recs), paths.RecordingsDir()), th.Muted, w-len(title)+2-4)
 		if len(a.ps.recs) == 0 {
 			f.text(x+2, y+2, "no recordings yet — press ^R while playing", th.Muted, w-3)
 			return
 		}
-		rows := []string{pad("FILE", 32) + pad("LENGTH", 9) + pad("SIZE", 10) + "RECORDED"}
+		cols := []column{{title: "File", width: 32}, {title: "Length", width: 6, right: true}, {title: "Size", width: 8, right: true, dim: true}, {title: "Recorded", width: 16, dim: true}}
+		var rows [][]string
 		for _, r := range a.ps.recs {
 			s := int(r.dur.Seconds())
 			length, size := fmt.Sprintf("%d:%02d", s/60, s%60), txt.Bytes(r.size)
 			if strings.HasSuffix(r.name, ".mid") {
 				length = "midi"
 			}
-			rows = append(rows, pad(r.name, 32)+pad(length, 9)+pad(size, 10)+r.mod.Format("2006-01-02 15:04"))
+			rows = append(rows, []string{r.name, length, size, r.mod.Format("2006-01-02 15:04")})
 		}
-		a.drawList(f, x, y+1, w, h-1, rows, a.ps.sel)
+		a.drawTable(f, x, y+1, w, h-1, cols, rows, nil, a.ps.sel)
 	case pageSounds:
-		f.text(x+1+len(title)+2+2, y, "Sonic Pi names, played by susynth's own synthesised sounds; ←→ fold a group", th.Muted, w-len(title)-6)
 		rows := a.soundRows()
 		if a.ps.sel >= len(rows) {
 			a.ps.sel = len(rows) - 1
@@ -519,7 +522,6 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 			f.text(x+2, y+h-2, "Enter or ←→ opens and folds this group", th.Muted, w-3)
 		}
 	case pageSettings:
-		f.text(x+1+len(title)+2+2, y, "saved automatically", th.Muted, w-len(title)+2-4)
 		step := 1
 		if h >= 2*numSettings+5 {
 			step = 2
@@ -537,7 +539,6 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 		f.hline(x+1, y+h-3, w-2, '─', th.Divider)
 		f.text(x+2, y+h-2, settingRows[a.ps.sel].hint, th.Muted, w-3)
 	case pagePerform:
-		f.text(x+1+len(title)+2+2, y, "set list · "+txt.Count(len(a.setlist), "set"), th.Muted, w-len(title)+2-4)
 		if len(a.setlist) == 0 {
 			f.text(x+2, y+2, "the set list is empty", th.Muted, w-3)
 			f.text(x+2, y+3, "open Esc 2 Sets, select a set and press a to add it", th.Muted, w-3)
@@ -555,20 +556,24 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 		f.text(x+2, y+3, "NEXT", th.Muted, 0)
 		f.text(x+7, y+3, next, th.Text, w-9)
 		f.hline(x+1, y+5, w-2, '─', th.Divider)
-		rows := []string{pad("#", 5) + pad("SET", 30) + "STATE"}
+		cols := []column{{title: "#", width: 3, right: true, dim: true}, {title: "Set", width: 30}, {title: "State", width: 16}}
+		var rows [][]string
+		var marks []mark
 		for i, n := range a.setlist {
 			state := ""
+			var m mark
 			if i == a.live {
-				state = "● LIVE"
+				state, m = "live", mark{'▶', th.StepOn}
 			}
 			if _, err := os.Stat(filepath.Join(paths.SetsDir(), n+".syn")); err != nil {
-				state += " (file missing)"
+				state = strings.TrimSpace(state + " file missing")
+				m = mark{'!', th.ToastErr}
 			}
-			rows = append(rows, pad(fmt.Sprint(i+1), 5)+pad(n, 30)+state)
+			rows = append(rows, []string{fmt.Sprint(i + 1), n, state})
+			marks = append(marks, m)
 		}
-		a.drawList(f, x, y+6, w, h-6, rows, a.ps.sel)
+		a.drawTable(f, x, y+6, w, h-6, cols, rows, marks, a.ps.sel)
 	case pageHelp:
-		f.text(x+1+len(title)+2+2, y, "↑↓ PgUp PgDn scroll", th.Muted, w-len(title)+2-4)
 		for i := 0; i < h-1; i++ {
 			j := a.ps.top + i
 			if j >= len(helpLines) {
@@ -585,35 +590,6 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 				f.text(x+2, y+1+i, l.text, th.Text, w-3)
 			}
 		}
-	}
-}
-
-// drawList paints a header row (rows[0]) and the selectable rows beneath it.
-func (a *App) drawList(f *frame, x, y, w, h int, rows []string, sel int) {
-	th := a.th
-	f.text(x+2, y, rows[0], th.Muted, w-3)
-	visible := h - 1
-	if visible < 1 {
-		return
-	}
-	if sel < a.ps.top {
-		a.ps.top = sel
-	}
-	if sel >= a.ps.top+visible {
-		a.ps.top = sel - visible + 1
-	}
-	for i := 0; i < visible; i++ {
-		j := a.ps.top + i
-		if j >= len(rows)-1 {
-			break
-		}
-		s := th.Text
-		if j == sel {
-			f.fill(x, y+1+i, w, 1, th.CursorRow)
-			s = th.CursorRow
-			f.put(x+1, y+1+i, '›', style{fg: th.Keyword.fg, bg: s.bg, bold: true})
-		}
-		f.text(x+2, y+1+i, rows[j+1], s, w-3)
 	}
 }
 
@@ -712,4 +688,23 @@ var helpLines = []helpLine{
 	{text: "A loop that never sleeps stops, with a \"did not sleep\" error. The others"},
 	{text: "keep playing. A loop you delete is marked \"not in code\"; Esc k stops it."},
 	{text: "Errors stay in the log for the session. Inserting a line moves their marker."},
+}
+
+// pageInfo is the few words set into a page's box beside its title.
+func (a *App) pageInfo() string {
+	switch a.page {
+	case pageSets:
+		return fmt.Sprintf("%d saved · %s", len(a.ps.sets), paths.SetsDir())
+	case pageRecs:
+		return fmt.Sprintf("%d recorded · %s", len(a.ps.recs), paths.RecordingsDir())
+	case pageSounds:
+		return "Sonic Pi names, played by susynth's own synthesised sounds · ←→ fold a group"
+	case pageSettings:
+		return "saved automatically"
+	case pagePerform:
+		return "set list · " + txt.Count(len(a.setlist), "set")
+	case pageHelp:
+		return "↑↓ PgUp PgDn scroll"
+	}
+	return ""
 }

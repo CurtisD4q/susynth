@@ -1,4 +1,4 @@
- ◇ susynth   Esc 1 Play  (f next, b back)                   untitled · no audio
+ ◇ susynth   Esc 1 Play  (f next, b back)              night-drive • · no audio
  ──────────────────────────────────────────────────────────────────────────────
 ╭─ Editor · ^E run block · Esc-Enter run … ╮╭─ Tracks · 2 playing · Esc k sto… ╮
 │┊ 1 use_bpm 120                           ││ 1 :drums       ▮▮▮▮▮▮▮▮ 100% not…│

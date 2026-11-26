@@ -1,7 +1,6 @@
- ◇ susynth   Esc 5 Settings  (f next, b back)               untitled · no audio
+ ◇ susynth   Esc 5 Settings  (f next, b back)          night-drive • · no audio
  ──────────────────────────────────────────────────────────────────────────────
-╭──────────────────────────────────────────────────────────────────────────────╮
-│ ▸ Settings  saved automatically                                              │
+╭─ Settings · saved automatically ─────────────────────────────────────────────╮
 │  Theme                   ‹ default                      ›                    │
 │  Audio output            ‹                              ›                    │
 │  Tempo (BPM)             ‹ 60                           ›                    │
@@ -15,6 +14,7 @@
 │  Reopen last set         ‹ off                          ›                    │
 │  Key hints               ‹ off                          ›                    │
 │  Screen refresh          ‹ 0 Hz                         ›                    │
+│                                                                              │
 │                                                                              │
 │ ──────────────────────────────────────────────────────────────────────────── │
 │  default, large (projector) or contrast (washed-out projectors)              │

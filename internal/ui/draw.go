@@ -83,8 +83,9 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 			a.drawTracks(f, sx, top, sw, bot-top, v)
 		}
 	} else {
-		a.drawBox(f, 0, top, w-1, bot, "", "", true)
-		a.drawPage(f, 1, top+1, w-2, bot-top-1)
+		// The page's own heading line is now its box's top border.
+		a.drawBox(f, 0, top, w-1, bot, pageNames[a.page], a.pageInfo(), true)
+		a.drawPage(f, 1, top, w-2, bot-top)
 	}
 
 	a.drawToast(f, h-2, w, &cx, &cy)
