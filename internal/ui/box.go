@@ -57,8 +57,8 @@ func (a *App) drawBox(f *frame, x0, y0, x1, y1 int, title, info string, focused 
 	f.put(x, y0, ' ', th.Base)
 	x = f.text(x+1, y0, title, ts, end-x-1)
 	if info != "" && end-x >= 6 {
-		x = f.text(x, y0, " · ", th.Muted, end-x)
-		x = f.text(x, y0, info, th.Muted, end-x)
+		x = f.text(x, y0, " · ", th.Text, end-x)
+		x = f.text(x, y0, info, th.Text, end-x)
 	}
 	if x <= end {
 		f.put(x, y0, ' ', th.Base)
@@ -89,7 +89,7 @@ func (a *App) drawPane(f *frame, x0, y0, x1, y1 int, title, info string, focused
 	// spaces always part it from the next pane's title
 	x := f.text(x0, y0-1, title, ts, end-x0)
 	if info != "" && end-x >= 6 {
-		x = f.text(x, y0-1, " · ", th.Muted, end-x)
-		f.text(x, y0-1, info, th.Muted, end-x)
+		x = f.text(x, y0-1, " · ", th.Text, end-x)
+		f.text(x, y0-1, info, th.Text, end-x)
 	}
 }

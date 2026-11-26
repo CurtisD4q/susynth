@@ -131,8 +131,8 @@ func (a *App) railKey(k key) bool {
 // drawTrail draws the top line: susynth › the page · the set · the audio.
 func (a *App) drawTrail(f *frame, w int) {
 	th := a.th
-	x := f.text(0, 0, "◇ susynth", th.Muted, w)
-	x = f.text(x, 0, " › ", th.Muted, w-x)
+	x := f.text(0, 0, "◇ susynth", th.Text, w)
+	x = f.text(x, 0, " › ", th.Text, w-x)
 	x = f.text(x, 0, pageNames[a.page], th.Title, w-x)
 	set := a.setName
 	if set == "" {
@@ -143,6 +143,6 @@ func (a *App) drawTrail(f *frame, w int) {
 	}
 	ctx := " · " + set + " · " + a.sinkName()
 	if w-x > 4 {
-		f.text(x, 0, ctx, th.Muted, w-x)
+		f.text(x, 0, ctx, th.Text, w-x)
 	}
 }
