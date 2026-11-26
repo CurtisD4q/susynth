@@ -1,32 +1,32 @@
- ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds [5 Settings] 6 Help 7 Perform
- Settings · saved automatically
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│  Theme                   ‹ default                      ›                                                  │
-│  Audio output            ‹                              ›                                                  │
-│  Tempo (BPM)             ‹ 60                           ›                                                  │
-│  Start on next bar       ‹ off                          ›                                                  │
-│  Internal synth          ‹ off                          ›                                                  │
-│  OSC → SuperDirt         ‹ off                          ›                                                  │
-│  OSC address             ‹                              ›                                                  │
-│  MIDI output             ‹ off                          ›                                                  │
-│  MIDI clock              ‹ off                          ›                                                  │
-│  Samples                 ‹ 0 banks, 0 files             ›                                                  │
-│  Reopen last set         ‹ off                          ›                                                  │
-│  Screen refresh          ‹ 0 Hz                         ›                                                  │
+│  ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds [5 Settings] 6 Help 7 Perform                        │
+│  Settings · saved automatically                                                                            │
+│ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│ │  Theme                   ‹ default                      ›                                              │ │
+│ │  Audio output            ‹                              ›                                              │ │
+│ │  Tempo (BPM)             ‹ 60                           ›                                              │ │
+│ │  Start on next bar       ‹ off                          ›                                              │ │
+│ │  Internal synth          ‹ off                          ›                                              │ │
+│ │  OSC → SuperDirt         ‹ off                          ›                                              │ │
+│ │  OSC address             ‹                              ›                                              │ │
+│ │  MIDI output             ‹ off                          ›                                              │ │
+│ │  MIDI clock              ‹ off                          ›                                              │ │
+│ │  Samples                 ‹ 0 banks, 0 files             ›                                              │ │
+│ │  Reopen last set         ‹ off                          ›                                              │ │
+│ │  Screen refresh          ‹ 0 Hz                         ›                                              │ │
+│ │                                                                                                        │ │
+│ │                                                                                                        │ │
+│ │                                                                                                        │ │
+│ │                                                                                                        │ │
+│ │                                                                                                        │ │
+│ │                                                                                                        │ │
+│ │                                                                                                        │ │
+│ │                                                                                                        │ │
+│ │                                                                                                        │ │
+│ │ ────────────────────────────────────────────────────────────────────────────────────────────────────── │ │
+│ │  default, large (projector) or contrast (washed-out projectors)                                        │ │
+│ │                                                                                                        │ │
+│ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
 │                                                                                                            │
-│                                                                                                            │
-│                                                                                                            │
-│                                                                                                            │
-│                                                                                                            │
-│                                                                                                            │
-│                                                                                                            │
-│                                                                                                            │
-│                                                                                                            │
-│                                                                                                            │
-│                                                                                                            │
-│ ────────────────────────────────────────────────────────────────────────────────────────────────────────── │
-│  default, large (projector) or contrast (washed-out projectors)                                            │
-│                                                                                                            │
+│  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off             ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit  │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-
- ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit

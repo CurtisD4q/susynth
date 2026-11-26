@@ -23,9 +23,24 @@ func (a *App) draw(w, h int) (*frame, int, int) {
 		out.text(1, 2, "need at least 60x12", th.Muted, 0)
 		return out, -1, -1
 	}
-	// Each pane has a box of its own, so there is no frame round the
-	// whole window.
-	return a.drawInner(w, h)
+	// The thin frame round the whole window, as every Mint screen has,
+	// with a column of space inside it so the panes' boxes do not touch it.
+	in, cx, cy := a.drawInner(w-4, h-2)
+	for y := 0; y < in.h; y++ {
+		copy(out.cells[(y+1)*w+2:(y+1)*w+2+in.w], in.cells[y*in.w:(y+1)*in.w])
+	}
+	out.hline(1, 0, w-2, '─', th.Frame)
+	out.hline(1, h-1, w-2, '─', th.Frame)
+	out.vline(0, 1, h-2, '│', th.Frame)
+	out.vline(w-1, 1, h-2, '│', th.Frame)
+	out.put(0, 0, '╭', th.Frame)
+	out.put(w-1, 0, '╮', th.Frame)
+	out.put(0, h-1, '╰', th.Frame)
+	out.put(w-1, h-1, '╯', th.Frame)
+	if cx >= 0 {
+		cx, cy = cx+2, cy+1
+	}
+	return out, cx, cy
 }
 
 // drawInner lays out the window's contents inside the frame.

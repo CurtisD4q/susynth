@@ -1,32 +1,32 @@
- ◇ susynth   Esc+ 1 Play [2 Sets] 3 Recordings 4 Sounds 5 Settings 6 Help 7 Perform
- Sets · 3 saved · /tmp/susynth-layout/data/sets               Details
-╭───────────────────────────────────────────────────────────╮╭───────────────────────────────────────────────╮
-│    Name                          Tracks  Lines            ││ night-drive                                   │
-│    ────────────────────────────  ──────  ─────            ││ 13 lines · modified 2026-11-20 21:30          │
-│ ›● night-drive                        3     13            ││ live loops: :bass :drums :hats                │
-│    opener                             1      4            ││ open in the editor, with unsaved changes      │
-│    a-very-long-set-name-that-w…       2      8            ││                                               │
-│                                                           ││ use_bpm 96                                    │
-│                                                           ││ live_loop :drums do                           │
-│                                                           ││   sample :bd_haus                             │
-│                                                           ││   sleep 1                                     │
-│                                                           ││ end                                           │
-│                                ╭─ Delete set opener? ─────────────────────╮s do                            │
-│                                │                                          │aus                             │
-│                                │ It cannot be brought back.               │                                │
-│                                │                                          │                                │
-│                                ╰────── d delete · any other key keeps it ─╯s do                            │
-│                                                           ││   sample :bd_haus                             │
-│                                                           ││   sleep 1                                     │
-│                                                           ││ end                                           │
-│                                                           ││                                               │
-│                                                           ││                                               │
-│                                                           ││                                               │
-│                                                           ││                                               │
-│                                                           ││                                               │
-│                                                           ││                                               │
-│                                                           ││                                               │
-│                                                           ││                                               │
-╰───────────────────────────────────────────────────────────╯╰───────────────────────────────────────────────╯
-
- ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  ◇ susynth   Esc+ 1 Play [2 Sets] 3 Recordings 4 Sounds 5 Settings 6 Help 7 Perform                        │
+│  Sets · 3 saved · /tmp/susynth-layout/data/sets             Details                                        │
+│ ╭─────────────────────────────────────────────────────────╮╭─────────────────────────────────────────────╮ │
+│ │    Name                          Tracks  Lines          ││ night-drive                                 │ │
+│ │    ────────────────────────────  ──────  ─────          ││ 13 lines · modified 2026-11-20 21:30        │ │
+│ │ ›● night-drive                        3     13          ││ live loops: :bass :drums :hats              │ │
+│ │    opener                             1      4          ││ open in the editor, with unsaved changes    │ │
+│ │    a-very-long-set-name-that-w…       2      8          ││                                             │ │
+│ │                                                         ││ use_bpm 96                                  │ │
+│ │                                                         ││ live_loop :drums do                         │ │
+│ │                                                         ││   sample :bd_haus                           │ │
+│ │                                                         ││   sleep 1                                   │ │
+│ │                              ╭─ Delete set opener? ─────────────────────╮                              │ │
+│ │                              │                                          │s do                          │ │
+│ │                              │ It cannot be brought back.               │aus                           │ │
+│ │                              │                                          │                              │ │
+│ │                              ╰────── d delete · any other key keeps it ─╯                              │ │
+│ │                                                         ││ live_loop :bass do                          │ │
+│ │                                                         ││   sample :bd_haus                           │ │
+│ │                                                         ││   sleep 1                                   │ │
+│ │                                                         ││ end                                         │ │
+│ │                                                         ││                                             │ │
+│ │                                                         ││                                             │ │
+│ │                                                         ││                                             │ │
+│ │                                                         ││                                             │ │
+│ │                                                         ││                                             │ │
+│ │                                                         ││                                             │ │
+│ ╰─────────────────────────────────────────────────────────╯╰─────────────────────────────────────────────╯ │
+│                                                                                                            │
+│  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off             ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit  │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
