@@ -24,7 +24,6 @@ const (
 	setMidiClock
 	setSamples
 	setAutoLoad
-	setHints
 	setRefresh
 	numSettings
 )
@@ -43,7 +42,6 @@ var settingRows = [numSettings]settingRow{
 	setMidiClock: {"MIDI clock", "send clock, start and stop so external gear follows susynth's tempo"},
 	setSamples:   {"Samples", "Enter reloads the samples folder (one sub-folder per bank of .wav files)"},
 	setAutoLoad:  {"Reopen last set", "load the set you were editing when susynth starts"},
-	setHints:     {"Key hints", "show the shortcut line under the editor"},
 	setRefresh:   {"Screen refresh", "playhead redraw rate; 15 Hz is lighter on slow terminals"},
 }
 
@@ -85,8 +83,6 @@ func (a *App) settingValue(i int) string {
 		return fmt.Sprintf("%d banks, %d files", len(synth.Banks()), n)
 	case setAutoLoad:
 		return onOff(a.cfg.AutoLoad)
-	case setHints:
-		return onOff(a.cfg.Hints)
 	case setRefresh:
 		return fmt.Sprintf("%d Hz", a.cfg.FrameHz)
 	}
@@ -159,8 +155,6 @@ func (a *App) changeSetting(i, d int, enter bool) {
 		return
 	case setAutoLoad:
 		a.cfg.AutoLoad = !a.cfg.AutoLoad
-	case setHints:
-		a.cfg.Hints = !a.cfg.Hints
 	case setRefresh:
 		opts := []int{15, 30, 60}
 		for k, o := range opts {

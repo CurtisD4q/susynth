@@ -23,9 +23,9 @@
 │                                                                                                                                                              │
 │  Reopen last set         ‹ off                          ›                                                                                                    │
 │                                                                                                                                                              │
-│  Key hints               ‹ off                          ›                                                                                                    │
-│                                                                                                                                                              │
 │  Screen refresh          ‹ 0 Hz                         ›                                                                                                    │
+│                                                                                                                                                              │
+│                                                                                                                                                              │
 │                                                                                                                                                              │
 │                                                                                                                                                              │
 │                                                                                                                                                              │

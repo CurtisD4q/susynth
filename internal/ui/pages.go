@@ -599,25 +599,6 @@ func (a *App) drawPage(f *frame, x, y, w, h int) {
 	}
 }
 
-// pageHint is the key hint shown on the toast row when no toast is active.
-func (a *App) pageHint() string {
-	switch a.page {
-	case pageSets:
-		return "↑↓ select · Enter load · a add to set list · n new · d delete · Esc back"
-	case pageRecs:
-		return "↑↓ select · Enter show path · d delete · Esc back"
-	case pageSounds:
-		return "↑↓ select · ←→ fold group · Enter preview/toggle · i insert example · Esc back"
-	case pageSettings:
-		return "↑↓ select · ←→ change · Esc back"
-	case pageHelp:
-		return "↑↓ scroll · Esc back"
-	case pagePerform:
-		return "Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove · Esc back"
-	}
-	return "Shift+arrows select · ^C ^X ^V · Esc u mute · Esc k stop · Esc l log · Esc 6 help"
-}
-
 type helpLine struct {
 	head bool
 	key  string
@@ -631,6 +612,13 @@ var helpLines = []helpLine{
 	{key: "Esc", text: "from any page, back to Play"},
 	{text: "The number is on each tab. Press Esc, then the key within 1.5 s, or hold Alt."},
 	{text: "F1-F7 still open those pages when the terminal sends function keys."},
+	{head: true, text: "KEYS ON EACH PAGE"},
+	{key: "Sets", text: "↑↓ select · Enter load · a add to the set list · n new · d delete (twice)"},
+	{key: "Recordings", text: "↑↓ select · Enter show the path · d delete (twice)"},
+	{key: "Sounds", text: "↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example"},
+	{key: "Settings", text: "↑↓ select · ←→ change · Enter edit or reload where it says so"},
+	{key: "Help", text: "↑↓ PgUp PgDn scroll"},
+	{key: "Perform", text: "Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove"},
 	{text: ""},
 	{head: true, text: "PLAYING"},
 	{key: "^E", text: "run the block under the cursor (the whole live_loop; ┊ marks it)"},

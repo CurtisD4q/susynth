@@ -12,8 +12,8 @@
 │  MIDI clock              ‹ off                          ›                    │
 │  Samples                 ‹ 0 banks, 0 files             ›                    │
 │  Reopen last set         ‹ off                          ›                    │
-│  Key hints               ‹ off                          ›                    │
 │  Screen refresh          ‹ 0 Hz                         ›                    │
+│                                                                              │
 │                                                                              │
 │                                                                              │
 │ ──────────────────────────────────────────────────────────────────────────── │

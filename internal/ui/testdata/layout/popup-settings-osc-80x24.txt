@@ -12,8 +12,8 @@
 │  MIDI clock     │ 127.0.0.1:4560                           │                 │
 │  Samples        │                                          │                 │
 │  Reopen last set│                                          │                 │
-│  Key hints      ╰───────────── Enter confirm · Esc cancel ─╯                 │
-│  Screen refresh          ‹ 0 Hz                         ›                    │
+│  Screen refresh ╰───────────── Enter confirm · Esc cancel ─╯                 │
+│                                                                              │
 │                                                                              │
 │                                                                              │
 │ ──────────────────────────────────────────────────────────────────────────── │

@@ -417,11 +417,8 @@ func (a *App) drawToast(f *frame, y, w int, cx, cy *int) {
 			msg = a.statusAt.Format("15:04:05") + "  " + msg
 		}
 		f.text(3, y, msg, s, w-4)
-		return
 	}
-	if a.cfg.Hints {
-		f.text(1, y, a.pageHint(), th.Muted, w-2)
-	}
+	// Otherwise the line is empty: each page's keys are on the Help page.
 }
 
 // ---- transport bar (the pinned run bar) ------------------------------------------------

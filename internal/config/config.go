@@ -17,7 +17,7 @@ type Config struct {
 	Set   string  `json:"last_set"`
 
 	AutoLoad   bool `json:"auto_load_last_set"` // reopen the last set on start
-	Hints      bool `json:"show_key_hints"`     // key hint row under the editor
+	Hints      bool `json:"show_key_hints"`     // no longer used: kept so older config files still read
 	StartOnBar bool `json:"start_on_bar"`       // ^E and Run wait for the next bar
 	FrameHz    int  `json:"frame_hz"`           // screen redraw rate: 15, 30 or 60
 

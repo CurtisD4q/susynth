@@ -283,12 +283,15 @@ func TestPageKeysLeaveTransportAndTrackShortcuts(t *testing.T) {
 
 func TestTabsShowEscNumbers(t *testing.T) {
 	a := testApp()
-	a.cfg.Hints = true
 	wide, _, _ := a.draw(110, 32)
 	title := plain(wide.rows()[0])
 	screen := plain(strings.Join(wide.rows(), "\n"))
-	if !strings.Contains(screen, "Esc 6 help") || strings.Contains(screen, "F6") {
-		t.Fatalf("play hint missing Esc 6:\n%s", screen)
+	if strings.Contains(screen, "F6") {
+		t.Fatalf("the screen advertises a function key:\n%s", screen)
+	}
+	// No hint line under the code: each page's keys are on the Help page.
+	if strings.Contains(screen, "Shift+arrows select") {
+		t.Fatalf("the hint line is still drawn:\n%s", screen)
 	}
 	for _, want := range []string{"Esc+ [1 Play]", "2 Sets", "3 Recordings", "4 Sounds", "5 Settings", "6 Help", "7 Perform"} {
 		if !strings.Contains(title, want) {
@@ -331,7 +334,8 @@ func TestTabsShowEscNumbers(t *testing.T) {
 		all.WriteByte('\n')
 	}
 	body := all.String()
-	for _, want := range []string{"Esc 4 Sounds", "Esc 5 Settings", "Esc 1 … Esc 7", "Esc f  /  Esc b"} {
+	for _, want := range []string{"Esc 4 Sounds", "Esc 5 Settings", "Esc 1 … Esc 7", "Esc f  /  Esc b",
+		"a add to the set list", "Enter show the path", "i insert the example", "[ ] reorder", "←→ change"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("help text missing %q", want)
 		}
