@@ -23,26 +23,15 @@ func (a *App) draw(w, h int) (*frame, int, int) {
 		out.text(1, 2, "need at least 60x12", th.Muted, 0)
 		return out, -1, -1
 	}
-	// The thin frame round the whole window, as every Mint screen has,
-	// with a column of space inside it so the panes' boxes do not touch it.
-	in, cx, cy := a.drawInner(w-4, h-2)
+	// No frame round the window: only the panes and pop-ups have borders.
+	// As in Mint's other programs, the page starts a row down and a column
+	// in from the edges.
+	in, cx, cy := a.drawInner(w-2, h-1)
 	for y := 0; y < in.h; y++ {
-		copy(out.cells[(y+1)*w+2:(y+1)*w+2+in.w], in.cells[y*in.w:(y+1)*in.w])
+		copy(out.cells[(y+1)*w+1:(y+1)*w+1+in.w], in.cells[y*in.w:(y+1)*in.w])
 	}
-	out.hline(1, 0, w-2, '─', th.Frame)
-	out.hline(1, h-1, w-2, '─', th.Frame)
-	out.vline(0, 1, h-2, '│', th.Frame)
-	out.vline(w-1, 1, h-2, '│', th.Frame)
-	out.put(0, 0, '╭', th.Frame)
-	out.put(w-1, 0, '╮', th.Frame)
-	out.put(0, h-1, '╰', th.Frame)
-	out.put(w-1, h-1, '╯', th.Frame)
-	// The rule under the title row, as cairn and jobwatch draw it: from
-	// the column inside the frame to one short of its right edge, in the
-	// rule colour, dimmed.
-	out.hline(1, 2, w-3, '─', style{fg: th.Rule.fg, bg: th.Rule.bg, dim: true})
 	if cx >= 0 {
-		cx, cy = cx+2, cy+1
+		cx, cy = cx+1, cy+1
 	}
 	return out, cx, cy
 }
@@ -53,11 +42,11 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	f := newFrame(w, h, th.Base)
 	v := a.eng.Snapshot()
 
-	// Row 0: the title and the page tabs. Row 1 is the rule under them
-	// (drawn by draw, edge to edge as in Mint's other programs), row 2 is
-	// blank, and row 3 holds each pane's title, above its box.
-	f.text(0, 0, "◇ susynth", th.Title, 0)
-	tx := a.drawTabs(f, 12, w)
+	// Row 0: the title and the page tabs. Row 1 is the rule under them,
+	// as Mint's other programs draw it; row 2 is blank, and row 3 holds
+	// each pane's title, above its box.
+	f.text(1, 0, "◇ susynth", th.Title, 0)
+	tx := a.drawTabs(f, 13, w)
 	set := a.setName
 	if set == "" {
 		set = "untitled"
@@ -72,6 +61,7 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	// The boxes run from row top (their top border) to row bot (their
 	// bottom border). A pane draws its rows from top+1, as it did under its
 	// own heading line, which is now the box's top border.
+	f.hline(0, 1, w-1, '─', style{fg: th.Rule.fg, bg: th.Rule.bg, dim: true})
 	top, bot := 4, h-3
 	iw := w - 2 // the width the panes were laid out in, inside the old frame
 	ew := iw * 11 / 20

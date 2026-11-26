@@ -1,24 +1,24 @@
-╭──────────────────────────────────────────────────────────────────────────────╮
-│ ◇ susynth   Esc 5 Settings  (f next, b back)       night-drive • · no audio  │
-│───────────────────────────────────────────────────────────────────────────── │
-│                                                                              │
-│  Settings · saved automatically                                              │
-│ ╭──────────────────────────────────────────────────────────────────────────╮ │
-│ │  Theme                   ‹ default                      ›                │ │
-│ │  Audio output            ‹                              ›                │ │
-│ │  Tempo (BPM)             ‹ 60                           ›                │ │
-│ │  Start on next╭─ OSC host:port ──────────────────────────╮               │ │
-│ │  Internal synt│                                          │               │ │
-│ │  OSC → SuperDi│ 127.0.0.1:4560                           │               │ │
-│ │  OSC address  │                                          │               │ │
-│ │  MIDI output  │                                          │               │ │
-│ │  MIDI clock   ╰───────────── Enter confirm · Esc cancel ─╯               │ │
-│ │  Samples                 ‹ 0 banks, 0 files             ›                │ │
-│ │  Reopen last set         ‹ off                          ›                │ │
-│ │ ──────────────────────────────────────────────────────────────────────── │ │
-│ │  default, large (projector) or contrast (washed-out projectors)          │ │
-│ │                                                                          │ │
-│ ╰──────────────────────────────────────────────────────────────────────────╯ │
-│                                                                              │
-│  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                     │
-╰──────────────────────────────────────────────────────────────────────────────╯
+
+  ◇ susynth   Esc 5 Settings  (f next, b back)        night-drive • · no audio
+ ─────────────────────────────────────────────────────────────────────────────
+
+  Settings · saved automatically
+ ╭────────────────────────────────────────────────────────────────────────────╮
+ │  Theme                   ‹ default                      ›                  │
+ │  Audio output            ‹                              ›                  │
+ │  Tempo (BPM)             ‹ 60                           ›                  │
+ │  Start on next ╭─ OSC host:port ──────────────────────────╮                │
+ │  Internal synth│                                          │                │
+ │  OSC → SuperDir│ 127.0.0.1:4560                           │                │
+ │  OSC address   │                                          │                │
+ │  MIDI output   │                                          │                │
+ │  MIDI clock    ╰───────────── Enter confirm · Esc cancel ─╯                │
+ │  Samples                 ‹ 0 banks, 0 files             ›                  │
+ │  Reopen last set         ‹ off                          ›                  │
+ │  Screen refresh          ‹ 0 Hz                         ›                  │
+ │ ────────────────────────────────────────────────────────────────────────── │
+ │  default, large (projector) or contrast (washed-out projectors)            │
+ │                                                                            │
+ ╰────────────────────────────────────────────────────────────────────────────╯
+
+  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off

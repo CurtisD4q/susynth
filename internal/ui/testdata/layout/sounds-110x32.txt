@@ -1,32 +1,32 @@
-╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings [4 Sounds] 5 Settings 6 Help 7 Perform                         │
-│─────────────────────────────────────────────────────────────────────────────────────────────────────────── │
-│                                                                                                            │
-│  Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ fold a group                     │
-│ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │
-│ │ ▾ Synths  46                                                                                           │ │
-│ │    beep                 pure sine (Sonic Pi's default)                                                 │ │
-│ │    sine                 pure sine                                                                      │ │
-│ │    mod_sine             sine                                                                           │ │
-│ │    mod_beep             sine                                                                           │ │
-│ │    saw                  saw, gently low-passed                                                         │ │
-│ │    mod_saw              saw                                                                            │ │
-│ │    tb303                acid bass: saw, use cutoff:                                                    │ │
-│ │    zawa                 saw                                                                            │ │
-│ │    growl                saw                                                                            │ │
-│ │    winwood_lead         saw lead                                                                       │ │
-│ │    bass_foundation      saw bass                                                                       │ │
-│ │    bass_highend         saw bass                                                                       │ │
-│ │    dsaw                 detuned saws                                                                   │ │
-│ │    mod_dsaw             detuned saws                                                                   │ │
-│ │    supersaw             five detuned saws                                                              │ │
-│ │    prophet              wide analogue-style pad                                                        │ │
-│ │    blade                detuned saws                                                                   │ │
-│ │ ────────────────────────────────────────────────────────────────────────────────────────────────────── │ │
-│ │  use_synth :name, then play notes; each plays the nearest susynth voice                                │ │
-│ │  Enter or ←→ opens and folds this group                                                                │ │
-│ │                                                                                                        │ │
-│ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
-│                                                                                                            │
-│  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off             ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit  │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings [4 Sounds] 5 Settings 6 Help 7 Perform
+ ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ fold a group
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ ▾ Synths  46                                                                                             │
+ │    beep                 pure sine (Sonic Pi's default)                                                   │
+ │    sine                 pure sine                                                                        │
+ │    mod_sine             sine                                                                             │
+ │    mod_beep             sine                                                                             │
+ │    saw                  saw, gently low-passed                                                           │
+ │    mod_saw              saw                                                                              │
+ │    tb303                acid bass: saw, use cutoff:                                                      │
+ │    zawa                 saw                                                                              │
+ │    growl                saw                                                                              │
+ │    winwood_lead         saw lead                                                                         │
+ │    bass_foundation      saw bass                                                                         │
+ │    bass_highend         saw bass                                                                         │
+ │    dsaw                 detuned saws                                                                     │
+ │    mod_dsaw             detuned saws                                                                     │
+ │    supersaw             five detuned saws                                                                │
+ │    prophet              wide analogue-style pad                                                          │
+ │    blade                detuned saws                                                                     │
+ │    hoover               detuned saws                                                                     │
+ │ ──────────────────────────────────────────────────────────────────────────────────────────────────────── │
+ │  use_synth :name, then play notes; each plays the nearest susynth voice                                  │
+ │  Enter or ←→ opens and folds this group                                                                  │
+ │                                                                                                          │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off               ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit
