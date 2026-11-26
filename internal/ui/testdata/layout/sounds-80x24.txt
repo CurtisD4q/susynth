@@ -1,6 +1,6 @@
  ◇ susynth   Esc 4 Sounds  (f next, b back)            night-drive • · no audio
- ──────────────────────────────────────────────────────────────────────────────
-╭─ Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ f… ╮
+ Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ fold…
+╭──────────────────────────────────────────────────────────────────────────────╮
 │ ▾ Synths  46                                                                 │
 │    beep                 pure sine (Sonic Pi's default)                       │
 │    sine                 pure sine                                            │

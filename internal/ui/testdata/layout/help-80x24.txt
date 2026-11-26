@@ -1,6 +1,6 @@
  ◇ susynth   Esc 6 Help  (f next, b back)              night-drive • · no audio
- ──────────────────────────────────────────────────────────────────────────────
-╭─ Help · ↑↓ PgUp PgDn scroll ─────────────────────────────────────────────────╮
+ Help · ↑↓ PgUp PgDn scroll
+╭──────────────────────────────────────────────────────────────────────────────╮
 │  PAGES                                                                       │
 │  Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Per… │
 │  Esc f  /  Esc b        next / previous page                                 │

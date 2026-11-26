@@ -1,6 +1,6 @@
  ◇ susynth   Esc 2 Sets  (f next, b back)              night-drive • · no audio
- ──────────────────────────────────────────────────────────────────────────────
-╭─ Sets · 3 saved · /tmp/susynth-layout/data/sets ─────────────────────────────╮
+ Sets · 3 saved · /tmp/susynth-layout/data/sets
+╭──────────────────────────────────────────────────────────────────────────────╮
 │    Name                          Tracks  Lines  Modified                     │
 │    ────────────────────────────  ──────  ─────  ────────                     │
 │ ›● night-drive                        3     13  2026-11-20 21:30             │

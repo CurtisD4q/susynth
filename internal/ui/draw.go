@@ -48,7 +48,7 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	if rx := w - len([]rune(right)) - 1; rx > tx+2 {
 		f.text(rx, 0, right, th.Muted, 0)
 	}
-	f.hline(1, 1, w-2, '─', th.Rule)
+	// Row 1 holds each pane's title, above its box.
 
 	// The boxes run from row top (their top border) to row bot (their
 	// bottom border). A pane draws its rows from top+1, as it did under its
@@ -69,11 +69,11 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	if a.page == pagePlay {
 		// The editor box keeps the code exactly as wide as before: columns
 		// 1..ew. The side box is beside it, with a space inside its edge.
-		a.drawBox(f, 0, top, ew+1, bot, "Editor", "^E run block · Esc-Enter run all", true)
+		a.drawPane(f, 0, top, ew+1, bot, "Editor", "^E run block · Esc-Enter run all", true)
 		cx, cy = a.drawEditor(f, 1, top, ew, bot-top)
 		sx, sw := ew+4, w-ew-5
 		title, info := a.sideLabel(v)
-		a.drawBox(f, ew+2, top, w-1, bot, title, info, false)
+		a.drawPane(f, ew+2, top, w-1, bot, title, info, false)
 		switch a.side {
 		case sideRoll:
 			a.drawRoll(f, sx, top, sw, bot-top, v)
@@ -85,13 +85,13 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	} else if a.ps.split = a.hasDetails(w); a.ps.split {
 		// A list and, beside it, the row under the cursor in full.
 		lw := iw * 11 / 20
-		a.drawBox(f, 0, top, lw+1, bot, pageNames[a.page], a.pageInfo(), true)
+		a.drawPane(f, 0, top, lw+1, bot, pageNames[a.page], a.pageInfo(), true)
 		a.drawPage(f, 1, top, lw, bot-top)
-		a.drawBox(f, lw+2, top, w-1, bot, "Details", "", false)
+		a.drawPane(f, lw+2, top, w-1, bot, "Details", "", false)
 		a.drawDetails(f, lw+4, top, w-lw-6, bot-top)
 	} else {
 		// The page's own heading line is now its box's top border.
-		a.drawBox(f, 0, top, w-1, bot, pageNames[a.page], a.pageInfo(), true)
+		a.drawPane(f, 0, top, w-1, bot, pageNames[a.page], a.pageInfo(), true)
 		a.drawPage(f, 1, top, w-2, bot-top)
 	}
 

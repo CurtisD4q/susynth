@@ -1,6 +1,6 @@
  ◇ susynth   Esc 1 Play  (f next, b back)              night-drive • · no audio
- ──────────────────────────────────────────────────────────────────────────────
-╭─ Editor · ^E run block · Esc-Enter run … ╮╭─ Tracks · 2 playing · Esc k sto… ╮
+ Editor · ^E run block · Esc-Enter run all   Tracks · 2 playing · Esc k stops …
+╭──────────────────────────────────────────╮╭──────────────────────────────────╮
 │┊ 1 use_bpm 120                           ││ 1 :drums       ▮▮▮▮▮▮▮▮ 100% not…│
 │  2 live_loop :bass do                    ││  ◆··· ···· ···· ····             │
 │  3   play 60                             ││                                  │

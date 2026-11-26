@@ -1,6 +1,6 @@
  ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds 5 Settings [6 Help] 7 Perform
- ────────────────────────────────────────────────────────────────────────────────────────────────────────────
-╭─ Help · ↑↓ PgUp PgDn scroll ───────────────────────────────────────────────────────────────────────────────╮
+ Help · ↑↓ PgUp PgDn scroll
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │  PAGES                                                                                                     │
 │  Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform                            │
 │  Esc f  /  Esc b        next / previous page                                                               │
