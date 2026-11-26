@@ -2,26 +2,26 @@
  ◇ susynth › Sets · night-drive • · no audio
  ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
- Pages    Sets · 3 saved · /tmp/susynth-layout/data/sets          Details
- ───────  ─────────────────────────────────────────────────────── ───────────────────────────────────────────
-  1            Name                          Tracks  Lines         night-drive
-  2            ────────────────────────────  ──────  ─────         13 lines · modified 2026-11-20 21:30
-  3         ›● night-drive                        3     13         live loops: :bass :drums :hats
-  4            opener                             1      4         open in the editor, with unsaved changes
-  5            a-very-long-set-name-that-w…       2      8
-  6                                                                use_bpm 96
-  7                                                                live_loop :drums do
-                                                                     sample :bd_haus
+      Sets · 3 saved · /tmp/susynth-layout/data/sets            Details
+      ───────────────────────────────────────────────────────── ─────────────────────────────────────────────
+  ▶        Name                          Tracks  Lines           night-drive
+  ≡        ────────────────────────────  ──────  ─────           13 lines · modified 2026-11-20 21:30
+  ●     ›● night-drive                        3     13           live loops: :bass :drums :hats
+  ♪        opener                             1      4           open in the editor, with unsaved changes
+  ⚙        a-very-long-set-name-that-w…       2      8
+  ?                                                              use_bpm 96
+  ◈                                                              live_loop :drums do
+                                                                   sample :bd_haus
                                  ╭─ Delete set opener? ─────────────────────╮
                                  │                                          │
-                                 │ It cannot be brought back.               │:hats do
-                                 │                                          │bd_haus
+                                 │ It cannot be brought back.               │ats do
+                                 │                                          │_haus
                                  ╰────── d delete · any other key keeps it ─╯
-                                                                   end
-                                                                   live_loop :bass do
-                                                                     sample :bd_haus
-                                                                     sleep 1
-                                                                   end
+                                                                 end
+                                                                 live_loop :bass do
+                                                                   sample :bd_haus
+                                                                   sleep 1
+                                                                 end
 
 
 

@@ -2,22 +2,22 @@
  ◇ susynth › Settings · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────
 
- Pages    Settings · saved automatically
- ───────  ─────────────────────────────────────────────────────────────────────
-  1          Theme                   ‹ default                      ›
-  2          Audio output            ‹                              ›
-  3          Tempo (BPM)             ‹ 60                           ›
-  4          Start╭─ OSC host:port ──────────────────────────╮      ›
-  5          Inter│                                          │      ›
-  6          OSC →│ 127.0.0.1:4560                           │      ›
-  7          OSC a│                                          │      ›
-             MIDI │                                          │      ›
-             MIDI ╰───────────── Enter confirm · Esc cancel ─╯      ›
-             Samples                 ‹ 0 banks, 0 files             ›
-             Reopen last set         ‹ off                          ›
-             Screen refresh          ‹ 0 Hz                         ›
-            ─────────────────────────────────────────────────────────────────
-             default, large (projector) or contrast (washed-out projectors)
+      Settings · saved automatically
+      ─────────────────────────────────────────────────────────────────────────
+  ▶      Theme                   ‹ default                      ›
+  ≡      Audio output            ‹                              ›
+  ●      Tempo (BPM)             ‹ 60                           ›
+  ♪      Start on ╭─ OSC host:port ──────────────────────────╮  ›
+  ⚙      Internal │                                          │  ›
+  ?      OSC → Sup│ 127.0.0.1:4560                           │  ›
+  ◈      OSC addre│                                          │  ›
+         MIDI outp│                                          │  ›
+         MIDI cloc╰───────────── Enter confirm · Esc cancel ─╯  ›
+         Samples                 ‹ 0 banks, 0 files             ›
+         Reopen last set         ‹ off                          ›
+         Screen refresh          ‹ 0 Hz                         ›
+        ─────────────────────────────────────────────────────────────────────
+         default, large (projector) or contrast (washed-out projectors)
 
 
 

@@ -296,14 +296,14 @@ func TestRailShowsEscNumbers(t *testing.T) {
 	}
 	// The pages run down the left, numbered as Esc then the number opens
 	// them; the top line is the trail.
-	// Shut, the rail is "Pages" and the numbers; Esc m opens it with names.
-	if !strings.Contains(screen, "Pages") || strings.Contains(screen, "3 Recordings") {
+	// Shut, the rail is the icons only; Esc m opens it with names and numbers.
+	if strings.Contains(screen, "Pages") || strings.Contains(screen, "Recordings") || !strings.Contains(screen, "♪") {
 		t.Errorf("the shut rail is wrong:\n%s", screen)
 	}
 	a.handleKey(key{kind: kRune, r: 'm', alt: true})
 	open := plain(strings.Join(a.drawRows(110), "\n"))
 	a.handleKey(key{kind: kEsc})
-	for _, want := range []string{"Pages", "1 Play", "2 Sets", "3 Recordings", "4 Sounds", "5 Settings", "6 Help", "7 Perform"} {
+	for _, want := range []string{"Pages", "▶ Play", "≡ Sets", "● Recordings", "♪ Sounds", "⚙ Settings", "? Help", "◈ Perform"} {
 		if !strings.Contains(open, want) {
 			t.Errorf("the open rail lacks %q:\n%s", want, open)
 		}

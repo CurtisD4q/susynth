@@ -2,15 +2,15 @@
  ◇ susynth › Recordings · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
- Pages    Recordings · 2 recorded · /tmp/susynth-layout/data/recordings                      Details
- ───────  ────────────────────────────────────────────────────────────────────────────────── ──────────────────────────────────────────────────────────────────
-  1          File                              Length      Size                               set-20261120-2100.wav
-  2          ────────────────────────────────  ──────      ────                               3:25 · 37.5 MB
-  3         ›set-20261120-2100.wav               3:25   37.5 MB                               recorded 2026-11-20 21:00
-  4          set-20261119-2200.mid               midi       4 B
-  5                                                                                           WAV audio, 16-bit stereo at 48000 Hz
-  6
-  7                                                                                           /tmp/susynth-layout/data/recordings/set-20261120-2100.wav
+      Recordings · 2 recorded · /tmp/susynth-layout/data/recordings                         Details
+      ───────────────────────────────────────────────────────────────────────────────────── ───────────────────────────────────────────────────────────────────
+  ▶      File                              Length      Size                                  set-20261120-2100.wav
+  ≡      ────────────────────────────────  ──────      ────                                  3:25 · 37.5 MB
+  ●     ›set-20261120-2100.wav               3:25   37.5 MB                                  recorded 2026-11-20 21:00
+  ♪      set-20261119-2200.mid               midi       4 B
+  ⚙                                                                                          WAV audio, 16-bit stereo at 48000 Hz
+  ?
+  ◈                                                                                          /tmp/susynth-layout/data/recordings/set-20261120-2100.wav
 
 
 

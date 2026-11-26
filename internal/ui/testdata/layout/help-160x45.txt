@@ -2,44 +2,44 @@
  ◇ susynth › Help · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
- Pages    Help · ↑↓ PgUp PgDn scroll
- ───────  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  1          PAGES
-  2          Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform
-  3          Esc f  /  Esc b        next / previous page
-  4          Esc                    from any page, back to Play
-  5          Esc m                  the pages down the left: ↑↓ choose, Enter open, Esc back
-  6          The numbers are down the left. Press Esc, then the key within 1.5 s, or hold Alt.
-  7          F1-F7 still open those pages when the terminal sends function keys.
-             KEYS ON EACH PAGE
-             Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (twice)
-             Recordings             ↑↓ select · Enter show the path · d delete (twice)
-             Sounds                 ↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example
-             Settings               ↑↓ select · ←→ change · Enter edit or reload where it says so
-             Help                   ↑↓ PgUp PgDn scroll
-             Perform                Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove
+      Help · ↑↓ PgUp PgDn scroll
+      ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ▶      PAGES
+  ≡      Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform
+  ●      Esc f  /  Esc b        next / previous page
+  ♪      Esc                    from any page, back to Play
+  ⚙      Esc m                  the pages down the left: ↑↓ choose, Enter open, Esc back
+  ?      Esc m shows the numbers. Press Esc, then the key within 1.5 s, or hold Alt.
+  ◈      F1-F7 still open those pages when the terminal sends function keys.
+         KEYS ON EACH PAGE
+         Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (twice)
+         Recordings             ↑↓ select · Enter show the path · d delete (twice)
+         Sounds                 ↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example
+         Settings               ↑↓ select · ←→ change · Enter edit or reload where it says so
+         Help                   ↑↓ PgUp PgDn scroll
+         Perform                Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove
 
-             PLAYING
-             ^E                     run the block under the cursor (the whole live_loop; ┊ marks it)
-             Esc Enter              run the whole buffer, like Sonic Pi's Run
-             ^G                     stop every live_loop and thread, like Sonic Pi's Stop
-             ^P                     stop, or run the whole buffer again
-             ^R                     start / stop recording a WAV
-             ^S  ^O                 save / load a set by name (sets are .rb files)
-             Esc u  n               mute / unmute track n — a digit alone does nothing
-             Esc k  n               stop that track (Enter stops the loop under the cursor)
-             Esc s  n               solo track n (0 clears)
-             Esc l                  session log (errors, puts, cue) in the right pane; Alt+↑↓ scrolls
-             Esc - / =              level of the live_loop the cursor is in
-             Esc r                  switch the right-hand pane between Tracks and the piano roll
-             Esc t / a              next theme / next audio output
-             Esc x                  export the set as a MIDI file (runs silently in a second sandbox)
-             Esc n / p              perform: next / previous set in the set list
-             ^Q                     quit (asks once if there are unsaved changes)
+         PLAYING
+         ^E                     run the block under the cursor (the whole live_loop; ┊ marks it)
+         Esc Enter              run the whole buffer, like Sonic Pi's Run
+         ^G                     stop every live_loop and thread, like Sonic Pi's Stop
+         ^P                     stop, or run the whole buffer again
+         ^R                     start / stop recording a WAV
+         ^S  ^O                 save / load a set by name (sets are .rb files)
+         Esc u  n               mute / unmute track n — a digit alone does nothing
+         Esc k  n               stop that track (Enter stops the loop under the cursor)
+         Esc s  n               solo track n (0 clears)
+         Esc l                  session log (errors, puts, cue) in the right pane; Alt+↑↓ scrolls
+         Esc - / =              level of the live_loop the cursor is in
+         Esc r                  switch the right-hand pane between Tracks and the piano roll
+         Esc t / a              next theme / next audio output
+         Esc x                  export the set as a MIDI file (runs silently in a second sandbox)
+         Esc n / p              perform: next / previous set in the set list
+         ^Q                     quit (asks once if there are unsaved changes)
 
-             EDITING
-             Shift + arrows         select text (also Shift+Home/End/PgUp/PgDn); ^A selects everything
-             ^C  ^X  ^V             copy / cut / paste; with nothing selected, copy or cut the whole line
+         EDITING
+         Shift + arrows         select text (also Shift+Home/End/PgUp/PgDn); ^A selects everything
+         ^C  ^X  ^V             copy / cut / paste; with nothing selected, copy or cut the whole line
 
 
   ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                                                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit

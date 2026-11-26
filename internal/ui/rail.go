@@ -4,22 +4,22 @@ import "strings"
 
 // The page rail.
 //
-// The pages run down the left of the window, numbered as Esc then the
-// number opens them. Esc m moves the keys into the rail: ↑↓ choose a page,
-// Enter opens it, Esc or m goes back. At 80 columns and wider the rail shows
-// the numbers and names; narrower, the numbers only.
+// The pages run down the left of the window as icons. Esc m opens the
+// rail over the page, with names and the numbers that open each page
+// (Esc then the number), and moves the keys into it: ↑↓ choose a page, Enter
+// opens it, Esc or m goes back and shuts it.
 //
 // The top line is the trail: susynth › the page · the set · the audio.
 
 // railWidth is the columns the shut rail takes in a window w columns wide,
-// including the blank columns after it: "Pages" and the page numbers. Opened
-// with Esc m it is drawn over the left of the page and takes nothing more.
+// including the blank column after it: the page icons. Opened with Esc m it
+// is drawn over the left of the page and takes nothing more.
 func railWidth(w int) int {
-	if w < 48 {
-		return 4
-	}
-	return 9
+	return 5
 }
+
+// pageIcons are the pages' icons, in page order.
+var pageIcons = []string{"▶", "≡", "●", "♪", "⚙", "?", "◈"}
 
 // railOpenWidth is the columns the open rail covers, with names.
 func railOpenWidth(w int) int {
@@ -27,7 +27,7 @@ func railOpenWidth(w int) int {
 	for _, p := range pageNames {
 		n = max(n, len([]rune(p)))
 	}
-	return min(n+8, max(railWidth(w), w-10)) // " 1 ", the name, " ◂" and the edge
+	return min(n+8, max(railWidth(w), w-10)) // " ▶ ", the name, the number, the marker and the edge
 }
 
 // drawRail draws the shut rail: its title on row y, the rule under it, and
@@ -53,37 +53,36 @@ func (a *App) drawRailAt(f *frame, rw, y, bot int, open bool) {
 	th := a.th
 	right := rw - 2 // the last column the rail draws in
 	if open {
-		right = rw - 2
-	} else if rw > 4 {
-		right = rw - 3
+		f.text(0, y, "Pages", th.Pane, right+1)
+		f.hline(0, y+1, right+1, '─', a.boxLine(true))
 	}
-	if rw > 4 {
-		ts := style{fg: th.Text.fg, bg: th.Base.bg, bold: true}
-		if a.railOn {
-			ts = th.Pane
-		}
-		f.text(0, y, "Pages", ts, right+1)
-		f.hline(0, y+1, right+1, '─', a.boxLine(a.railOn))
-	}
+	// Shut, it is only the icons, in the rows the page's own rows use.
 	for i, name := range pageNames {
 		row := y + 2 + i
 		if row > bot {
 			break
 		}
-		text := " " + string(rune('1'+i))
+		text := " " + pageIcons[i]
 		if open {
 			text += " " + name
 		}
 		st := th.Text
 		if page(i) == a.page {
 			st = th.Pane
-			if open {
-				text += strings.Repeat(" ", max(1, right-len([]rune(text)))) + "◂"
+		}
+		if open {
+			// The number that opens the page (Esc then the number) at the
+			// right, then the marker for the page being shown.
+			tail := string(rune('1' + i))
+			if page(i) == a.page {
+				tail += "◂"
+			} else {
+				tail += " "
 			}
+			text += strings.Repeat(" ", max(1, right+1-len([]rune(text))-len([]rune(tail)))) + tail
 		}
 		if open && i == a.railSel {
 			st = th.CursorRow
-			text += strings.Repeat(" ", max(0, right+1-len([]rune(text))))
 		}
 		f.text(0, row, text, st, right+1)
 	}

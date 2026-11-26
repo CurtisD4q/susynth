@@ -40,7 +40,7 @@ type Options struct {
 const starter = `# susynth: Sonic Pi code, running in real Ruby.
 # ^E runs the block under the cursor, Esc-Enter runs everything.
 # ^G stops all loops. ^Q quits.
-# Esc then 1-7 changes page (the numbers are down the left). Esc 6 is help.
+# Esc then 1-7 changes page (Esc m shows the numbers). Esc 6 is help.
 
 use_bpm 120
 

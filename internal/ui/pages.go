@@ -611,7 +611,7 @@ var helpLines = []helpLine{
 	{key: "Esc f  /  Esc b", text: "next / previous page"},
 	{key: "Esc", text: "from any page, back to Play"},
 	{key: "Esc m", text: "the pages down the left: ↑↓ choose, Enter open, Esc back"},
-	{text: "The numbers are down the left. Press Esc, then the key within 1.5 s, or hold Alt."},
+	{text: "Esc m shows the numbers. Press Esc, then the key within 1.5 s, or hold Alt."},
 	{text: "F1-F7 still open those pages when the terminal sends function keys."},
 	{head: true, text: "KEYS ON EACH PAGE"},
 	{key: "Sets", text: "↑↓ select · Enter load · a add to the set list · n new · d delete (twice)"},
