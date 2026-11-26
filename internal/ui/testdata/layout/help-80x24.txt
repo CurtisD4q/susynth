@@ -1,6 +1,6 @@
+ ◇ susynth   Esc 6 Help  (f next, b back)                   untitled · no audio
+ ──────────────────────────────────────────────────────────────────────────────
 ╭──────────────────────────────────────────────────────────────────────────────╮
-│ ◇ susynth   Esc 6 Help  (f next, b back)                 untitled · no audio │
-│ ──────────────────────────────────────────────────────────────────────────── │
 │ ▸ Help  ↑↓ PgUp PgDn scroll                                                  │
 │  PAGES                                                                       │
 │  Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Per… │
@@ -19,6 +19,6 @@
 │  Esc u  n               mute / unmute track n — a digit alone does nothing   │
 │  Esc k  n               stop that track (Enter stops the loop under the cur… │
 │  Esc s  n               solo track n (0 clears)                              │
-│                                                                              │
-│ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off

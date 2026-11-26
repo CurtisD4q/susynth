@@ -1,6 +1,6 @@
+ ◇ susynth   Esc 4 Sounds  (f next, b back)                 untitled · no audio
+ ──────────────────────────────────────────────────────────────────────────────
 ╭──────────────────────────────────────────────────────────────────────────────╮
-│ ◇ susynth   Esc 4 Sounds  (f next, b back)               untitled · no audio │
-│ ──────────────────────────────────────────────────────────────────────────── │
 │ ▸ Sounds  Sonic Pi names, played by susynth's own synthesised sounds; ←→ fo… │
 │ ▾ Synths  46                                                                 │
 │    beep                 pure sine (Sonic Pi's default)                       │
@@ -19,6 +19,6 @@
 │  use_synth :name, then play notes; each plays the nearest susynth voice      │
 │  Enter or ←→ opens and folds this group                                      │
 │                                                                              │
-│                                                                              │
-│ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off

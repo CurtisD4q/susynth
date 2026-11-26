@@ -75,6 +75,18 @@ func TestLayout(t *testing.T) {
 			})
 		}
 	}
+	// The side pane's other views, and an error under the code.
+	t.Run("play-log-110x32", func(t *testing.T) {
+		a := layoutApp(t, "default", pagePlay)
+		a.side = sideLog
+		a.log = append(a.log, logLine{Kind: "puts", Text: "hello from the drums loop"}, logLine{Kind: "err", Text: "undefined method 'sampel' for main", Line: 3})
+		checkLayout(t, "play-log-110x32", a, 110, 32)
+	})
+	t.Run("play-roll-110x32", func(t *testing.T) {
+		a := layoutApp(t, "default", pagePlay)
+		a.side = sideRoll
+		checkLayout(t, "play-roll-110x32", a, 110, 32)
+	})
 	// The projector themes widen the step display, so the Play page moves.
 	for _, theme := range []string{"large", "contrast"} {
 		name := "play-" + theme + "-110x32"

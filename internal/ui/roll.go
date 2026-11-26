@@ -45,8 +45,6 @@ func drumLabel(d string) string {
 
 func (a *App) drawRoll(f *frame, x, y, w, h int, v engine.View) {
 	th := a.th
-	f.text(x, y, "┄ Piano roll", th.Pane, 0)
-	f.text(x+13, y, "Esc r: tracks", th.Muted, w-13)
 	const labelW = 5
 	cols, rows := w-labelW, h-2
 	if cols < 8 || rows < 3 {

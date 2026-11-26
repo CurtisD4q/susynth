@@ -1,6 +1,6 @@
+ ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds 5 Settings [6 Help] 7 Perform                                                         untitled · no audio
+ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds 5 Settings [6 Help] 7 Perform                                                       untitled · no audio │
-│ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── │
 │ ▸ Help  ↑↓ PgUp PgDn scroll                                                                                                                                  │
 │  PAGES                                                                                                                                                       │
 │  Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform                                                                              │
@@ -40,6 +40,6 @@
 │  live_loop :name do     a loop that runs forever; re-run it to change it on its next pass                                                                    │
 │    play :e3             a note: :c4 :fs3 :eb2 or MIDI 60; chords: play chord(:e3, :minor)                                                                    │
 │    sample :bd_haus      a sample (see Esc 4 Sounds); sample :mybank, 2 for your own                                                                          │
-│                                                                                                                                                              │
-│ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                                                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                                                   ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit

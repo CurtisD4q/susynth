@@ -23,23 +23,9 @@ func (a *App) draw(w, h int) (*frame, int, int) {
 		out.text(1, 2, "need at least 60x12", th.Muted, 0)
 		return out, -1, -1
 	}
-	in, cx, cy := a.drawInner(w-2, h-2)
-	for y := 0; y < in.h; y++ {
-		copy(out.cells[(y+1)*w+1:(y+1)*w+1+in.w], in.cells[y*in.w:(y+1)*in.w])
-	}
-	// the rounded frame Mint draws around every screen
-	out.hline(1, 0, w-2, '─', th.Frame)
-	out.hline(1, h-1, w-2, '─', th.Frame)
-	out.vline(0, 1, h-2, '│', th.Frame)
-	out.vline(w-1, 1, h-2, '│', th.Frame)
-	out.put(0, 0, '╭', th.Frame)
-	out.put(w-1, 0, '╮', th.Frame)
-	out.put(0, h-1, '╰', th.Frame)
-	out.put(w-1, h-1, '╯', th.Frame)
-	if cx >= 0 {
-		cx, cy = cx+1, cy+1
-	}
-	return out, cx, cy
+	// Each pane has a box of its own, so there is no frame round the
+	// whole window.
+	return a.drawInner(w, h)
 }
 
 // drawInner lays out the window's contents inside the frame.
@@ -64,31 +50,41 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	}
 	f.hline(1, 1, w-2, '─', th.Rule)
 
-	top, bot := 2, h-3 // body rows, inclusive
-	ew := w * 11 / 20
-	if w >= 110 {
-		ew = w * 3 / 5
+	// The boxes run from row top (their top border) to row bot (their
+	// bottom border). A pane draws its rows from top+1, as it did under its
+	// own heading line, which is now the box's top border.
+	top, bot := 2, h-3
+	iw := w - 2 // the width the panes were laid out in, inside the old frame
+	ew := iw * 11 / 20
+	if iw >= 110 {
+		ew = iw * 3 / 5
 	}
 	if th.CellW > 2 { // projector themes: give the step display more room
-		ew = w * 9 / 20
+		ew = iw * 9 / 20
 	}
 	if ew < 30 {
 		ew = 30
 	}
 	cx, cy := -1, -1
 	if a.page == pagePlay {
-		f.vline(ew, top, bot-top+1, '│', th.Divider)
-		cx, cy = a.drawEditor(f, 0, top, ew, bot-top+1)
+		// The editor box keeps the code exactly as wide as before: columns
+		// 1..ew. The side box is beside it, with a space inside its edge.
+		a.drawBox(f, 0, top, ew+1, bot, "Editor", "^E run block · Esc-Enter run all", true)
+		cx, cy = a.drawEditor(f, 1, top, ew, bot-top)
+		sx, sw := ew+4, w-ew-5
+		title, info := a.sideLabel(v)
+		a.drawBox(f, ew+2, top, w-1, bot, title, info, false)
 		switch a.side {
 		case sideRoll:
-			a.drawRoll(f, ew+2, top, w-ew-3, bot-top+1, v)
+			a.drawRoll(f, sx, top, sw, bot-top, v)
 		case sideLog:
-			a.drawLog(f, ew+2, top, w-ew-3, bot-top+1)
+			a.drawLog(f, sx, top, sw, bot-top)
 		default:
-			a.drawTracks(f, ew+2, top, w-ew-3, bot-top+1, v)
+			a.drawTracks(f, sx, top, sw, bot-top, v)
 		}
 	} else {
-		a.drawPage(f, 0, top, w, bot-top+1)
+		a.drawBox(f, 0, top, w-1, bot, "", "", true)
+		a.drawPage(f, 1, top+1, w-2, bot-top-1)
 	}
 
 	a.drawToast(f, h-2, w, &cx, &cy)
@@ -114,8 +110,6 @@ func (a *App) sinkName() string {
 
 func (a *App) drawEditor(f *frame, x, y, w, h int) (int, int) {
 	th := a.th
-	f.text(x+1, y, "▸ Editor", th.Pane, 0)
-	f.text(x+10, y, "^E run block · Esc-Enter run all", th.Muted, w-11)
 
 	maxErr := h / 4
 	if maxErr < 1 {
@@ -281,8 +275,6 @@ func (a *App) drawCode(f *frame, x, y int, line []rune, left, w int, base style)
 
 func (a *App) drawTracks(f *frame, x, y, w, h int, v engine.View) {
 	th := a.th
-	f.text(x, y, "┄ Tracks", th.Pane, 0)
-	f.text(x+10, y, "Esc k stops one", th.Muted, w-10)
 	names := map[string]bool{}
 	if a.ed != nil {
 		names = rubyvm.LiveLoopNames(a.ed.Text())
@@ -340,16 +332,21 @@ func (a *App) drawTracks(f *frame, x, y, w, h int, v engine.View) {
 			}
 		}
 		cx := lx + 9
-		f.text(cx, yy, fmt.Sprintf("%3d%%", int(t.Level*100+0.5)), th.Muted, 0)
-		cx += 5
+		// Everything after the level bar stops at the pane's edge.
+		tag := func(s string, st style) {
+			if cx < x+w {
+				cx = f.text(cx, yy, s, st, x+w-cx) + 1
+			}
+		}
+		tag(fmt.Sprintf("%3d%%", int(t.Level*100+0.5)), th.Muted)
 		if t.Mute {
-			cx = f.text(cx, yy, "[MUTE]", th.MuteTag, 0) + 1
+			tag("[MUTE]", th.MuteTag)
 		}
 		if t.Solo {
-			cx = f.text(cx, yy, "[SOLO]", th.SoloTag, 0) + 1
+			tag("[SOLO]", th.SoloTag)
 		}
 		if t.Loop && !names[t.Name] {
-			cx = f.text(cx, yy, "not in code", th.Pending, 0) + 1
+			tag("not in code", th.Pending)
 		}
 		if src := soundName(t.Src); cx < x+w && src != "" {
 			f.text(cx, yy, src, th.Muted, x+w-cx)
@@ -502,8 +499,6 @@ func (a *App) drawTabs(f *frame, x, w int) int {
 // with the time they happened. It does not expire and it is not a dialog.
 func (a *App) drawLog(f *frame, x, y, w, h int) {
 	th := a.th
-	f.text(x, y, "┄ Log", th.Pane, 0)
-	f.text(x+7, y, "Alt+↑↓ scroll · Esc l tracks", th.Muted, w-7)
 	if len(a.log) == 0 {
 		f.text(x, y+2, "nothing yet", th.Muted, w)
 		f.text(x, y+3, "errors, puts and cue stay here", th.Muted, w)
@@ -549,4 +544,18 @@ func soundName(word string) string {
 		return fmt.Sprintf("note %s%d", [12]string{"c", "cs", "d", "eb", "e", "f", "fs", "g", "gs", "a", "bb", "b"}[n%12], n/12-1)
 	}
 	return word
+}
+
+// sideLabel is the side box's title and the words beside it.
+func (a *App) sideLabel(v engine.View) (string, string) {
+	switch a.side {
+	case sideRoll:
+		return "Piano roll", "Esc r tracks"
+	case sideLog:
+		return "Log", "Alt+↑↓ scroll · Esc l tracks"
+	}
+	if n := len(v.Tracks); n > 0 {
+		return "Tracks", fmt.Sprintf("%d playing · Esc k stops one", n)
+	}
+	return "Tracks", "Esc k stops one"
 }

@@ -285,7 +285,7 @@ func TestTabsShowEscNumbers(t *testing.T) {
 	a := testApp()
 	a.cfg.Hints = true
 	wide, _, _ := a.draw(110, 32)
-	title := plain(wide.rows()[1])
+	title := plain(wide.rows()[0])
 	screen := plain(strings.Join(wide.rows(), "\n"))
 	if !strings.Contains(screen, "Esc 6 help") || strings.Contains(screen, "F6") {
 		t.Fatalf("play hint missing Esc 6:\n%s", screen)
@@ -300,12 +300,12 @@ func TestTabsShowEscNumbers(t *testing.T) {
 	}
 
 	a.gotoPage(pageSounds)
-	title = plain(a.drawRow(110, 1))
+	title = plain(a.drawRow(110, 0))
 	if !strings.Contains(title, "[4 Sounds]") || !strings.Contains(title, "Esc+") {
 		t.Fatalf("sounds title %q", title)
 	}
 
-	narrow := plain(a.drawRow(80, 1))
+	narrow := plain(a.drawRow(80, 0))
 	if !strings.Contains(narrow, "Esc 4 Sounds") || !strings.Contains(narrow, "f next") {
 		t.Fatalf("narrow title %q", narrow)
 	}

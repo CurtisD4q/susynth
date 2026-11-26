@@ -1,6 +1,6 @@
+ ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds [5 Settings] 6 Help 7 Perform       untitled · no audio
+ ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ◇ susynth   Esc+ 1 Play 2 Sets 3 Recordings 4 Sounds [5 Settings] 6 Help 7 Perform     untitled · no audio │
-│ ────────────────────────────────────────────────────────────────────────────────────────────────────────── │
 │ ▸ Settings  saved automatically                                                                            │
 │  Theme                   ‹ default                      ›                                                  │
 │  Audio output            ‹                              ›                                                  │
@@ -27,6 +27,6 @@
 │ ────────────────────────────────────────────────────────────────────────────────────────────────────────── │
 │  default, large (projector) or contrast (washed-out projectors)                                            │
 │                                                                                                            │
-│                                                                                                            │
-│ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off               ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit

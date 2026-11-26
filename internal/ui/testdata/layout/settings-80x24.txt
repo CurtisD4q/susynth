@@ -1,6 +1,6 @@
+ ◇ susynth   Esc 5 Settings  (f next, b back)               untitled · no audio
+ ──────────────────────────────────────────────────────────────────────────────
 ╭──────────────────────────────────────────────────────────────────────────────╮
-│ ◇ susynth   Esc 5 Settings  (f next, b back)             untitled · no audio │
-│ ──────────────────────────────────────────────────────────────────────────── │
 │ ▸ Settings  saved automatically                                              │
 │  Theme                   ‹ default                      ›                    │
 │  Audio output            ‹                              ›                    │
@@ -19,6 +19,6 @@
 │ ──────────────────────────────────────────────────────────────────────────── │
 │  default, large (projector) or contrast (washed-out projectors)              │
 │                                                                              │
-│                                                                              │
-│ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off

@@ -1,6 +1,6 @@
+ ◇ susynth   Esc 2 Sets  (f next, b back)                   untitled · no audio
+ ──────────────────────────────────────────────────────────────────────────────
 ╭──────────────────────────────────────────────────────────────────────────────╮
-│ ◇ susynth   Esc 2 Sets  (f next, b back)                 untitled · no audio │
-│ ──────────────────────────────────────────────────────────────────────────── │
 │ ▸ Sets  0 saved · /tmp/susynth-layout/data/sets                              │
 │                                                                              │
 │  no saved sets yet — press ^S on the Play page                               │
@@ -19,6 +19,6 @@
 │                                                                              │
 │                                                                              │
 │                                                                              │
-│                                                                              │
-│ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off

@@ -1,6 +1,6 @@
+ ◇ susynth   Esc 3 Recordings  (f next, b back)             untitled · no audio
+ ──────────────────────────────────────────────────────────────────────────────
 ╭──────────────────────────────────────────────────────────────────────────────╮
-│ ◇ susynth   Esc 3 Recordings  (f next, b back)           untitled · no audio │
-│ ──────────────────────────────────────────────────────────────────────────── │
 │ ▸ Recordings  0 recorded · /tmp/susynth-layout/data/recordings               │
 │                                                                              │
 │  no recordings yet — press ^R while playing                                  │
@@ -19,6 +19,6 @@
 │                                                                              │
 │                                                                              │
 │                                                                              │
-│                                                                              │
-│ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off
