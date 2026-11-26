@@ -2,7 +2,7 @@
  ◇ susynth › Help · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────
 
-  m   Help · ↑↓ PgUp PgDn scroll
+      Help · ↑↓ PgUp PgDn scroll
       ─────────────────────────────────────────────────────────────────────────
   ▶      PAGES
   ≡      Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, He…

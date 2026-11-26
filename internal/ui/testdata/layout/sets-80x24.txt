@@ -2,7 +2,7 @@
  ◇ susynth › Sets · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────
 
-  m   Sets · 3 saved · /tmp/susynth-layout/data/sets
+      Sets · 3 saved · /tmp/susynth-layout/data/sets
       ─────────────────────────────────────────────────────────────────────────
   ▶        Name                          Tracks  Lines  Modified
   ≡        ────────────────────────────  ──────  ─────  ────────

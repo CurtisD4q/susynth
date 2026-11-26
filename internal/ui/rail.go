@@ -4,7 +4,7 @@ import "strings"
 
 // The page rail.
 //
-// The pages run down the left of the window as icons, with an m above them.
+// The pages run down the left of the window as icons.
 // Esc m opens the pages as a pop-up pane beside the icons, with names and the
 // numbers that open each page (Esc then the number), and moves the keys into
 // it: ↑↓ choose a page, Enter opens it, Esc or m goes back and shuts it.
@@ -31,15 +31,9 @@ func railPopW(w int) int {
 	return max(12, min(n+10, w-railWidth(w)-4))
 }
 
-// drawRail draws the icons, with an m above them (where the pop-up's title
-// goes) that opens the pop-up. They are in the rows the pages' own rows use.
+// drawRail draws the icons, in the rows the pop-up's pages will be in.
 func (a *App) drawRail(f *frame, rw, y, bot int) {
 	th := a.th
-	mark := th.Muted
-	if a.railOn {
-		mark = th.Pane
-	}
-	f.text(1, y, "m", mark, 1)
 	for i := range pageNames {
 		row := y + 2 + i
 		if row > bot {

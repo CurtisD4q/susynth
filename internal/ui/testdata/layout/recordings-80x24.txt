@@ -2,7 +2,7 @@
  ◇ susynth › Recordings · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────
 
-  m   Recordings · 2 recorded · /tmp/susynth-layout/data/recordings
+      Recordings · 2 recorded · /tmp/susynth-layout/data/recordings
       ─────────────────────────────────────────────────────────────────────────
   ▶      File                              Length      Size  Recorded
   ≡      ────────────────────────────────  ──────  ────────  ────────

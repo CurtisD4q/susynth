@@ -2,7 +2,7 @@
  ◇ susynth › Play · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────
 
-  m   Editor · ^E run block · Esc-Enter run a…  Tracks · 2 playing · Esc k st…
+      Editor · ^E run block · Esc-Enter run a…  Tracks · 2 playing · Esc k st…
       ───────────────────────────────────────── ───────────────────────────────
   ▶    ┊ 1 use_bpm 120                           1 :drums       ▮▮▮▮▮▮▮▮ 100%
   ≡      2 live_loop :bass do                     ◆··· ···· ···· ····
