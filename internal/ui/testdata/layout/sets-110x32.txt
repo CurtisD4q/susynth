@@ -2,26 +2,26 @@
  ◇ susynth › Sets · night-drive • · no audio
  ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
- Pages            Sets · 3 saved · /tmp/susynth-layout/data/sets     Details
- ──────────────── ────────────────────────────────────────────────── ────────────────────────────────────────
-  1 Play               Name                          Tracks  Lines    night-drive
-  2 Sets        ◂      ────────────────────────────  ──────  ─────    13 lines · modified 2026-11-20 21:30
-  3 Recordings      ›● night-drive                        3     13    live loops: :bass :drums :hats
-  4 Sounds             opener                             1      4    open in the editor, with unsaved cha…
-  5 Settings           a-very-long-set-name-that-w…       2      8
-  6 Help                                                              use_bpm 96
-  7 Perform                                                           live_loop :drums do
-                                                                        sample :bd_haus
-                                                                        sleep 1
-                                                                      end
-                                                                      live_loop :hats do
-                                                                        sample :bd_haus
-                                                                        sleep 1
-                                                                      end
-                                                                      live_loop :bass do
-                                                                        sample :bd_haus
-                                                                        sleep 1
-                                                                      end
+ Pages    Sets · 3 saved · /tmp/susynth-layout/data/sets          Details
+ ───────  ─────────────────────────────────────────────────────── ───────────────────────────────────────────
+  1            Name                          Tracks  Lines         night-drive
+  2            ────────────────────────────  ──────  ─────         13 lines · modified 2026-11-20 21:30
+  3         ›● night-drive                        3     13         live loops: :bass :drums :hats
+  4            opener                             1      4         open in the editor, with unsaved changes
+  5            a-very-long-set-name-that-w…       2      8
+  6                                                                use_bpm 96
+  7                                                                live_loop :drums do
+                                                                     sample :bd_haus
+                                                                     sleep 1
+                                                                   end
+                                                                   live_loop :hats do
+                                                                     sample :bd_haus
+                                                                     sleep 1
+                                                                   end
+                                                                   live_loop :bass do
+                                                                     sample :bd_haus
+                                                                     sleep 1
+                                                                   end
 
 
 

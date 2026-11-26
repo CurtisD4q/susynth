@@ -11,26 +11,53 @@ import "strings"
 //
 // The top line is the trail: susynth › the page · the set · the audio.
 
-// railWidth is the columns the rail takes in a window w columns wide,
-// including the blank column after it.
+// railWidth is the columns the shut rail takes in a window w columns wide,
+// including the blank columns after it: "Pages" and the page numbers. Opened
+// with Esc m it is drawn over the left of the page and takes nothing more.
 func railWidth(w int) int {
-	if w < 80 {
-		return 4 // " 1 " and the blank column
+	if w < 48 {
+		return 4
 	}
+	return 9
+}
+
+// railOpenWidth is the columns the open rail covers, with names.
+func railOpenWidth(w int) int {
 	n := len("Pages")
 	for _, p := range pageNames {
 		n = max(n, len([]rune(p)))
 	}
-	return n + 7 // " 1 ", the name, " ◂", and the blank column
+	return min(n+8, max(railWidth(w), w-10)) // " 1 ", the name, " ◂" and the edge
 }
 
-// drawRail draws the rail: its title on row y, the rule under it, and the
-// pages from y+2 to bot.
+// drawRail draws the shut rail: its title on row y, the rule under it, and
+// the page numbers from y+2 to bot.
 func (a *App) drawRail(f *frame, rw, y, bot int) {
+	a.drawRailAt(f, rw, y, bot, false)
+}
+
+// drawRailOpen draws the open rail over the page: the page under it is
+// cleared, the names are shown, and an edge runs down its right side.
+func (a *App) drawRailOpen(f *frame, ow, y, bot int) {
 	th := a.th
-	names := rw > 4
+	for r := y; r <= bot; r++ {
+		for x := 0; x < ow; x++ {
+			f.text(x, r, " ", th.Text, 1)
+		}
+		f.text(ow-1, r, "│", a.boxLine(true), 1)
+	}
+	a.drawRailAt(f, ow, y, bot, true)
+}
+
+func (a *App) drawRailAt(f *frame, rw, y, bot int, open bool) {
+	th := a.th
 	right := rw - 2 // the last column the rail draws in
-	if names {
+	if open {
+		right = rw - 2
+	} else if rw > 4 {
+		right = rw - 3
+	}
+	if rw > 4 {
 		ts := style{fg: th.Text.fg, bg: th.Base.bg, bold: true}
 		if a.railOn {
 			ts = th.Pane
@@ -44,17 +71,17 @@ func (a *App) drawRail(f *frame, rw, y, bot int) {
 			break
 		}
 		text := " " + string(rune('1'+i))
-		if names {
+		if open {
 			text += " " + name
 		}
 		st := th.Text
 		if page(i) == a.page {
 			st = th.Pane
-			if names {
+			if open {
 				text += strings.Repeat(" ", max(1, right-len([]rune(text)))) + "◂"
 			}
 		}
-		if a.railOn && i == a.railSel {
+		if open && i == a.railSel {
 			st = th.CursorRow
 			text += strings.Repeat(" ", max(0, right+1-len([]rune(text))))
 		}

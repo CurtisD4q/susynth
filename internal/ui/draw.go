@@ -61,6 +61,11 @@ func (a *App) drawInner(w, h int) (*frame, int, int) {
 	if cx >= 0 {
 		cx += rw
 	}
+	if a.railOn {
+		// The open rail covers the left of the page.
+		a.drawRailOpen(f, railOpenWidth(w), top-1, bot)
+		cx, cy = -1, -1
+	}
 
 	a.drawToast(f, h-2, w, &cx, &cy)
 	a.drawTransport(f, h-1, w, v)

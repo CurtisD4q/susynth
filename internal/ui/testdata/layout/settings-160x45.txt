@@ -2,33 +2,31 @@
  ◇ susynth › Settings · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
- Pages            Settings · saved automatically
- ──────────────── ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  1 Play             Theme                   ‹ default                      ›
-  2 Sets
-  3 Recordings       Audio output            ‹                              ›
-  4 Sounds
-  5 Settings    ◂    Tempo (BPM)             ‹ 60                           ›
-  6 Help
-  7 Perform          Start on next bar       ‹ off                          ›
+ Pages    Settings · saved automatically
+ ───────  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  1          Theme                   ‹ default                      ›
+  2
+  3          Audio output            ‹                              ›
+  4
+  5          Tempo (BPM)             ‹ 60                           ›
+  6
+  7          Start on next bar       ‹ off                          ›
 
-                     Internal synth          ‹ off                          ›
+             Internal synth          ‹ off                          ›
 
-                     OSC → SuperDirt         ‹ off                          ›
+             OSC → SuperDirt         ‹ off                          ›
 
-                     OSC address             ‹                              ›
+             OSC address             ‹                              ›
 
-                     MIDI output             ‹ off                          ›
+             MIDI output             ‹ off                          ›
 
-                     MIDI clock              ‹ off                          ›
+             MIDI clock              ‹ off                          ›
 
-                     Samples                 ‹ 0 banks, 0 files             ›
+             Samples                 ‹ 0 banks, 0 files             ›
 
-                     Reopen last set         ‹ off                          ›
+             Reopen last set         ‹ off                          ›
 
-                     Screen refresh          ‹ 0 Hz                         ›
-
-
+             Screen refresh          ‹ 0 Hz                         ›
 
 
 
@@ -37,8 +35,10 @@
 
 
 
-                    ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-                     default, large (projector) or contrast (washed-out projectors)
+
+
+            ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+             default, large (projector) or contrast (washed-out projectors)
 
 
 

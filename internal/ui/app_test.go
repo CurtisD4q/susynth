@@ -296,9 +296,16 @@ func TestRailShowsEscNumbers(t *testing.T) {
 	}
 	// The pages run down the left, numbered as Esc then the number opens
 	// them; the top line is the trail.
+	// Shut, the rail is "Pages" and the numbers; Esc m opens it with names.
+	if !strings.Contains(screen, "Pages") || strings.Contains(screen, "3 Recordings") {
+		t.Errorf("the shut rail is wrong:\n%s", screen)
+	}
+	a.handleKey(key{kind: kRune, r: 'm', alt: true})
+	open := plain(strings.Join(a.drawRows(110), "\n"))
+	a.handleKey(key{kind: kEsc})
 	for _, want := range []string{"Pages", "1 Play", "2 Sets", "3 Recordings", "4 Sounds", "5 Settings", "6 Help", "7 Perform"} {
-		if !strings.Contains(screen, want) {
-			t.Errorf("the rail lacks %q:\n%s", want, screen)
+		if !strings.Contains(open, want) {
+			t.Errorf("the open rail lacks %q:\n%s", want, open)
 		}
 	}
 	if !strings.Contains(title, "susynth › Play") {
@@ -312,12 +319,6 @@ func TestRailShowsEscNumbers(t *testing.T) {
 	if title = plain(a.drawRow(110, 1)); !strings.Contains(title, "susynth › Sounds") {
 		t.Fatalf("sounds trail %q", title)
 	}
-	// Under 80 columns the rail shows the numbers only.
-	narrow := plain(strings.Join(a.drawRows(70), "\n"))
-	if strings.Contains(narrow, "Pages") || strings.Contains(narrow, "3 Recordings") || !strings.Contains(narrow, " 7 ") {
-		t.Fatalf("narrow rail:\n%s", narrow)
-	}
-
 	// Esc m moves the keys into the rail; Enter opens the page chosen.
 	a.gotoPage(pagePlay)
 	a.handleKey(key{kind: kRune, r: 'm', alt: true})
