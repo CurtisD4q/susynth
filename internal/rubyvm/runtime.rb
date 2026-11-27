@@ -1034,12 +1034,12 @@ end
 # A node stands for a sound that has started (a note, a sample or an effect),
 # so code that keeps hold of one (s = play 60 ... control s, note: 65) runs.
 class SusynthNode
-  attr_reader :kind, :name, :t_end
-  def initialize(kind, name, t_end)
-    @kind, @name, @t_end = kind, name, t_end
+  attr_reader :kind, :name, :t_end, :ids
+  def initialize(kind, name, t_end, ids = [])
+    @kind, @name, @t_end, @ids = kind, name, t_end, ids
   end
   def control(**o) = Object.send(:control, self, **o)
-  def kill(**_o) = nil
+  def kill(**_o) = Object.send(:kill, self)
   def pause(**_o) = nil
   def run(**_o) = nil
   def live? = $__cur.nil? || @t_end.nil? || $__cur.time < @t_end
@@ -1058,9 +1058,9 @@ def play(n = :__none, *rest, **opts, &_blk)
     n = :__none
   end
   if n.is_a?(Array) || n.is_a?(Ring)
-    last = nil
-    n.to_a.each { |x| last = play(x, **opts) }
-    return last
+    nodes = n.to_a.map { |x| play(x, **opts) }.compact
+    return nil if nodes.empty?
+    return SusynthNode.new(:synth, nodes.first.name, nodes.map(&:t_end).compact.max, nodes.flat_map(&:ids))
   end
   n = 52 if n == :__none
   c = __ctx
@@ -1089,9 +1089,12 @@ def play(n = :__none, *rest, **opts, &_blk)
   ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
   ev[:res] = o[:res].to_f if o[:res]
   __fx(ev, bpm)
+  id = __node_id
+  ev[:id] = id
+  __slides(o, ev, bpm)
   __emit("p", s, ev)
   th = $__cur
-  SusynthNode.new(:synth, s, th && th.time + ev[:a].to_f + ev[:d].to_f + ev[:s].to_f + ev[:r].to_f)
+  SusynthNode.new(:synth, s, th && th.time + ev[:a].to_f + ev[:d].to_f + ev[:s].to_f + ev[:r].to_f, [id])
 end
 
 def synth(name, *rest, **opts, &blk)
@@ -1181,8 +1184,11 @@ def sample(name = nil, *rest, **opts, &_blk)
     __warn_once("smpopt", "sample options beat_stretch/start/finish/pitch are ignored in susynth")
   end
   __fx(ev, bpm)
+  id = __node_id
+  ev[:id] = id
+  __slides(o, ev, bpm)
   __emit("s", n, ev)
-  SusynthNode.new(:sample, n, nil)
+  SusynthNode.new(:sample, n, nil, [id])
 end
 
 def sample_duration(*_a, **_o) = 1.0 * 60.0 / current_bpm
@@ -1191,8 +1197,44 @@ def load_samples(*_a) = nil
 def sample_free(*_a) = nil
 def sample_free_all = nil
 
-def control(*_a, **_o)
-  __warn_once("control", "control isn't supported in susynth yet: sounds keep the settings they started with")
+$__node_id = 0
+def __node_id = ($__node_id += 1)
+
+SLIDES = { note_slide: :nsl, amp_slide: :asl, pan_slide: :psl, cutoff_slide: :cusl, rate_slide: :rsl }.freeze
+
+# __slides adds the slide times (in seconds) a sound starts with or a
+# control asks for. slide: sets them all.
+def __slides(o, ev, bpm)
+  SLIDES.each do |k, key|
+    v = o.key?(k) ? o[k] : o[:slide]
+    ev[key] = v.to_f * 60.0 / bpm if v
+  end
+end
+
+# control changes a sound that is playing: its note, amp, pan, cutoff or
+# (for a sample) rate, gliding over the *_slide time.
+def control(node = nil, *rest, **opts)
+  opts = rest.first.merge(opts) if rest.first.is_a?(Hash)
+  return nil if node.nil?
+  return node.to_a.each { |x| control(x, **opts) } && nil if node.is_a?(Array) || node.is_a?(Ring)
+  return nil unless node.is_a?(SusynthNode)
+  if node.kind == :fx
+    __warn_once("ctlfx", "control on a with_fx effect isn't supported in susynth yet; the effect keeps its settings")
+    return nil
+  end
+  th = __need_thread("control")
+  bpm = th.ctx[:bpm]
+  ev = {}
+  if opts.key?(:note)
+    n = opts[:note]
+    n = n.to_a.first if n.is_a?(Array) || n.is_a?(Ring)
+    nn = note(n)
+    ev[:n] = (nn + th.ctx[:transpose] + th.ctx[:octave] * 12).to_f if nn
+  end
+  %i[amp pan cutoff rate].each { |k| ev[k] = opts[k].to_f if opts.key?(k) && opts[k].is_a?(Numeric) }
+  __slides(opts, ev, bpm)
+  return nil if ev.empty?
+  node.ids.each { |id| __emit("c", node.name, ev.merge(id: id)) }
   nil
 end
 
@@ -1426,6 +1468,8 @@ def with_random_source(_s, &blk) = blk&.call
 
 def kill(node = nil, **_o)
   return __kill_named(node) if node.is_a?(Symbol) || node.is_a?(String)
+  return nil unless node.is_a?(SusynthNode) && $__cur
+  node.ids.each { |id| __emit("c", node.name, { id: id, kill: 1 }) }
   nil
 end
 

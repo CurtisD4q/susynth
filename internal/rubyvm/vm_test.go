@@ -356,3 +356,28 @@ end
 		t.Error("comment block played")
 	}
 }
+
+func TestControlEvents(t *testing.T) {
+	v := vm(t)
+	evs, other := run(t, v, `
+s = play 60, release: 4, note_slide: 1
+sleep 1
+control s, note: 65, amp: 0.5
+s.control cutoff: 80, cutoff_slide: 2
+kill s
+`, 4)
+	t.Log(flat(other))
+	if len(evs) != 4 {
+		t.Fatalf("events: %v", flat(evs))
+	}
+	if evs[0].Arg(3) != "p" || !strings.Contains(evs[0].Arg(5), "id=") || !strings.Contains(evs[0].Arg(5), "nsl=1") {
+		t.Errorf("play: %v", evs[0])
+	}
+	id := strings.Split(strings.Split(evs[0].Arg(5), "id=")[1], ",")[0]
+	for i, want := range []string{"n=65.0", "cusl=2", "kill=1"} {
+		e := evs[i+1]
+		if e.Arg(3) != "c" || !strings.Contains(e.Arg(5), want) || !strings.Contains(e.Arg(5), "id="+id) || e.Arg(0)[:5] != "1.000" {
+			t.Errorf("control %d: %v", i, e)
+		}
+	}
+}

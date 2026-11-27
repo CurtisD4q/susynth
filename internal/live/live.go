@@ -514,7 +514,33 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 	}
 	defRes := 0.0 // the synth's own resonance
 	p := synth.Params{Gain: get("amp", 1), Pan: get("pan", 0), Speed: 1}
+	h.Node = int64(get("id", 0))
+	slideKeys := [5]string{"nsl", "asl", "psl", "cusl", "rsl"}
+	for i, k := range slideKeys {
+		if v, ok := kv[k]; ok {
+			if h.Slides == nil {
+				h.Slides = &[5]float64{}
+			}
+			h.Slides[i] = v
+		}
+	}
 	switch kind {
+	case "c": // control a playing node
+		c := synth.NoControl()
+		c.Kill = get("kill", 0) != 0
+		for k, dst := range map[string]*float64{"n": &c.Note, "amp": &c.Amp, "pan": &c.Pan, "cutoff": &c.Cutoff, "rate": &c.Rate} {
+			if v, ok := kv[k]; ok {
+				*dst = v
+			}
+		}
+		for i, dst := range []*float64{&c.NoteSlide, &c.AmpSlide, &c.PanSlide, &c.CutoffSlide, &c.RateSlide} {
+			if v, ok := kv[slideKeys[i]]; ok {
+				*dst = v
+			}
+		}
+		h.Ctl = &c
+		h.Slides = nil
+		return h, g, nil
 	case "p":
 		sy, ok := synth.LookupSynth(name)
 		if !ok {
@@ -639,6 +665,9 @@ func Collect(vm *rubyvm.VM, code string, seconds float64) ([]engine.Hit, float64
 		switch m.Kind() {
 		case "ev":
 			if h, _, e := Translate(m); e == nil {
+				if h.Ctl != nil {
+					continue // control changes a sound; MIDI export keeps the note as it started
+				}
 				hits = append(hits, h)
 			} else {
 				notes = append(notes, Note{Kind: "err", Text: e.Error()})

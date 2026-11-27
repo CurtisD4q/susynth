@@ -133,6 +133,7 @@ const (
 // Voice is one sounding note. Create with New; read with Next.
 type Voice struct {
 	Track               int
+	ID                  int64   // the Ruby node that started it, for control (0: none)
 	SendDelay, SendRoom float32 // bus send levels, read by the engine mixer
 	SendChorus          float32
 	Gain                float32 // the track gain the engine mixer last applied
@@ -173,6 +174,11 @@ type Voice struct {
 	stereo    bool
 	right     float32 // the right channel of the current stereo frame
 	pos, step float64
+
+	// control (control.go): nil until a control touches the voice
+	amp0, pan0, lpf0, res0 float64
+	ctl                    *controlled
+	pend                   []pendingCtl
 }
 
 type filterState struct{ lp, hp Filter }
@@ -197,6 +203,7 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	ang := (pan + 1) * math.Pi / 4
 	v.gl = float32(g * math.Cos(ang))
 	v.gr = float32(g * math.Sin(ang))
+	v.amp0, v.pan0, v.lpf0, v.res0 = g, pan, p.LPF, p.Res
 	v.variant = 1 + 0.06*float64(variant)
 	v.SendDelay, v.SendRoom, v.SendChorus = float32(p.Delay), float32(p.Room), float32(p.Chorus)
 	for ch := range v.fl {
@@ -291,6 +298,9 @@ func (v *Voice) Done() bool { return v.done }
 
 // Next returns the next stereo frame.
 func (v *Voice) Next() (float32, float32) {
+	if v.pend != nil || v.ctl != nil {
+		v.stepCtl()
+	}
 	if v.delay > 0 {
 		v.delay--
 		return 0, 0
