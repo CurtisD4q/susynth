@@ -1,6 +1,8 @@
 package ui
 
 import (
+	mint "github.com/CurtisD4q/pmin-kit"
+
 	"fmt"
 	"os"
 	"strings"
@@ -79,7 +81,12 @@ func (a *App) goLive(i int) {
 	if i < 0 || i >= len(a.setlist) {
 		return
 	}
-	if a.dirty && time.Now().After(a.discardUntil) {
+	if a.dirty && a.page != pagePlay && a.inMint {
+		// Off the Play page a pop-up asks; on it nothing covers the code.
+		if !mint.Confirm("Unsaved changes", "The editor has changes that are not saved. Discard them and go live? (^S saves first.)") {
+			return
+		}
+	} else if a.dirty && time.Now().After(a.discardUntil) {
 		a.discardUntil = time.Now().Add(4 * time.Second)
 		a.say("unsaved changes in the editor — repeat to discard them and go live (or ^S first)", true)
 		return

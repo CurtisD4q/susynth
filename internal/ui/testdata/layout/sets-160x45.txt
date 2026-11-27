@@ -1,27 +1,27 @@
 
- ◇ susynth › Sets · night-drive • · no audio
+ ◇ susynth › ≡ Sets · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-      Sets · 3 saved · /tmp/susynth-layout/data/sets                                        Details
-      ───────────────────────────────────────────────────────────────────────────────────── ───────────────────────────────────────────────────────────────────
-  ▶        Name                          Tracks  Lines                                       night-drive
-  ≡        ────────────────────────────  ──────  ─────                                       13 lines · modified 2026-11-20 21:30
-  ●     ›● night-drive                        3     13                                       live loops: :bass :drums :hats
-  ♪        opener                             1      4                                       open in the editor, with unsaved changes
-  ⚙        a-very-long-set-name-that-w…       2      8
-  ?                                                                                          use_bpm 96
-  ◈                                                                                          live_loop :drums do
-                                                                                               sample :bd_haus
-                                                                                               sleep 1
-                                                                                             end
-                                                                                             live_loop :hats do
-                                                                                               sample :bd_haus
-                                                                                               sleep 1
-                                                                                             end
-                                                                                             live_loop :bass do
-                                                                                               sample :bd_haus
-                                                                                               sleep 1
-                                                                                             end
+     Sets · 3 saved · /tmp/susynth-layout/data/sets                  ⏎ opens night-drive  Details
+     ──────────────────────────────────────────────────────────────────────────────────── ─────────────────────────────────────────────────────────────────────
+  ▶        Name                                               Tracks  Lines               night-drive
+  ≡        ─────────────────────────────────────────────────  ──────  ─────               13 lines · modified 2026-11-20 21:30
+  ●    ▸ ● night-drive                                             3     13               live loops: :bass :drums :hats
+  ♪        opener                                                  1      4               open in the editor, with unsaved changes
+  ⚙        a-very-long-set-name-that-will-not-fit-the-column       2      8
+  ?                                                                                       use_bpm 96
+  ◈                                                                                       live_loop :drums do
+                                                                                            sample :bd_haus
+                                                                                            sleep 1
+                                                                                          end
+                                                                                          live_loop :hats do
+                                                                                            sample :bd_haus
+                                                                                            sleep 1
+                                                                                          end
+                                                                                          live_loop :bass do
+                                                                                            sample :bd_haus
+                                                                                            sleep 1
+                                                                                          end
 
 
 
@@ -41,5 +41,5 @@
 
 
 
-
-  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                                                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ↑↓ select   ⏎ load   a set list   n new   d delete   Esc m pages   ^Q quit

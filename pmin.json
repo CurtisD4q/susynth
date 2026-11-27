@@ -2,10 +2,11 @@
   "name": "susynth",
   "module": "github.com/susynth/susynth",
   "tier": "example",
-  "summary": "A live-coding music instrument for the terminal, built with pmin's foundation helpers",
+  "summary": "A live-coding music instrument for the terminal, built with pmin-kit",
   "audience": "user",
   "requires": [
-    "pmin-base"
+    "pmin-base",
+    "pmin-kit"
   ],
   "status": "v0"
 }

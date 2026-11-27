@@ -80,8 +80,7 @@ func seedLayoutData(t *testing.T, data string) {
 
 func checkLayout(t *testing.T, name string, a *App, w, h int) {
 	t.Helper()
-	f, _, _ := a.draw(w, h)
-	got := plain(strings.Join(f.rows(), "\n"))
+	got := strings.Join(a.drawText(w, h), "\n")
 	lines := strings.Split(got, "\n")
 	for i := range lines {
 		lines[i] = strings.TrimRight(lines[i], " ")
@@ -127,22 +126,8 @@ func TestLayout(t *testing.T) {
 		a.side = sideRoll
 		checkLayout(t, "play-roll-110x32", a, 110, 32)
 	})
-	// Questions: pop-ups off the Play page, the line under the code on it.
-	t.Run("popup-settings-osc-80x24", func(t *testing.T) {
-		a := layoutApp(t, "default", pageSettings)
-		a.startPrompt("oscaddr", "OSC host:port: ", "127.0.0.1:4560")
-		checkLayout(t, "popup-settings-osc-80x24", a, 80, 24)
-	})
-	t.Run("popup-sets-delete-110x32", func(t *testing.T) {
-		a := layoutApp(t, "default", pageSets)
-		a.ps.armed = "opener"
-		checkLayout(t, "popup-sets-delete-110x32", a, 110, 32)
-	})
-	t.Run("popup-perform-discard-110x32", func(t *testing.T) {
-		a := layoutApp(t, "default", pagePerform)
-		a.discardUntil = time.Now().Add(time.Hour)
-		checkLayout(t, "popup-perform-discard-110x32", a, 110, 32)
-	})
+	// A question on the Play page is the line under the code. (Off it, a
+	// question is Mint's pop-up.)
 	t.Run("prompt-play-save-110x32", func(t *testing.T) {
 		a := layoutApp(t, "default", pagePlay)
 		a.startPrompt("save", "save set as: ", "night-drive")

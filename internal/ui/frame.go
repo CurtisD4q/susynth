@@ -2,9 +2,6 @@ package ui
 
 import (
 	"github.com/CurtisD4q/pmin-base/clean"
-
-	"fmt"
-	"strings"
 )
 
 // style is one cell's look. fg/bg are 256-colour indexes, -1 = terminal default.
@@ -79,55 +76,6 @@ func (f *frame) hline(x, y, w int, r rune, s style) {
 	for i := 0; i < w; i++ {
 		f.put(x+i, y, r, s)
 	}
-}
-
-func (f *frame) vline(x, y, h int, r rune, s style) {
-	for i := 0; i < h; i++ {
-		f.put(x, y+i, r, s)
-	}
-}
-
-func sgr(s style) string {
-	var b strings.Builder
-	b.WriteString("\x1b[0")
-	if s.bold {
-		b.WriteString(";1")
-	}
-	if s.dim {
-		b.WriteString(";2")
-	}
-	if s.rev {
-		b.WriteString(";7")
-	}
-	if s.fg >= 0 {
-		fmt.Fprintf(&b, ";38;5;%d", s.fg)
-	}
-	if s.bg >= 0 {
-		fmt.Fprintf(&b, ";48;5;%d", s.bg)
-	}
-	b.WriteByte('m')
-	return b.String()
-}
-
-// rows serialises each row to a self-contained ANSI string.
-func (f *frame) rows() []string {
-	out := make([]string, f.h)
-	var b strings.Builder
-	for y := 0; y < f.h; y++ {
-		b.Reset()
-		var cur style
-		first := true
-		for x := 0; x < f.w; x++ {
-			c := f.cells[y*f.w+x]
-			if first || c.s != cur {
-				b.WriteString(sgr(c.s))
-				cur, first = c.s, false
-			}
-			b.WriteRune(c.r)
-		}
-		out[y] = b.String()
-	}
-	return out
 }
 
 // tint recolours one cell (selection highlight), keeping its character.

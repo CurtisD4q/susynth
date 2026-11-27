@@ -1,19 +1,16 @@
 
- ◇ susynth › Perform · night-drive • · no audio
+ ◇ susynth › ◈ Perform · set list · 3 sets
  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-      Perform · set list · 3 sets
-      ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  ▶
-  ≡      NOW  ▶ night-drive
-  ●      NEXT opener
-  ♪
-  ⚙     ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  ?          #  Set                             State
-  ◈        ───  ──────────────────────────────  ─────
-        ›▶   1  night-drive                     live
-             2  opener
-         !   3  gone-missing                    file missing
+      ▸ Now                                                                                                                                      ▶ night-drive
+        Next                                                                                                                                            opener
+  ▶   ┄ Set list
+  ≡       #  Set           State
+  ●       ─  ────────────  ────────────
+  ♪     ▶ 1  night-drive   live
+  ⚙       2  opener
+  ?     ! 3  gone-missing  file missing
+  ◈
 
 
 
@@ -42,4 +39,7 @@
 
 
 
-  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                                                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit
+
+
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ⏎ go live   Esc n/p next/previous   [ ] move   d remove   Esc m pages

@@ -2,6 +2,7 @@ package ui
 
 import (
 	txt "github.com/CurtisD4q/pmin-base/text"
+	mint "github.com/CurtisD4q/pmin-kit"
 
 	"fmt"
 	"os"
@@ -76,21 +77,6 @@ type pageState struct {
 	armed    string          // item armed for deletion (press d twice)
 	closed   map[string]bool // Sounds groups that are folded up
 	preview  setPreview      // the set shown in the Details box
-	split    bool            // a Details box is beside the list this frame
-}
-
-func (a *App) gotoPage(p page) {
-	if p == a.page {
-		return
-	}
-	a.page = p
-	a.ps = pageState{closed: a.ps.closed}
-	switch p {
-	case pageSets:
-		a.refreshSets()
-	case pageRecs:
-		a.refreshRecs()
-	}
 }
 
 // stepPage moves from a page by step, wrapping around the ends.
@@ -285,6 +271,39 @@ func moveSel(sel, n int, k key) int {
 	return sel
 }
 
+// insertExample adds a sound's example to the end of the set and goes to
+// the Play page to run it.
+func (a *App) insertExample(it soundItem) {
+	a.ed.row = len(a.ed.lines) - 1
+	a.ed.End()
+	a.ed.Newline()
+	a.ed.Newline()
+	for _, r := range it.example {
+		if r == '\n' {
+			a.ed.Newline()
+			continue
+		}
+		a.ed.Insert(r)
+	}
+	a.edited()
+	a.say("inserted at the end of the set — ^E to play it", false)
+	a.gotoPage(pagePlay)
+}
+
+// sure asks before deleting name: a Mint pop-up, or, with no screen to
+// show one on (the tests), a second press of the same key.
+func (a *App) sure(armed, name, question, again string) bool {
+	if a.inMint {
+		return mint.Confirm(question, "It cannot be brought back.")
+	}
+	if armed != name {
+		a.ps.armed = name
+		a.say(again, true)
+		return false
+	}
+	return true
+}
+
 func (a *App) pageKey(k key) {
 	armed := a.ps.armed
 	a.ps.armed = ""
@@ -313,9 +332,7 @@ func (a *App) pageKey(k key) {
 			a.gotoPage(pagePlay)
 		case isRune('d') && a.ps.sel < len(a.ps.sets):
 			name := a.ps.sets[a.ps.sel].name
-			if armed != name {
-				a.ps.armed = name
-				a.say("press d again to delete set \""+name+"\"", true)
+			if !a.sure(armed, name, "Delete set "+name+"?", "press d again to delete set \""+name+"\"") {
 				return
 			}
 			if p, err := setPath(name); err == nil && os.Remove(p) == nil {
@@ -336,9 +353,7 @@ func (a *App) pageKey(k key) {
 			a.say(a.ps.recs[a.ps.sel].path, false)
 		case isRune('d') && a.ps.sel < len(a.ps.recs):
 			r := a.ps.recs[a.ps.sel]
-			if armed != r.name {
-				a.ps.armed = r.name
-				a.say("press d again to delete "+r.name, true)
+			if !a.sure(armed, r.name, "Delete "+r.name+"?", "press d again to delete "+r.name) {
 				return
 			}
 			if os.Remove(r.path) == nil {
@@ -381,20 +396,7 @@ func (a *App) pageKey(k key) {
 				a.say(err.Error(), true)
 			}
 		case isRune('i'):
-			a.ed.row = len(a.ed.lines) - 1
-			a.ed.End()
-			a.ed.Newline()
-			a.ed.Newline()
-			for _, r := range it.example {
-				if r == '\n' {
-					a.ed.Newline()
-					continue
-				}
-				a.ed.Insert(r)
-			}
-			a.edited()
-			a.say("inserted at the end of the set — ^E to play it", false)
-			a.gotoPage(pagePlay)
+			a.insertExample(it)
 		}
 	case pageSettings:
 		a.ps.sel = moveSel(a.ps.sel, len(settingRows), k)
@@ -431,174 +433,6 @@ func pad(s string, n int) string {
 	return s + strings.Repeat(" ", n-len([]rune(s)))
 }
 
-func (a *App) drawPage(f *frame, x, y, w, h int) {
-	th := a.th
-	switch a.page {
-	case pageSets:
-		if len(a.ps.sets) == 0 {
-			f.text(x+2, y+2, "no saved sets yet — press ^S on the Play page", th.Muted, w-3)
-			return
-		}
-		cols := []column{{title: "Name", width: 28}, {title: "Tracks", width: 6, right: true}, {title: "Lines", width: 5, right: true, dim: true}, {title: "Modified", width: 16, dim: true}}
-		var rows [][]string
-		var marks []mark
-		for _, s := range a.ps.sets {
-			rows = append(rows, []string{s.name, fmt.Sprint(s.tracks), fmt.Sprint(s.lines), s.mod.Format("2006-01-02 15:04")})
-			var m mark
-			if s.name == a.setName {
-				// ● the open set: accent, or amber with unsaved changes
-				m = mark{'●', th.Pane}
-				if a.dirty {
-					m = mark{'●', th.Pending}
-				}
-			}
-			marks = append(marks, m)
-		}
-		if a.ps.split {
-			cols = cols[:3] // the Details box shows when it was modified
-		}
-		a.drawTable(f, x, y+1, w, h-1, cols, rows, marks, a.ps.sel)
-	case pageRecs:
-		if len(a.ps.recs) == 0 {
-			f.text(x+2, y+2, "no recordings yet — press ^R while playing", th.Muted, w-3)
-			return
-		}
-		cols := []column{{title: "File", width: 32}, {title: "Length", width: 6, right: true}, {title: "Size", width: 8, right: true, dim: true}, {title: "Recorded", width: 16, dim: true}}
-		var rows [][]string
-		for _, r := range a.ps.recs {
-			s := int(r.dur.Seconds())
-			length, size := fmt.Sprintf("%d:%02d", s/60, s%60), txt.Bytes(r.size)
-			if strings.HasSuffix(r.name, ".mid") {
-				length = "midi"
-			}
-			rows = append(rows, []string{r.name, length, size, r.mod.Format("2006-01-02 15:04")})
-		}
-		if a.ps.split {
-			cols = cols[:3] // the Details box shows when it was recorded
-		}
-		a.drawTable(f, x, y+1, w, h-1, cols, rows, nil, a.ps.sel)
-	case pageSounds:
-		rows := a.soundRows()
-		if a.ps.sel >= len(rows) {
-			a.ps.sel = len(rows) - 1
-		}
-		visible := h - 5
-		if visible < 1 {
-			return
-		}
-		if a.ps.sel < a.ps.top {
-			a.ps.top = a.ps.sel
-		}
-		if a.ps.sel >= a.ps.top+visible {
-			a.ps.top = a.ps.sel - visible + 1
-		}
-		for i := 0; i < visible && a.ps.top+i < len(rows); i++ {
-			j := a.ps.top + i
-			r := rows[j]
-			yy := y + 1 + i
-			base := th.Text
-			if j == a.ps.sel {
-				f.fill(x, yy, w, 1, th.CursorRow)
-				base = th.CursorRow
-			}
-			if r.header {
-				arrow := "▾"
-				if a.ps.closed[r.group] {
-					arrow = "▸"
-				}
-				hs := style{fg: th.Pane.fg, bg: base.bg, bold: true}
-				f.text(x+1, yy, arrow+" "+r.group, hs, 0)
-				note := fmt.Sprintf("%d", r.count)
-				if r.group == "Sample banks" && r.count == 0 {
-					note = "none loaded — put .wav files in " + paths.SamplesDir()
-				}
-				f.text(x+3+len(r.group)+2, yy, note, th.Muted.over(base), w-len(r.group)-6)
-				continue
-			}
-			f.text(x+4, yy, pad(r.item.name, 20), style{fg: th.Keyword.fg, bg: base.bg, bold: true}, 20)
-			f.text(x+25, yy, r.item.desc, base, w-26)
-		}
-		f.hline(x+1, y+h-4, w-2, '─', th.Divider)
-		if r := rows[a.ps.sel]; !r.header {
-			f.text(x+2, y+h-3, "try it:", th.Muted, 0)
-			f.text(x+10, y+h-3, strings.ReplaceAll(r.item.example, "\n", " ⏎ "), th.String, w-12)
-			f.text(x+2, y+h-2, "Enter plays a preview · i inserts this line into your set", th.Muted, w-3)
-		} else {
-			f.text(x+2, y+h-3, blurbOf(r.group), th.Muted, w-3)
-			f.text(x+2, y+h-2, "Enter or ←→ opens and folds this group", th.Muted, w-3)
-		}
-	case pageSettings:
-		step := 1
-		if h >= 2*numSettings+5 {
-			step = 2
-		}
-		for i, r := range settingRows {
-			yy := y + 1 + i*step
-			base := th.Text
-			if i == a.ps.sel {
-				f.fill(x, yy, w, 1, th.CursorRow)
-				base = th.CursorRow
-			}
-			f.text(x+2, yy, r.label, base, 22)
-			f.text(x+26, yy, "‹ "+pad(a.settingValue(i), 28)+" ›", style{fg: th.Keyword.fg, bg: base.bg, bold: true}, w-27)
-		}
-		f.hline(x+1, y+h-3, w-2, '─', th.Divider)
-		f.text(x+2, y+h-2, settingRows[a.ps.sel].hint, th.Muted, w-3)
-	case pagePerform:
-		if len(a.setlist) == 0 {
-			f.text(x+2, y+2, "the set list is empty", th.Muted, w-3)
-			f.text(x+2, y+3, "open Esc 2 Sets, select a set and press a to add it", th.Muted, w-3)
-			return
-		}
-		now, next := "—", "—"
-		if a.live >= 0 && a.live < len(a.setlist) {
-			now = a.setlist[a.live]
-		}
-		if n := a.live + 1; n >= 0 && n < len(a.setlist) {
-			next = a.setlist[n]
-		}
-		f.text(x+2, y+2, "NOW ", th.Muted, 0)
-		f.text(x+7, y+2, "▶ "+now, style{fg: th.StepOn.fg, bg: th.Base.bg, bold: true}, w-9)
-		f.text(x+2, y+3, "NEXT", th.Muted, 0)
-		f.text(x+7, y+3, next, th.Text, w-9)
-		f.hline(x+1, y+5, w-2, '─', th.Divider)
-		cols := []column{{title: "#", width: 3, right: true, dim: true}, {title: "Set", width: 30}, {title: "State", width: 16}}
-		var rows [][]string
-		var marks []mark
-		for i, n := range a.setlist {
-			state := ""
-			var m mark
-			if i == a.live {
-				state, m = "live", mark{'▶', th.StepOn}
-			}
-			if p, err := setPath(n); err != nil || !exists(p) {
-				state = strings.TrimSpace(state + " file missing")
-				m = mark{'!', th.ToastErr}
-			}
-			rows = append(rows, []string{fmt.Sprint(i + 1), n, state})
-			marks = append(marks, m)
-		}
-		a.drawTable(f, x, y+6, w, h-6, cols, rows, marks, a.ps.sel)
-	case pageHelp:
-		for i := 0; i < h-1; i++ {
-			j := a.ps.top + i
-			if j >= len(helpLines) {
-				break
-			}
-			l := helpLines[j]
-			switch {
-			case l.head:
-				f.text(x+2, y+1+i, l.text, th.Keyword, w-3)
-			case l.key != "":
-				f.text(x+2, y+1+i, pad(l.key, 22), th.String, 22)
-				f.text(x+25, y+1+i, l.text, th.Text, w-26)
-			default:
-				f.text(x+2, y+1+i, l.text, th.Text, w-3)
-			}
-		}
-	}
-}
-
 type helpLine struct {
 	head bool
 	key  string
@@ -611,11 +445,11 @@ var helpLines = []helpLine{
 	{key: "Esc f  /  Esc b", text: "next / previous page"},
 	{key: "Esc", text: "from any page, back to Play"},
 	{key: "Esc m", text: "the pages pop-up beside the icons: ↑↓ choose, Enter open, Esc back"},
-	{text: "Esc m shows the numbers. Press Esc, then the key within 1.5 s, or hold Alt."},
+	{text: "The number is the page's place in the pop-up. Press Esc, then the key within 1.5 s, or hold Alt."},
 	{text: "F1-F7 still open those pages when the terminal sends function keys."},
 	{head: true, text: "KEYS ON EACH PAGE"},
-	{key: "Sets", text: "↑↓ select · Enter load · a add to the set list · n new · d delete (twice)"},
-	{key: "Recordings", text: "↑↓ select · Enter show the path · d delete (twice)"},
+	{key: "Sets", text: "↑↓ select · Enter load · a add to the set list · n new · d delete (asks first)"},
+	{key: "Recordings", text: "↑↓ select · Enter show the path · d delete (asks first)"},
 	{key: "Sounds", text: "↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example"},
 	{key: "Settings", text: "↑↓ select · ←→ change · Enter edit or reload where it says so"},
 	{key: "Help", text: "↑↓ PgUp PgDn scroll"},

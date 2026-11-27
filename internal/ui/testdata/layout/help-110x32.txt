@@ -1,32 +1,32 @@
 
- ◇ susynth › Help · night-drive • · no audio
+ ◇ susynth › ? Help · ↑↓ PgUp PgDn scroll
  ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-      Help · ↑↓ PgUp PgDn scroll
-      ───────────────────────────────────────────────────────────────────────────────────────────────────────
-  ▶      PAGES
-  ≡      Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform
-  ●      Esc f  /  Esc b        next / previous page
-  ♪      Esc                    from any page, back to Play
-  ⚙      Esc m                  the pages pop-up beside the icons: ↑↓ choose, Enter open, Esc back
-  ?      Esc m shows the numbers. Press Esc, then the key within 1.5 s, or hold Alt.
-  ◈      F1-F7 still open those pages when the terminal sends function keys.
-         KEYS ON EACH PAGE
-         Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (twice)
-         Recordings             ↑↓ select · Enter show the path · d delete (twice)
-         Sounds                 ↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example
-         Settings               ↑↓ select · ←→ change · Enter edit or reload where it says so
-         Help                   ↑↓ PgUp PgDn scroll
-         Perform                Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove
-
-         PLAYING
-         ^E                     run the block under the cursor (the whole live_loop; ┊ marks it)
-         Esc Enter              run the whole buffer, like Sonic Pi's Run
-         ^G                     stop every live_loop and thread, like Sonic Pi's Stop
-         ^P                     stop, or run the whole buffer again
-         ^R                     start / stop recording a WAV
-         ^S  ^O                 save / load a set by name (sets are .rb files)
-         Esc u  n               mute / unmute track n — a digit alone does nothing
-
-
-  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off               ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit
+      PAGES                                                                                                 █
+      Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform                        █
+  ▶   Esc f  /  Esc b        next / previous page                                                           █
+  ≡   Esc                    from any page, back to Play                                                    █
+  ●   Esc m                  the pages pop-up beside the icons: ↑↓ choose, Enter open, Esc back             █
+  ♪   The number is the page's place in the pop-up. Press Esc, then the key within 1.5 s, or hold Alt.      █
+  ⚙   F1-F7 still open those pages when the terminal sends function keys.                                   █
+  ?   KEYS ON EACH PAGE                                                                                     █
+  ◈   Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (asks        █
+      first)                                                                                                │
+      Recordings             ↑↓ select · Enter show the path · d delete (asks first)                        │
+      Sounds                 ↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example     │
+      Settings               ↑↓ select · ←→ change · Enter edit or reload where it says so                  │
+      Help                   ↑↓ PgUp PgDn scroll                                                            │
+      Perform                Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove         │
+                                                                                                            │
+      PLAYING                                                                                               │
+      ^E                     run the block under the cursor (the whole live_loop; ┊ marks it)               │
+      Esc Enter              run the whole buffer, like Sonic Pi's Run                                      │
+      ^G                     stop every live_loop and thread, like Sonic Pi's Stop                          │
+      ^P                     stop, or run the whole buffer again                                            │
+      ^R                     start / stop recording a WAV                                                   │
+      ^S  ^O                 save / load a set by name (sets are .rb files)                                 │
+      Esc u  n               mute / unmute track n — a digit alone does nothing                             │
+      Esc k  n               stop that track (Enter stops the loop under the cursor)                        │
+      Esc s  n               solo track n (0 clears)                                                        │
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ↑↓ PgUp PgDn scroll   Esc m pages   ^Q quit

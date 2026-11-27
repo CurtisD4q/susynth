@@ -1,24 +1,24 @@
 
- ◇ susynth › Sets · night-drive • · no audio
+ ◇ susynth › ≡ Sets · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────
 
-      Sets · 3 saved · /tmp/susynth-layout/data/sets
-      ─────────────────────────────────────────────────────────────────────────
-  ▶        Name                          Tracks  Lines  Modified
-  ≡        ────────────────────────────  ──────  ─────  ────────
-  ●     ›● night-drive                        3     13  2026-11-20 21:30
-  ♪        opener                             1      4  2026-11-20 20:30
-  ⚙        a-very-long-set-name-that-w…       2      8  2026-11-18 21:30
-  ?
-  ◈
+     Sets · 3 saved · …  ⏎ opens night-drive  Details
+     ──────────────────────────────────────── ─────────────────────────────────
+  ▶        Name             Tracks  Lines     night-drive
+  ≡        ───────────────  ──────  ─────     13 lines · modified 2026-11-20 2…
+  ●    ▸ ● night-drive           3     13     live loops: :bass :drums :hats
+  ♪        opener                1      4     open in the editor, with unsaved…
+  ⚙        a-very-long-se…       2      8
+  ?                                           use_bpm 96
+  ◈                                           live_loop :drums do
+                                                sample :bd_haus
+                                                sleep 1
+                                              end
+                                              live_loop :hats do
+                                                sample :bd_haus
+                                                sleep 1
+                                              end
+                                              …
 
-
-
-
-
-
-
-
-
-
-  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ↑↓ select   ⏎ load   a set list   n new   d delete   Esc m pages   ^Q quit
