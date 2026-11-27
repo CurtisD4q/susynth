@@ -951,6 +951,7 @@ def __fx(out, bpm)
     when :reverb, :gverb
       out[:room] = [out[:room].to_f, (f[:mix] || 0.4).to_f].max
       out[:rsize] = (f[:room] || f[:roomsize] || 0.6).to_f
+      out[:rdamp] = (f[:damp] || 0.5).to_f
     when :echo, :ping_pong
       phase = (f[:phase] || 0.25).to_f * 60.0 / bpm
       decay = (f[:decay] || 2).to_f * 60.0 / bpm
