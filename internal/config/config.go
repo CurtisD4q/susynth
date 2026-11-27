@@ -16,10 +16,11 @@ type Config struct {
 	BPM   float64 `json:"bpm"`
 	Set   string  `json:"last_set"`
 
-	AutoLoad   bool `json:"auto_load_last_set"` // reopen the last set on start
-	Hints      bool `json:"show_key_hints"`     // no longer used: kept so older config files still read
-	StartOnBar bool `json:"start_on_bar"`       // ^E and Run wait for the next bar
-	FrameHz    int  `json:"frame_hz"`           // screen redraw rate: 15, 30 or 60
+	AutoLoad   bool   `json:"auto_load_last_set"` // reopen the last set on start
+	Hints      bool   `json:"show_key_hints"`     // no longer used: kept so older config files still read
+	StartOnBar bool   `json:"start_on_bar"`       // older files: changes waited for the bar
+	ChangeOn   string `json:"change_on"`          // a change to a playing loop is heard: beat | bar | pass
+	FrameHz    int    `json:"frame_hz"`           // screen redraw rate: 15, 30 or 60
 
 	Internal   bool   `json:"internal_synth"` // play through the built-in synth
 	OSC        bool   `json:"osc_enabled"`    // send notes to SuperDirt
@@ -31,7 +32,7 @@ type Config struct {
 
 // Default returns first-run settings.
 func Default() Config {
-	return Config{Theme: "default", Sink: "auto", BPM: 120, AutoLoad: true, Hints: true, FrameHz: 30,
+	return Config{Theme: "default", Sink: "auto", BPM: 120, AutoLoad: true, Hints: true, FrameHz: 30, ChangeOn: "beat",
 		Internal: true, OSCAddr: "127.0.0.1:57120", MidiClock: true}
 }
 
@@ -52,6 +53,14 @@ func Load() (Config, bool) {
 	}
 	if c.FrameHz != 15 && c.FrameHz != 30 && c.FrameHz != 60 {
 		c.FrameHz = 30
+	}
+	switch c.ChangeOn {
+	case "beat", "bar", "pass":
+	default:
+		c.ChangeOn = "beat"
+		if c.StartOnBar {
+			c.ChangeOn = "bar"
+		}
 	}
 	return c, false
 }

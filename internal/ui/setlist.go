@@ -43,7 +43,7 @@ func (a *App) saveSetlist() {
 func (a *App) addToSetlist(name string) {
 	a.setlist = append(a.setlist, name)
 	a.saveSetlist()
-	a.say(fmt.Sprintf("added \"%s\" to the set list (position %d) — Esc 7 to perform", name, len(a.setlist)), false)
+	a.say(fmt.Sprintf("added \"%s\" to the set list (position %d) — press m to open Perform", name, len(a.setlist)), false)
 }
 
 func (a *App) removeFromSetlist(i int) {
@@ -81,17 +81,9 @@ func (a *App) goLive(i int) {
 	if i < 0 || i >= len(a.setlist) {
 		return
 	}
-	if a.dirty && a.page != pagePlay && a.inMint {
-		// Off the Play page a pop-up asks; on it nothing covers the code.
-		if !mint.Confirm("Unsaved changes", "The editor has changes that are not saved. Discard them and go live? (^S saves first.)") {
-			return
-		}
-	} else if a.dirty && time.Now().After(a.discardUntil) {
-		a.discardUntil = time.Now().Add(4 * time.Second)
-		a.say("unsaved changes in the editor — repeat to discard them and go live (or ^S first)", true)
+	if !a.mayReplaceEditor() {
 		return
 	}
-	a.discardUntil = time.Time{}
 	name := a.setlist[i]
 	a.loadSet(name)
 	if a.statusErr {
@@ -105,10 +97,27 @@ func (a *App) goLive(i int) {
 	}
 }
 
+// mayReplaceEditor checks before a set from the list replaces unsaved code:
+// a pop-up off the Play page, and on it a second press within 4 seconds.
+func (a *App) mayReplaceEditor() bool {
+	if a.dirty && a.page != pagePlay && a.inMint {
+		// Off the Play page a pop-up asks; on it nothing covers the code.
+		if !mint.Confirm("Unsaved changes", "The editor has changes that are not saved. Discard them and load the next set? (^S saves first.)") {
+			return false
+		}
+	} else if a.dirty && time.Now().After(a.discardUntil) {
+		a.discardUntil = time.Now().Add(4 * time.Second)
+		a.say("unsaved changes in the editor — repeat to discard them (or ^S first)", true)
+		return false
+	}
+	a.discardUntil = time.Time{}
+	return true
+}
+
 // liveStep moves to the next (+1) or previous (-1) set in the list.
 func (a *App) liveStep(d int) {
 	if len(a.setlist) == 0 {
-		a.say("the set list is empty — add sets on Esc 2 with 'a'", true)
+		a.say("the set list is empty — add sets on the Sets page with 'a'", true)
 		return
 	}
 	i := a.live + d

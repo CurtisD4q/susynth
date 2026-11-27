@@ -36,6 +36,7 @@ type Theme struct {
 	SoloTag   style
 	LevelOn   style
 	LevelOff  style
+	Lit       style // code whose sound has just started
 
 	CellW int // width of one step cell
 	Bold  bool
@@ -100,6 +101,7 @@ func themeDefault() *Theme {
 		SoloTag:   style{fg: 220, bg: -1, bold: true},
 		LevelOn:   st(accent, -1),
 		LevelOff:  st(240, -1),
+		Lit:       style{fg: 16, bg: 180, bold: true},
 		CellW:     2,
 	}
 }
@@ -154,5 +156,6 @@ func themeContrast() *Theme {
 	t.SoloTag = style{fg: 0, bg: 11, bold: true}
 	t.LevelOn = style{fg: 10, bg: 0, bold: true}
 	t.LevelOff = st(244, 0)
+	t.Lit = style{fg: 0, bg: 11, bold: true}
 	return t
 }

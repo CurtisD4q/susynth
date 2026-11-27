@@ -2,14 +2,28 @@
 # talks to the Go side over stdin/stdout, one tab-separated line per message.
 #
 # Go -> Ruby                         Ruby -> Go
-#   run  id first last at nbytes + code  ran  id first last   (code accepted)
+#   run  id first last at mode nbytes  ran  id first last   (code accepted)
+#        + code (mode: swap or pass)
 #   kill name                          cue  name
 #   chk  nbytes + code                 err  line thread message
-#   adv  t                             ev   t thread line kind name k=v,...
+#   adv  t                             ev   t thread line kind name k=v,... run
 #   stop                               log  text
-#   syn  names / smp names             bpm  value
-#                                      thr+ / thr- name kind
-#                                      .    (end of reply)
+#   deck (mix in: the playing loops    bpm  value t
+#        become the old set)           thr+ / thr- name kind
+#   stopold                            ren  name newname
+#   syn  names / smp names             .    (end of reply)
+#
+# Changing a live_loop that is playing (mode swap) starts a new version of it
+# from the beginning of the pass the old one is in. The new version runs
+# silently until the moment the change was asked for (the next beat or bar),
+# then takes over, so it is heard in place, in time. If it fails before that
+# moment the old version simply keeps playing; if it fails later, the last
+# version that worked comes back, in time. Mode pass is Sonic Pi's way: the
+# new code starts on the loop's next pass.
+#
+# Mixing in a set keeps the loops that are playing as the old set. Their
+# names, cues and syncs are kept apart from the new set's, so both can have
+# a :drums; the old set's tracks are called old/drums.
 #
 # Time is in seconds of the engine's sample clock. Every live_loop, in_thread
 # and run is a Fiber with its own virtual time; sleep moves that time forward
@@ -46,8 +60,22 @@ class SusynthStop < Exception; end
 
 class SusynthThread
   attr_accessor :name, :kind, :time, :fiber, :ctx, :block, :next_block, :next_ctx,
-                :slept, :alive, :wait_from, :wait_for, :seq, :cue_val, :start
+                :slept, :alive, :wait_from, :wait_for, :seq, :cue_val, :start,
+                :deck, :run_id, :next_run, :mute_until, :retire_at, :prev, :block_ctx,
+                :good_block, :good_ctx, :good_run, :pass_start, :pass_ticks, :pass_rng,
+                :pass_iter, :iteration
 end
+
+$__deck = 0      # the set being played; older numbers are the old set
+$__swap = true   # mode swap (false: a changed loop starts on its next pass)
+$__cue_hist = Hash.new { |h, k| h[k] = [] }
+
+# __silent? is true while a new version of a loop catches up with the old one:
+# it runs, but nothing it plays, cues or prints is sent.
+def __silent?(th) = !th.nil? && !th.mute_until.nil? && th.time < th.mute_until - 1e-9
+
+# __tname is the name the Go side knows a thread by.
+def __tname(th) = th.deck == $__deck ? th.name.to_s : "old/#{th.name}"
 
 $__run = []
 $__waiting = Hash.new { |h, k| h[k] = [] }
@@ -172,16 +200,20 @@ def __report(e, th)
   msg = e.message.to_s.lines.first.to_s.strip
   msg = "#{e.class}: #{msg}" unless e.instance_of?(RuntimeError)
   where = th.kind == :loop ? "live_loop :#{th.name}: " : ""
-  __send("err", line, th.name, where + msg)
+  __send("err", line, __tname(th), where + msg)
 end
 
-def __spawn(kind, name, parent, at, &body)
+def __spawn(kind, name, parent, at, ctx: nil, &body)
   th = SusynthThread.new
   th.name, th.kind, th.alive = name, kind, true
   th.time = at
   th.start = at
   th.seq = ($__seq += 1)
-  th.ctx = __inherit(parent ? parent.ctx : $__main_ctx, __stable_hash(name))
+  th.deck = parent ? parent.deck : $__deck
+  th.run_id = parent&.run_id
+  th.mute_until = parent&.mute_until
+  th.iteration = 0
+  th.ctx = ctx || __inherit(parent ? parent.ctx : $__main_ctx, __stable_hash(name))
   th.fiber = Fiber.new do
     begin
       catch(:susynth_nosleep) { body.call(th) }
@@ -189,7 +221,8 @@ def __spawn(kind, name, parent, at, &body)
         line = $__nosleep_line.to_i
         $__nosleep_hit = false
         where = th.kind == :loop ? "live_loop :#{th.name}: " : ""
-        __send("err", line, th.name, where + "did not sleep: add a sleep inside the loop")
+        __send("err", line, __tname(th), where + "did not sleep: add a sleep inside the loop")
+        __loop_fallback(th) if th.kind == :loop
       end
     rescue SusynthStop
     rescue Exception => e
@@ -198,7 +231,7 @@ def __spawn(kind, name, parent, at, &body)
     :done
   end
   $__run << th
-  __send("thr+", name, kind)
+  __send("thr+", __tname(th), kind)
   th
 end
 
@@ -207,8 +240,9 @@ def __finish(th)
   th.alive = false
   $__run.delete(th)
   $__waiting.each_value { |list| list.delete(th) }
-  $__loops.delete(th.name) if th.kind == :loop && $__loops[th.name].equal?(th)
-  __send("thr-", th.name, th.kind)
+  key = [th.deck, th.name]
+  $__loops.delete(key) if th.kind == :loop && $__loops[key].equal?(th)
+  __send("thr-", __tname(th), th.kind)
 end
 
 def __nosleep_finish(th)
@@ -218,11 +252,17 @@ def __nosleep_finish(th)
     line = loc[1]
   end
   where = th.kind == :loop ? "live_loop :#{th.name}: " : ""
-  __send("err", line, th.name, where + "did not sleep: add a sleep inside the loop")
+  __send("err", line, __tname(th), where + "did not sleep: add a sleep inside the loop")
+  __loop_fallback(th) if th.kind == :loop
   __finish(th)
 end
 
 def __step(th)
+  # an old version of a loop stops where its new version takes over
+  if th.retire_at && th.time >= th.retire_at - 1e-9
+    __finish(th)
+    return
+  end
   $__cur = th
   $__nosleep_hit = false
   $__nosleep_n = 0
@@ -248,12 +288,18 @@ end
 def __advance(limit)
   steps = 0
   idle = 0
+  $__waiting.values.flatten.each do |w|
+    __finish(w) if w.alive && w.retire_at && w.retire_at < limit
+  end
   loop do
-    th = $__run.min_by { |t| [t.time, t.seq] }
+    # at the same moment, a run goes first: a change timed for a beat must be
+    # in place before anything plays on that beat
+    th = $__run.min_by { |t| [t.time, t.kind == :run ? 0 : 1, t.seq] }
     break if th.nil? || th.time >= limit
     before = th.time
+    catching_up = __silent?(th)
     __step(th)
-    steps += 1
+    steps += 1 unless catching_up
     # sleep 0 yields, so the line guard never sees a long run, but virtual
     # time does not move and this loop would never reach `limit`.
     if th.alive && th.time <= before + 1e-9
@@ -265,7 +311,7 @@ def __advance(limit)
       __nosleep_finish(th)
       idle = 0
     elsif steps >= 4_000
-      stuck = $__run.min_by { |t| [t.time, t.seq] }
+      stuck = $__run.min_by { |t| [t.time, t.kind == :run ? 0 : 1, t.seq] }
       __nosleep_finish(stuck) if stuck && stuck.time < limit
       steps = 0
     end
@@ -273,8 +319,8 @@ def __advance(limit)
 end
 
 def __kill_named(name)
-  name = name.to_s.sub(/\A:/, "").to_sym
-  list = ($__run + $__waiting.values.flatten).uniq.select { |th| th.alive && th.name == name }
+  name = name.to_s.sub(/\A:/, "")
+  list = ($__run + $__waiting.values.flatten).uniq.select { |th| th.alive && __tname(th) == name }
   if list.empty?
     __send("log", ":#{name} is not running")
     return
@@ -289,6 +335,23 @@ def __stop_all
   $__waiting.clear
   $__loops.clear
   $__last_cue.clear
+  $__cue_hist.clear
+end
+
+def __threads = ($__run + $__waiting.values.flatten).uniq.select(&:alive)
+
+# __new_deck makes the loops that are playing the old set, ready for a set to
+# be mixed in. An old set that is still there stops first.
+def __new_deck
+  __threads.each { |th| __finish(th) if th.deck < $__deck }
+  names = __threads.map { |th| th.name.to_s }.uniq
+  $__deck += 1
+  names.each { |n| __send("ren", n, "old/#{n}") }
+  $__main_ctx = __default_ctx
+end
+
+def __stop_old
+  __threads.each { |th| __finish(th) if th.deck < $__deck }
 end
 
 # Settings made at the top level of a run (use_bpm, use_synth…) also become the
@@ -325,24 +388,39 @@ def sync(*names, **_opts)
   th = __need_thread("sync")
   th.slept = true
   name = names.first.to_s.sub(/\A:/, "").to_sym
+  key = [th.deck, name]
   # a cue at exactly this moment counts, whichever thread the scheduler ran first
-  if (c = $__last_cue[name]) && (c[0] - th.time).abs < 1e-9 && th.wait_for != [name, c[0]]
-    th.wait_for = [name, c[0]]
+  if (c = $__last_cue[key]) && (c[0] - th.time).abs < 1e-9 && th.wait_for != [key, c[0]]
+    th.wait_for = [key, c[0]]
     th.cue_val = c[1]
     return th.cue_val
   end
-  Fiber.yield([:sync, name])
-  th.wait_for = [name, th.time]
+  # A version catching up starts in the past: the cues it would have waited
+  # for have already happened, so it takes them from the history.
+  if __silent?(th) && (c = $__cue_hist[key].find { |ct, _| ct >= th.time - 1e-9 && th.wait_for != [key, ct] })
+    th.time = c[0]
+    th.wait_for = [key, c[0]]
+    th.cue_val = c[1]
+    return th.cue_val
+  end
+  Fiber.yield([:sync, key])
+  th.wait_for = [key, th.time]
   th.cue_val
 end
 alias sync_bpm sync
 
 def __cue(name, val, log)
   th = $__cur
+  return nil if __silent?(th)
   t = th ? th.time : 0.0
   name = name.to_s.sub(/\A:/, "").to_sym
-  $__last_cue[name] = [t, val]
-  list = $__waiting.delete(name) || []
+  deck = th ? th.deck : $__deck
+  key = [deck, name]
+  $__last_cue[key] = [t, val]
+  hist = $__cue_hist[key]
+  hist << [t, val]
+  hist.shift while hist.size > 256 || (hist.size > 1 && hist.first[0] < t - 120)
+  list = $__waiting.delete(key) || []
   keep = []
   list.each do |w|
     if t >= w.wait_from && w.alive
@@ -353,8 +431,8 @@ def __cue(name, val, log)
       keep << w
     end
   end
-  $__waiting[name] = keep unless keep.empty?
-  __send("cue", name.to_s) if log
+  $__waiting[key] = keep unless keep.empty?
+  __send("cue", deck == $__deck ? name.to_s : "old/#{name}") if log
   nil
 end
 
@@ -374,33 +452,104 @@ def live_loop(name = nil, **opts, &blk)
   raise ArgumentError, "live_loop :#{name} needs a do ... end block" unless blk
   name = name.to_sym
   parent = __need_thread("live_loop")
-  if (th = $__loops[name]) && th.alive
-    th.next_block = blk
-    th.next_ctx = parent.ctx
+  cur = $__loops[[parent.deck, name]]
+  if cur && cur.alive
+    if !$__swap || cur.pass_start.nil?
+      # Sonic Pi's way, and a loop still waiting for its first pass: the new
+      # code starts on the next pass.
+      cur.next_block, cur.next_ctx, cur.next_run = blk, parent.ctx, parent.run_id
+      return nil
+    end
+    # The new version starts where the old one's pass started and is heard
+    # from now (this run starts on the beat or bar the change waits for).
+    cur.retire_at = parent.time
+    __loop_version(name, blk, parent.ctx, parent, cur.pass_start, prev: cur, mute_until: parent.time)
     return nil
   end
-  th = __spawn(:loop, name, parent, parent.time) do |me|
-    sync(opts[:sync]) if opts[:sync]
-    sleep(opts[:delay]) if opts[:delay]
-    me.block = blk
-    iteration = 0
-    loop do
-      if me.next_block
-        me.block = me.next_block
-        nc = __inherit(me.next_ctx, 0)
-        nc[:rng], nc[:ticks] = me.ctx[:rng], me.ctx[:ticks]
-        me.ctx = nc
-        me.next_block = nil
-      end
-      __cue(name, nil, $__cue_log)
-      me.slept = false
-      me.block.call(iteration)
-      iteration += 1
-      raise "did not sleep: add a sleep inside the loop" unless me.slept
-    end
-  end
-  $__loops[name] = th
+  __loop_version(name, blk, parent.ctx, parent, parent.time, opts: opts)
   nil
+end
+
+# __loop_version starts a thread for a live_loop. With prev it continues
+# prev's pass: the same ticks, random numbers and pass number.
+def __loop_version(name, blk, pctx, parent, at, opts: {}, prev: nil, mute_until: nil)
+  th = __spawn(:loop, name, parent, at, ctx: __inherit(pctx, __stable_hash(name))) do |me|
+    __loop_body(me, opts)
+  end
+  th.block, th.block_ctx, th.mute_until, th.prev = blk, pctx, mute_until, prev
+  if prev
+    th.ctx[:ticks] = prev.pass_ticks.dup if prev.pass_ticks
+    th.ctx[:rng] = prev.pass_rng.dup if prev.pass_rng
+    th.iteration = prev.pass_iter || 0
+    # what prev was playing until now is what to go back to if this fails
+    th.good_block, th.good_ctx, th.good_run = prev.block, prev.block_ctx, prev.run_id
+  end
+  $__loops[[th.deck, name]] = th
+  th
+end
+
+def __loop_body(me, opts)
+  sync(opts[:sync]) if opts[:sync]
+  sleep(opts[:delay]) if opts[:delay]
+  loop do
+    if me.next_block
+      me.block, me.block_ctx = me.next_block, me.next_ctx
+      me.run_id = me.next_run if me.next_run
+      nc = __inherit(me.next_ctx, 0)
+      nc[:rng], nc[:ticks] = me.ctx[:rng], me.ctx[:ticks]
+      me.ctx = nc
+      me.next_block = nil
+    end
+    me.pass_start = me.time
+    me.pass_ticks = me.ctx[:ticks].dup
+    me.pass_rng = me.ctx[:rng].dup
+    me.pass_iter = me.iteration
+    __cue(me.name, nil, $__cue_log)
+    me.slept = false
+    begin
+      me.block.call(me.iteration)
+      raise "did not sleep: add a sleep inside the loop" unless me.slept
+    rescue SusynthStop
+      raise
+    rescue Exception => e
+      __report(e, me)
+      __loop_fallback(me)
+      return
+    end
+    me.iteration += 1
+    me.good_block, me.good_ctx, me.good_run = me.block, me.block_ctx, me.run_id
+  end
+end
+
+# __loop_fallback keeps a loop playing when a new version of it fails: the old
+# version carries on if it has not handed over yet, otherwise the last version
+# that worked starts again from the failed pass's start and is heard from the
+# moment of the error. A version that has worked before and now fails stops,
+# as it always did: starting it again would fail again.
+def __loop_fallback(me)
+  key = [me.deck, me.name]
+  return unless $__loops[key].equal?(me)
+  pv = me.prev
+  if __silent?(me) && pv&.alive
+    pv.retire_at = nil
+    $__loops[key] = pv
+    __send("log", ":#{me.name} kept the old version")
+    return
+  end
+  gb = me.good_block
+  return if gb.nil? || gb.equal?(me.block) || me.pass_start.nil?
+  at = me.pass_start
+  fb = __spawn(:loop, me.name, me, at, ctx: __inherit(me.good_ctx, __stable_hash(me.name))) do |t|
+    __loop_body(t, {})
+  end
+  fb.block, fb.block_ctx, fb.run_id = gb, me.good_ctx, me.good_run
+  fb.mute_until = me.time
+  fb.ctx[:ticks] = me.pass_ticks.dup
+  fb.ctx[:rng] = me.pass_rng.dup
+  fb.iteration = me.pass_iter
+  fb.good_block, fb.good_ctx, fb.good_run = gb, me.good_ctx, me.good_run
+  $__loops[key] = fb
+  __send("log", ":#{me.name} went back to the version that worked")
 end
 
 def in_thread(name: nil, delay: 0, sync: nil, **_opts, &blk)
@@ -444,7 +593,7 @@ def use_bpm(b, &blk)
   b = b.to_f
   raise ArgumentError, "bpm must be above 0" unless b.positive?
   __top_set(:bpm, b)
-  __send("bpm", b) if $__cur.nil? || $__cur.kind == :run
+  __send("bpm", b, format("%.6f", $__cur ? $__cur.time : 0)) if $__cur.nil? || $__cur.kind == :run
   nil
 end
 
@@ -833,7 +982,8 @@ def __emit(kind, name, o)
   th = __need_thread(kind == "s" ? "sample" : "play")
   line = __buffer_line(caller_locations(2, 12))
   kv = o.map { |k, v| "#{k}=#{v.is_a?(Float) ? v.round(5) : v}" }.join(",")
-  __send("ev", format("%.6f", th.time), th.name, line, kind, name, kv)
+  return if __silent?(th)
+  __send("ev", format("%.6f", th.time), __tname(th), line, kind, name, kv, th.run_id.to_i)
 end
 
 def play(n, *rest, **opts)
@@ -958,6 +1108,7 @@ def define(name, &blk)
 end
 
 def puts(*a)
+  return nil if __silent?($__cur)
   __send("log", a.map(&:to_s).join(" "))
   nil
 end
@@ -965,7 +1116,7 @@ end
 def print(*a) = puts(*a)
 
 def p(*a)
-  __send("log", a.map(&:inspect).join(" "))
+  __send("log", a.map(&:inspect).join(" ")) unless __silent?($__cur)
   a.size <= 1 ? a.first : a
 end
 
@@ -993,7 +1144,7 @@ end
 # first/last are 1-based inclusive lines chosen by the editor (so the highlight
 # and the code that runs can't disagree). first <= 0 runs the whole buffer and
 # resets top-level defaults, the way Sonic Pi's Run does.
-def __run(id, first, last, at, code)
+def __run(id, first, last, at, swap, code)
   begin
     __parse(code)
   rescue SyntaxError => e
@@ -1002,10 +1153,10 @@ def __run(id, first, last, at, code)
     return
   end
   lines = code.lines
-  if first <= 0
+  full = first <= 0
+  if full
     first, last = 1, lines.size
     $__main_ctx = __default_ctx
-    __send("bpm", 60.0)
   end
   if last < first || lines.empty? || first > lines.size
     __send("ran", id, 0, 0)
@@ -1013,9 +1164,12 @@ def __run(id, first, last, at, code)
   end
   last = lines.size if last > lines.size
   slice = __arm_spins(lines[(first - 1)..(last - 1)].join)
-  __spawn(:run, :main, nil, at) do
+  $__swap = swap
+  th = __spawn(:run, :main, nil, at) do
+    __send("bpm", 60.0, format("%.6f", at)) if full # until the code's own use_bpm
     TOPLEVEL_BINDING.eval(slice, "buffer", first)
   end
+  th.run_id = id.to_i
   __send("ran", id, first, last)
 end
 
@@ -1030,14 +1184,18 @@ def __main
     cmd, *args = line.chomp.split("\t", -1)
     case cmd
     when "run"
-      code = $stdin.read(args[4].to_i).to_s.force_encoding("UTF-8")
-      __run(args[0], args[1].to_i, args[2].to_i, args[3].to_f, code)
+      code = $stdin.read(args[5].to_i).to_s.force_encoding("UTF-8")
+      __run(args[0], args[1].to_i, args[2].to_i, args[3].to_f, args[4] != "pass", code)
     when "chk"
       __check($stdin.read(args[0].to_i).to_s.force_encoding("UTF-8"))
     when "adv"
       __advance(args[0].to_f)
     when "stop"
       __stop_all
+    when "deck"
+      __new_deck
+    when "stopold"
+      __stop_old
     when "kill"
       __kill_named(args[0])
     when "syn"

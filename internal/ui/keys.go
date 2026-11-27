@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -25,7 +24,6 @@ const (
 	kPgDn
 	kTab
 	kEsc
-	kFn    // r holds the function-key number 1..12
 	kCtrl  // r holds the lower-case letter
 	kPaste // text holds what the terminal pasted (bracketed paste)
 )
@@ -35,6 +33,7 @@ type key struct {
 	r     rune
 	alt   bool
 	shift bool   // Shift held with an arrow, Home/End or PgUp/PgDn
+	ctrl  bool   // Ctrl held with an arrow
 	text  string // kPaste only
 }
 
@@ -48,7 +47,7 @@ func keyFrom(k *mint.Key) (key, bool) {
 		return key{kind: kPaste, text: p}, true
 	}
 	mods := func(kk key) (key, bool) {
-		kk.shift, kk.alt = k.Shift, kk.alt || k.Alt
+		kk.shift, kk.alt, kk.ctrl = k.Shift, kk.alt || k.Alt, k.Ctrl
 		return kk, true
 	}
 	name := k.Name
@@ -82,10 +81,6 @@ func keyFrom(k *mint.Key) (key, bool) {
 			return mods(key{kind: kPgDn})
 		case "delete":
 			return mods(key{kind: kDelete})
-		}
-		var n int
-		if _, err := fmt.Sscanf(name, "f%d", &n); err == nil && n >= 1 && n <= 12 {
-			return key{kind: kFn, r: rune(n)}, true
 		}
 		return key{}, false
 	}

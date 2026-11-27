@@ -40,7 +40,7 @@ type Options struct {
 const starter = `# susynth: Sonic Pi code, running in real Ruby.
 # ^E runs the block under the cursor, Esc-Enter runs everything.
 # ^G stops all loops. ^Q quits.
-# Esc then 1-7 changes page (Esc m lists them). Esc 6 is help.
+# Esc m opens the pages. Help is one of them.
 
 use_bpm 120
 
@@ -100,8 +100,10 @@ type App struct {
 	dirty   bool
 	quitAsk bool
 
-	errs     []codeErr
-	lineSnap []string // buffer lines when the markers were last aligned
+	errs      []codeErr
+	lineSnap  []string    // buffer lines when the markers were last aligned
+	lineEdits []lineEdit  // edits that moved lines, for lighting up code that plays
+	runEpoch  map[int]int // run id -> len(lineEdits) when it ran
 
 	vm        *rubyvm.VM
 	seq       *live.Seq
@@ -152,7 +154,7 @@ func Run(o Options) error {
 	// Ruby boots in the background; the editor is usable straight away
 	a.vm = rubyvm.Start(paths.CacheDir())
 	a.seq = live.New(a.vm, a.eng)
-	a.seq.SetQuantise(cfg.StartOnBar)
+	a.seq.SetChangeOn(cfg.ChangeOn)
 	sctx, scancel := context.WithCancel(context.Background())
 	a.seqCancel = scancel
 	a.seq.Start(sctx)
@@ -343,6 +345,10 @@ func (a *App) handleKey(k key) {
 			a.scrollLog(k, 8)
 			return
 		}
+		if armed && !k.alt && a.page == pagePlay && (k.kind == kUp || k.kind == kDown) && a.numberUnderCursor() {
+			a.nudge(map[bool]int{true: 1, false: -1}[k.kind == kUp], k.shift)
+			return
+		}
 		if armed && !k.alt && (k.kind == kRune || k.kind == kEnter) {
 			k.alt = true
 			from = a.escFrom // Esc already took us to Play; cycle from where we were
@@ -351,14 +357,6 @@ func (a *App) handleKey(k key) {
 	if k.kind != kCtrl || k.r != 'q' {
 		a.quitAsk = false
 	}
-	if k.kind == kFn {
-		// Optional alias. SSH, tmux, laptop Fn layers and desktop F-key grabs
-		// often swallow these; Esc then 1-7 is the binding the rail shows.
-		if p, ok := pageByNumber('0' + k.r); ok {
-			a.gotoPage(p)
-		}
-		return
-	}
 	if k.alt && k.kind == kRune && k.r == 'm' {
 		if a.ctx != nil {
 			a.ctx.OpenPages()
@@ -366,10 +364,6 @@ func (a *App) handleKey(k key) {
 		return
 	}
 	if k.alt && k.kind == kRune {
-		if p, ok := pageByNumber(k.r); ok {
-			a.gotoPage(p)
-			return
-		}
 		if step := pageStep(k.r); step != 0 {
 			a.stepPage(from, step)
 			return
@@ -472,10 +466,12 @@ func (a *App) editorKey(k key) {
 		} else {
 			edit("del", func() { ed.Unmark(); ed.Delete() })
 		}
-	case kUp:
-		move(func() { ed.Vert(-1) })
-	case kDown:
-		move(func() { ed.Vert(1) })
+	case kUp, kDown:
+		if k.ctrl {
+			a.nudge(map[bool]int{true: 1, false: -1}[k.kind == kUp], k.shift)
+			return
+		}
+		move(func() { ed.Vert(map[bool]int{true: -1, false: 1}[k.kind == kUp]) })
 	case kLeft:
 		move(ed.Left)
 	case kRight:
@@ -528,6 +524,8 @@ func (a *App) edited() {
 	if a.lineSnap != nil && len(lines) != len(a.lineSnap) {
 		a.errs = remapErrs(a.errs, a.lineSnap, lines)
 		a.marks = remapMarks(a.marks, a.lineSnap, lines)
+		p, s := lineAffinity(a.lineSnap, lines)
+		a.lineEdits = append(a.lineEdits, lineEdit{p, s, len(a.lineSnap), len(lines)})
 	}
 	a.lineSnap = lines
 }
@@ -536,6 +534,10 @@ func (a *App) altKey(k key) {
 	if isLogScroll(k) {
 		if a.page == pagePlay && a.side == sideLog {
 			a.scrollLog(k, 8)
+			return
+		}
+		if a.page == pagePlay && (k.kind == kUp || k.kind == kDown) && a.numberUnderCursor() {
+			a.nudge(map[bool]int{true: 1, false: -1}[k.kind == kUp], k.shift)
 			return
 		}
 		// Alt+arrows are not a shortcut. Treat them as plain movement, which is
@@ -582,8 +584,14 @@ func (a *App) altKey(k key) {
 		if v, ok := a.eng.AdjustLevel(id, d); ok {
 			a.say(fmt.Sprintf(":%s level %d%%", name, int(v*100+0.5)), false)
 		}
-	case k.r == ',' || k.r == '.' || k.r == '<' || k.r == '>':
-		a.say("tempo comes from your code: change use_bpm and press ^E", false)
+	case k.r == ',' || k.r == '<':
+		a.filterKey(map[bool]int{true: -4, false: -1}[k.r == '<'])
+	case k.r == '.' || k.r == '>':
+		a.filterKey(map[bool]int{true: 4, false: 1}[k.r == '>'])
+	case k.r == 'i':
+		a.mixStep(1)
+	case k.r == 'o':
+		a.fadeOld()
 	case k.r == 'l':
 		if a.page != pagePlay {
 			a.gotoPage(pagePlay)
@@ -680,7 +688,7 @@ func (a *App) eval(all bool) {
 		cursor = 0
 	}
 	a.errs = nil
-	a.seq.Run(a.ed.Text(), cursor)
+	a.runStarted(a.seq.Run(a.ed.Text(), cursor))
 	if !a.vm.IsReady() {
 		if err := a.vm.Err(); err != nil {
 			return
@@ -735,8 +743,14 @@ func (a *App) pollSeq() {
 				a.marks[i] = true
 			}
 			msg := fmt.Sprintf("running lines %d–%d", n.First, n.Last)
-			if n.Quantised {
-				msg += " on the next bar"
+			if n.When != "" {
+				msg += " on the next " + n.When
+			}
+			if time.Since(a.statusAt) < 2*time.Second && !a.statusErr {
+				// what the person just did (a nudge, going live) stays on the
+				// message row; the log has this too
+				a.log = append(a.log, logLine{At: time.Now(), Kind: "info", Text: msg})
+				continue
 			}
 			a.addLog("info", msg, 0)
 		}
@@ -875,6 +889,7 @@ func (a *App) loadSet(name string) {
 	}
 	a.ed.SetText(string(b))
 	a.lineSnap = a.ed.Lines()
+	a.lineEdits, a.runEpoch = nil, nil // lines from the old code no longer apply
 	a.setName, a.dirty = strings.TrimSuffix(name, ".rb"), false
 	a.errs, a.marks = nil, map[int]bool{}
 	a.say("loaded "+a.setName+" — ^E runs a block, Esc-Enter runs everything", false)
