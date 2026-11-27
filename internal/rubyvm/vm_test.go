@@ -129,7 +129,7 @@ func TestErrorsHaveLines(t *testing.T) {
 		t.Errorf("syntax error not reported: %v", ms)
 	}
 	_, other = run(t, v, "sample :loop_nope\n", 1)
-	if !strings.Contains(strings.Join(flat(other), " "), "isn't available") {
+	if !strings.Contains(strings.Join(flat(other), " "), "isn't in susynth yet; it is skipped") {
 		t.Errorf("unknown sample not reported: %v", other)
 	}
 }
@@ -297,5 +297,62 @@ func TestBlockRunKeepsTopLevelTempo(t *testing.T) {
 	// starts at 1.0, so that pass is already the new body.
 	if strings.Join(times, " ") != "1.000 1.500 2.000 2.500" {
 		t.Errorf("redefined loop times %v (tempo lost?)", times)
+	}
+}
+
+// Code written for Sonic Pi keeps playing: names susynth hasn't got fall
+// back with a warning, and the rest of Sonic Pi's language runs.
+func TestSonicPiCompat(t *testing.T) {
+	v := vm(t)
+	evs, other := run(t, v, `
+use_synth :rhodey_nope
+play release: 0.1
+sample :loop_nope_two
+s = play 60, release: 2
+control s, note: 65
+puts "ring #{"x-x".ring.tick} #{(:c4 + 12)} #{(chord :c4, :major).to_a.inspect} #{(chord(:c4, :major) + 12).to_a.inspect}"
+puts "warp #{rand(2..2)} #{ramp(1, 2)[5]} #{octs(60, 2).to_a.inspect} #{doubles(1, 3).to_a.inspect}"
+time_warp 0.5 do
+  play 70
+end
+sleep 1
+sleep -0.5
+play 72
+density 2 do |i|
+  puts "d#{i}"
+  sleep 1
+end
+uncomment do
+  sample "bd_", 0
+end
+comment do
+  play 99
+end
+use_random_source :pink
+midi_all_notes_off
+with_bpm_mul 2 do
+  sleep 1
+end
+`, 10)
+	logs := strings.Join(flat(other), " | ")
+	t.Log(logs)
+	t.Log(summary(evs))
+	if strings.Contains(logs, "err") {
+		t.Errorf("errors: %s", logs)
+	}
+	for _, want := range []string{"ring x", "72", "[60, 64, 67]", "[72, 76, 79]", "warp 2", " 2 ", "[60, 72]",
+		"[1, 2, 4]", "d0", "d1", ":rhodey_nope isn't in susynth", ":loop_nope_two isn't in susynth yet"} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("missing %q in %s", want, logs)
+		}
+	}
+	got := summary(evs)
+	for _, want := range []string{"0.000 main beep", "0.500 main beep", "0.500 main beep", "1.500 main bd_haus"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %s", want, got)
+		}
+	}
+	if strings.Contains(strings.Join(flat(evs), " "), "n=99") {
+		t.Error("comment block played")
 	}
 }
