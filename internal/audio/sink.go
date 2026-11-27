@@ -4,17 +4,18 @@
 package audio
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
 	"os/exec"
 	"time"
+
+	"github.com/susynth/susynth/internal/pcm"
 )
 
-// Sink consumes interleaved stereo 48 kHz int16 frames.
+// Sink consumes interleaved stereo 48 kHz float32 frames, full scale ±1.
 type Sink interface {
 	Name() string
-	Write([]int16) error
+	Write([]float32) error
 	Close() error
 	// Latency is the player's own buffering, used to line up the playhead.
 	Latency() time.Duration
@@ -25,12 +26,15 @@ type backend struct {
 	bin     string
 	args    []string
 	latency time.Duration
+	format  pcm.Format
 }
 
+// PipeWire and PulseAudio take float and convert for the device themselves.
+// aplay gets dithered 16-bit: not every ALSA device takes float.
 var backends = []backend{
-	{"pipewire", "pw-cat", []string{"-p", "--rate", "48000", "--channels", "2", "--format", "s16", "--latency", "60ms", "-"}, 90 * time.Millisecond},
-	{"pulseaudio", "paplay", []string{"--raw", "--format=s16le", "--rate=48000", "--channels=2", "--latency-msec=60"}, 90 * time.Millisecond},
-	{"alsa", "aplay", []string{"-q", "-t", "raw", "-f", "S16_LE", "-r", "48000", "-c", "2", "-B", "60000"}, 90 * time.Millisecond},
+	{"pipewire", "pw-cat", []string{"-p", "--rate", "48000", "--channels", "2", "--format", "f32", "--latency", "60ms", "-"}, 90 * time.Millisecond, pcm.Float32},
+	{"pulseaudio", "paplay", []string{"--raw", "--format=float32le", "--rate=48000", "--channels=2", "--latency-msec=60"}, 90 * time.Millisecond, pcm.Float32},
+	{"alsa", "aplay", []string{"-q", "-t", "raw", "-f", "S16_LE", "-r", "48000", "-c", "2", "-B", "60000"}, 90 * time.Millisecond, pcm.Int16},
 }
 
 // Available lists the backend names whose player binary is installed.
@@ -77,7 +81,7 @@ func Open(name string) (Sink, error) {
 		if err := cmd.Start(); err != nil {
 			return nil, fmt.Errorf("%s: %w", b.bin, err)
 		}
-		return &pipeSink{name: b.name, cmd: cmd, in: in, latency: b.latency}, nil
+		return &pipeSink{name: b.name, cmd: cmd, in: in, latency: b.latency, enc: pcm.NewEncoder(b.format)}, nil
 	}
 	if name == "auto" {
 		return nil, fmt.Errorf("no audio output: native: %v; no pw-cat/paplay/aplay found either", nativeErr)
@@ -91,20 +95,15 @@ type pipeSink struct {
 	in      io.WriteCloser
 	latency time.Duration
 	buf     []byte
+	enc     *pcm.Encoder
 }
 
 func (s *pipeSink) Name() string           { return s.name }
 func (s *pipeSink) Latency() time.Duration { return s.latency }
 
-func (s *pipeSink) Write(frames []int16) error {
-	if cap(s.buf) < len(frames)*2 {
-		s.buf = make([]byte, len(frames)*2)
-	}
-	b := s.buf[:len(frames)*2]
-	for i, v := range frames {
-		binary.LittleEndian.PutUint16(b[i*2:], uint16(v))
-	}
-	_, err := s.in.Write(b)
+func (s *pipeSink) Write(frames []float32) error {
+	s.buf = s.enc.Append(s.buf[:0], frames)
+	_, err := s.in.Write(s.buf)
 	return err
 }
 
@@ -124,6 +123,6 @@ func (s *pipeSink) Close() error {
 type nullSink struct{}
 
 func (*nullSink) Name() string           { return "silent" }
-func (*nullSink) Write([]int16) error    { return nil }
+func (*nullSink) Write([]float32) error  { return nil }
 func (*nullSink) Close() error           { return nil }
 func (*nullSink) Latency() time.Duration { return 0 }

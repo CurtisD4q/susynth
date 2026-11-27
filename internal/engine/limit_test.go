@@ -40,7 +40,7 @@ func harmonics(g float64) float64 {
 	e.Play()
 	e.Schedule(Hit{At: 0, Track: "s", Word: "a4", Gate: SampleRate * 3,
 		Params: synth.Params{Wave: "sine", Note: 69 + 12*math.Log2(f/440), Gain: g, Attack: 0.01}})
-	var out []int16
+	var out []float32
 	for i := 0; i < 200; i++ {
 		out = append(out, e.Render(480)...)
 	}

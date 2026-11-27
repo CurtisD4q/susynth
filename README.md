@@ -340,7 +340,7 @@ are doing. Press `Esc r` again for Tracks. A wider terminal shows more history.
 ### 13. Save, record and export
 
 * `^S` saves the set (as a `.rb` file); `^O` loads one. The Sets page lists them.
-* `^R` starts and stops recording what you hear to a WAV file; the Recordings page lists them.
+* `^R` starts and stops recording what you hear to a 24-bit WAV file; the Recordings page lists them.
 * `Esc x` exports a MIDI file. It runs your code silently in a second sandbox, so the music
   keeps playing.
 * Without the editor: `./susynth render -seconds 60 set.rb` writes a WAV and

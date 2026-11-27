@@ -1,17 +1,26 @@
 package engine
 
 import (
+	"bufio"
 	"encoding/binary"
-	"io"
 	"os"
+
+	"github.com/susynth/susynth/internal/pcm"
 )
 
-// WavWriter streams 16-bit stereo PCM to a WAV file and patches the header on Close.
+// WavWriter streams stereo 24-bit PCM to a WAV file (dithered from the
+// engine's float output) and patches the header on Close. 24 bits keep
+// everything the engine makes: the floor sits ~144 dB down.
 type WavWriter struct {
 	f      *os.File
+	w      *bufio.Writer
+	enc    *pcm.Encoder
 	sr     int
 	frames int64
+	buf    []byte
 }
+
+const wavBytesPerFrame = 6 // two 24-bit samples
 
 // NewWavWriter creates path and writes a placeholder header.
 func NewWavWriter(path string, sr int) (*WavWriter, error) {
@@ -19,16 +28,16 @@ func NewWavWriter(path string, sr int) (*WavWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &WavWriter{f: f, sr: sr}
-	if err := w.header(); err != nil {
+	w := &WavWriter{f: f, w: bufio.NewWriterSize(f, 1<<16), enc: pcm.NewEncoder(pcm.Int24), sr: sr}
+	if _, err := f.Write(w.header()); err != nil {
 		f.Close()
 		return nil, err
 	}
 	return w, nil
 }
 
-func (w *WavWriter) header() error {
-	data := uint32(w.frames * 4)
+func (w *WavWriter) header() []byte {
+	data := uint32(w.frames * wavBytesPerFrame)
 	h := make([]byte, 44)
 	copy(h[0:], "RIFF")
 	binary.LittleEndian.PutUint32(h[4:], 36+data)
@@ -37,25 +46,18 @@ func (w *WavWriter) header() error {
 	binary.LittleEndian.PutUint16(h[20:], 1) // PCM
 	binary.LittleEndian.PutUint16(h[22:], 2) // channels
 	binary.LittleEndian.PutUint32(h[24:], uint32(w.sr))
-	binary.LittleEndian.PutUint32(h[28:], uint32(w.sr*4))
-	binary.LittleEndian.PutUint16(h[32:], 4)
-	binary.LittleEndian.PutUint16(h[34:], 16)
+	binary.LittleEndian.PutUint32(h[28:], uint32(w.sr*wavBytesPerFrame))
+	binary.LittleEndian.PutUint16(h[32:], wavBytesPerFrame)
+	binary.LittleEndian.PutUint16(h[34:], 24)
 	copy(h[36:], "data")
 	binary.LittleEndian.PutUint32(h[40:], data)
-	_, err := w.f.WriteAt(h, 0)
-	return err
+	return h
 }
 
-// Write appends interleaved stereo samples.
-func (w *WavWriter) Write(s []int16) error {
-	buf := make([]byte, len(s)*2)
-	for i, v := range s {
-		binary.LittleEndian.PutUint16(buf[i*2:], uint16(v))
-	}
-	if _, err := w.f.Seek(0, io.SeekEnd); err != nil {
-		return err
-	}
-	if _, err := w.f.Write(buf); err != nil {
+// Write appends interleaved stereo samples (full scale ±1).
+func (w *WavWriter) Write(s []float32) error {
+	w.buf = w.enc.Append(w.buf[:0], s)
+	if _, err := w.w.Write(w.buf); err != nil {
 		return err
 	}
 	w.frames += int64(len(s) / 2)
@@ -67,7 +69,10 @@ func (w *WavWriter) Frames() int64 { return w.frames }
 
 // Close patches the header and closes the file.
 func (w *WavWriter) Close() error {
-	err := w.header()
+	err := w.w.Flush()
+	if _, herr := w.f.WriteAt(w.header(), 0); err == nil {
+		err = herr
+	}
 	if cerr := w.f.Close(); err == nil {
 		err = cerr
 	}
