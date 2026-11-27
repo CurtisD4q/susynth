@@ -295,7 +295,7 @@ func TestOutputsGetNotesClockAndStart(t *testing.T) {
 
 func TestEffectsAddTailsAndSends(t *testing.T) {
 	dry, wet := New(), New()
-	wet.SetDelay(0.25, 0.6)
+	wet.SetDelay(0.25, 0.6, false)
 	h := hit(0, "a", "cp")
 	dry.Schedule(h)
 	h.Params.Delay, h.Params.Room = 0.9, 0.8

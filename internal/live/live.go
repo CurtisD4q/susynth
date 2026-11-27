@@ -393,7 +393,7 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 				continue
 			}
 			if g.DelaySet {
-				s.Eng.SetDelay(g.DelayTime, g.DelayFB)
+				s.Eng.SetDelay(g.DelayTime, g.DelayFB, g.PingPong)
 			}
 			if g.RoomSet {
 				s.Eng.SetReverb(g.RoomSize, g.RoomDamp)
@@ -437,6 +437,7 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 type Globals struct {
 	DelaySet           bool
 	DelayTime, DelayFB float64
+	PingPong           bool
 	RoomSet            bool
 	RoomSize           float64
 	RoomDamp           float64
@@ -539,6 +540,7 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 	p.Shape = get("shape", 0)
 	if v, ok := kv["dtime"]; ok {
 		g.DelaySet, g.DelayTime, g.DelayFB = true, v, get("dfb", 0.45)
+		g.PingPong = get("dpp", 0) != 0
 	}
 	if v, ok := kv["rsize"]; ok {
 		g.RoomSet, g.RoomSize, g.RoomDamp = true, v, get("rdamp", 0.5)
