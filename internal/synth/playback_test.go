@@ -212,8 +212,8 @@ func TestStereoSamplesStayStereo(t *testing.T) {
 	}
 	// pan is a balance on stereo samples
 	l, r = playSample(t, "left", Params{Pan: 1}, 4000)
-	if rmsOf(l) > 1e-6 {
-		t.Fatalf("hard right pan should silence the left channel, rms %.4f", rmsOf(l))
+	if rmsOf(l) > 1e-6 || rmsOf(r) != 0 {
+		t.Fatalf("hard right pan on a left-only sample should be silent: rms %.4f, %.4f", rmsOf(l), rmsOf(r))
 	}
 	if s := lookupSample("dual", 0); s.Stereo() {
 		t.Fatal("a stereo file with two identical channels should load as mono")
