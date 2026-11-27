@@ -3,11 +3,12 @@ package synth
 import (
 	"encoding/binary"
 	"math"
-	"math/cmplx"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/susynth/susynth/internal/audiotest"
 )
 
 // writeWAV writes a 16-bit WAV with ch channels; f gives channel c of frame i.
@@ -53,70 +54,6 @@ func playSample(t *testing.T, word string, p Params, frames int) (l, r []float64
 	return l, r
 }
 
-func powerSpectrum(x []float64) []float64 {
-	n := 1
-	for n*2 <= len(x) {
-		n *= 2
-	}
-	a := make([]complex128, n)
-	for i := range a {
-		// 4-term Blackman-Harris: sidelobes 92 dB down, so leakage does not
-		// pass for distortion
-		p := 2 * math.Pi * float64(i) / float64(n)
-		w := 0.35875 - 0.48829*math.Cos(p) + 0.14128*math.Cos(2*p) - 0.01168*math.Cos(3*p)
-		a[i] = complex(x[i]*w, 0)
-	}
-	for i, j := 1, 0; i < n; i++ {
-		bit := n >> 1
-		for ; j&bit != 0; bit >>= 1 {
-			j ^= bit
-		}
-		j ^= bit
-		if i < j {
-			a[i], a[j] = a[j], a[i]
-		}
-	}
-	for l := 2; l <= n; l <<= 1 {
-		w := cmplx.Exp(complex(0, -2*math.Pi/float64(l)))
-		for i := 0; i < n; i += l {
-			wn := complex(1, 0)
-			for k := 0; k < l/2; k++ {
-				u, v := a[i+k], a[i+k+l/2]*wn
-				a[i+k], a[i+k+l/2] = u+v, u-v
-				wn *= w
-			}
-		}
-	}
-	p := make([]float64, n/2)
-	for i := range p {
-		p[i] = real(a[i])*real(a[i]) + imag(a[i])*imag(a[i])
-	}
-	return p
-}
-
-// purity is how far everything except the wanted tone sits below it, in dB.
-func purity(x []float64, hz float64) float64 {
-	p := powerSpectrum(x)
-	c := int(math.Round(hz * float64(len(p)*2) / 48000))
-	var sig, rest float64
-	for k := 1; k < len(p); k++ {
-		if k >= c-12 && k <= c+12 {
-			sig += p[k]
-		} else {
-			rest += p[k]
-		}
-	}
-	return 10 * math.Log10(sig/rest)
-}
-
-func rmsOf(x []float64) float64 {
-	var s float64
-	for _, v := range x {
-		s += v * v
-	}
-	return math.Sqrt(s / float64(len(x)))
-}
-
 func loadTones(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
@@ -153,9 +90,9 @@ func TestResampledSamplesAreClean(t *testing.T) {
 			t.Errorf("%s: one second at 44.1 kHz played for %d frames at 48 kHz", c.word, len(l))
 		}
 		mid := l[2000:44000]
-		got := purity(mid, c.hz)
+		got := audiotest.Purity(mid, 48000, c.hz)
 		// equal-power centre pan: 0.9 * 30000/32768 * cos(pi/4) peak, rms / sqrt 2
-		level := rmsOf(mid) / (0.9 * 30000 / 32768 * math.Cos(math.Pi/4) / math.Sqrt2)
+		level := audiotest.RMS(mid) / (0.9 * 30000 / 32768 * math.Cos(math.Pi/4) / math.Sqrt2)
 		t.Logf("%s: everything else %.1f dB down, level %.3f", c.word, got, level)
 		if got < c.want {
 			t.Errorf("%s: unwanted energy only %.1f dB down, want %.0f", c.word, got, c.want)
@@ -177,7 +114,7 @@ func TestFastPlaybackDoesNotAlias(t *testing.T) {
 	}{{"t8000", 8000, 1.1}, {"t8000", 8000, 1.7}, {"t15000", 15000, 0.9}, {"t1000", 1000, 2.5}, {"t1000", 1000, 7}, {"t8000", 8000, 0.7}} {
 		l, _ := playSample(t, c.word, Params{Speed: c.speed}, 48000)
 		mid := l[len(l)/8 : len(l)*7/8]
-		got := purity(mid, c.hz*c.speed)
+		got := audiotest.Purity(mid, 48000, c.hz*c.speed)
 		t.Logf("%s at speed %.1f: everything else %.1f dB down", c.word, c.speed, got)
 		if got < 60 {
 			t.Errorf("%s at speed %.1f: only %.1f dB clean, want 60", c.word, c.speed, got)
@@ -186,7 +123,7 @@ func TestFastPlaybackDoesNotAlias(t *testing.T) {
 	// 15 kHz at speed 2 would be 30 kHz: it must be filtered, not folded to 18 kHz
 	l, _ := playSample(t, "t15000", Params{Speed: 2}, 24000)
 	ref, _ := playSample(t, "t15000", Params{}, 24000)
-	drop := 20 * math.Log10(rmsOf(ref[2000:20000])/rmsOf(l[1000:10000]))
+	drop := 20 * math.Log10(audiotest.RMS(ref[2000:20000])/audiotest.RMS(l[1000:10000]))
 	t.Logf("15 kHz at speed 2 (above Nyquist): %.1f dB quieter than at speed 1", drop)
 	if drop < 50 {
 		t.Errorf("15 kHz at speed 2 only %.1f dB down: it aliases", drop)
@@ -207,13 +144,13 @@ func TestStereoSamplesStayStereo(t *testing.T) {
 	}
 	defer LoadSamples(t.TempDir())
 	l, r := playSample(t, "left", Params{}, 4000)
-	if rmsOf(l) < 0.1 || rmsOf(r) != 0 {
-		t.Fatalf("left-only sample: left rms %.3f, right rms %.3f", rmsOf(l), rmsOf(r))
+	if audiotest.RMS(l) < 0.1 || audiotest.RMS(r) != 0 {
+		t.Fatalf("left-only sample: left rms %.3f, right rms %.3f", audiotest.RMS(l), audiotest.RMS(r))
 	}
 	// pan is a balance on stereo samples
 	l, r = playSample(t, "left", Params{Pan: 1}, 4000)
-	if rmsOf(l) > 1e-6 || rmsOf(r) != 0 {
-		t.Fatalf("hard right pan on a left-only sample should be silent: rms %.4f, %.4f", rmsOf(l), rmsOf(r))
+	if audiotest.RMS(l) > 1e-6 || audiotest.RMS(r) != 0 {
+		t.Fatalf("hard right pan on a left-only sample should be silent: rms %.4f, %.4f", audiotest.RMS(l), audiotest.RMS(r))
 	}
 	if s := lookupSample("dual", 0); s.Stereo() {
 		t.Fatal("a stereo file with two identical channels should load as mono")
@@ -271,11 +208,11 @@ func TestOtherRates(t *testing.T) {
 	}
 	defer LoadSamples(t.TempDir())
 	l, _ := playSample(t, "odd", Params{}, 48000)
-	if got := purity(l[2000:44000], 5000); got < 70 {
+	if got := audiotest.Purity(l[2000:44000], 48000, 5000); got < 70 {
 		t.Errorf("44099 Hz file: only %.1f dB clean", got)
 	}
 	l, _ = playSample(t, "hi", Params{}, 48000)
-	if got := purity(l[2000:44000], 3000); got < 70 {
+	if got := audiotest.Purity(l[2000:44000], 48000, 3000); got < 70 {
 		t.Errorf("96 kHz file: the 30 kHz part folded back, only %.1f dB clean", got)
 	}
 }

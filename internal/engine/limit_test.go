@@ -2,9 +2,9 @@ package engine
 
 import (
 	"math"
-	"math/cmplx"
 	"testing"
 
+	"github.com/susynth/susynth/internal/audiotest"
 	"github.com/susynth/susynth/internal/synth"
 )
 
@@ -40,63 +40,12 @@ func harmonics(g float64) float64 {
 	e.Play()
 	e.Schedule(Hit{At: 0, Track: "s", Word: "a4", Gate: SampleRate * 3,
 		Params: synth.Params{Wave: "sine", Note: 69 + 12*math.Log2(f/440), Gain: g, Attack: 0.01}})
-	var l []float64
+	var out []int16
 	for i := 0; i < 200; i++ {
-		for k, v := range e.Render(480) {
-			if k%2 == 0 {
-				l = append(l, float64(v))
-			}
-		}
+		out = append(out, e.Render(480)...)
 	}
-	const n = 65536
-	l = l[8192 : 8192+n]
-	a := make([]complex128, n)
-	for i := range a {
-		w := 0.5 - 0.5*math.Cos(2*math.Pi*float64(i)/n)
-		a[i] = complex(l[i]*w, 0)
-	}
-	dft(a)
-	band := func(hz float64) float64 {
-		c := int(math.Round(hz * n / SampleRate))
-		var s float64
-		for k := c - 4; k <= c+4; k++ {
-			if k > 0 && k < n/2 {
-				s += real(a[k])*real(a[k]) + imag(a[k])*imag(a[k])
-			}
-		}
-		return s
-	}
-	var h float64
-	for k := 2.0; k*f < SampleRate/2; k++ {
-		h += band(k * f)
-	}
-	return math.Sqrt(h / band(f))
-}
-
-// dft is an in-place radix-2 FFT.
-func dft(a []complex128) {
-	n := len(a)
-	for i, j := 1, 0; i < n; i++ {
-		bit := n >> 1
-		for ; j&bit != 0; bit >>= 1 {
-			j ^= bit
-		}
-		j ^= bit
-		if i < j {
-			a[i], a[j] = a[j], a[i]
-		}
-	}
-	for l := 2; l <= n; l <<= 1 {
-		w := cmplx.Exp(complex(0, -2*math.Pi/float64(l)))
-		for i := 0; i < n; i += l {
-			wn := complex(1, 0)
-			for k := 0; k < l/2; k++ {
-				u, v := a[i+k], a[i+k+l/2]*wn
-				a[i+k], a[i+k+l/2] = u+v, u-v
-				wn *= w
-			}
-		}
-	}
+	l, _ := audiotest.Split(out)
+	return audiotest.THD(l[8192:8192+65536], SampleRate, f)
 }
 
 // Normal levels pass clean; only a very loud mix is bent at all.
