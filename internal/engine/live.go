@@ -3,6 +3,8 @@ package engine
 import (
 	"math"
 	"strings"
+
+	"github.com/susynth/susynth/internal/synth"
 )
 
 // Live-performance controls: timing changes to the beat grid, a low-pass
@@ -184,15 +186,19 @@ func (e *Engine) AdjustFilter(id, d int) (float64, bool) {
 	return FilterHz(t.fstep), true
 }
 
-// trackFilter is a stereo state-variable low-pass for one track's dry signal
-// and its two effect sends.
+// trackFilter is a stereo low-pass (synth.Filter: 24 dB/octave, a touch of
+// resonance like a DJ mixer's) on one track's dry signal and both its effect
+// sends. The cutoff glides, so a sweep has no steps in it.
 type trackFilter struct {
-	hz  float64          // smoothed cutoff
-	st  [3][2][2]float64 // bus, channel, integrator
+	f   [3][2]synth.Filter // bus, channel
+	hz  float64            // the cutoff aimed at
 	buf [3][]float32
 }
 
-const openHz = 19000.0
+const (
+	openHz   = 19000.0
+	trackRes = 0.1
+)
 
 func (f *trackFilter) bufs(n int) {
 	for b := range f.buf {
@@ -210,33 +216,26 @@ func (f *trackFilter) run(target float64, outs [3][]float32, n int) {
 	if target <= 0 {
 		target = openHz
 	}
-	if f.hz <= 0 {
+	if !f.f[0][0].Active() { // first use: start open and close from there
+		for b := range f.f {
+			for ch := range f.f[b] {
+				f.f[b][ch] = synth.NewLowPass(openHz, trackRes, SampleRate)
+			}
+		}
 		f.hz = openHz
 	}
-	// glide about 40 ms per block of 10 ms, so a sweep has no steps in it
-	from := f.hz
-	to := from * math.Pow(target/from, 0.25)
-	if math.Abs(math.Log(target/from)) < 0.002 {
-		to = target
+	if target != f.hz {
+		f.hz = target
+		for b := range f.f {
+			for ch := range f.f[b] {
+				f.f[b][ch].Set(target, trackRes, SampleRate)
+			}
+		}
 	}
-	f.hz = to
-	const k = 1 / 0.9 // a little resonance, as on a DJ filter
-	for i := 0; i < n; i++ {
-		hz := from + (to-from)*float64(i)/float64(n)
-		g := math.Tan(math.Pi * math.Min(hz, SampleRate*0.45) / SampleRate)
-		a1 := 1 / (1 + g*(g+k))
-		a2 := g * a1
-		a3 := g * a2
-		for b := 0; b < 3; b++ {
+	for b := range f.f {
+		for i := 0; i < n; i++ {
 			for ch := 0; ch < 2; ch++ {
-				s := &f.st[b][ch]
-				v0 := float64(f.buf[b][i*2+ch])
-				v3 := v0 - s[1]
-				v1 := a1*s[0] + a2*v3
-				v2 := s[1] + a2*s[0] + a3*v3
-				s[0] = 2*v1 - s[0]
-				s[1] = 2*v2 - s[1]
-				outs[b][i*2+ch] += float32(v2)
+				outs[b][i*2+ch] += f.f[b][ch].Process(f.buf[b][i*2+ch])
 			}
 		}
 	}
@@ -245,7 +244,7 @@ func (f *trackFilter) run(target float64, outs [3][]float32, n int) {
 // active reports whether the filter is doing anything: closed, or still
 // gliding open.
 func (f *trackFilter) active(step int) bool {
-	return step > 0 || (f.hz > 0 && f.hz < openHz*0.999)
+	return step > 0 || (f.f[0][0].Active() && !f.f[0][0].Settled())
 }
 
 // LitLine is a source line whose sound has just started.

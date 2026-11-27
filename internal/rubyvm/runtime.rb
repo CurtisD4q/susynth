@@ -962,9 +962,11 @@ def __fx(out, bpm)
     when :lpf, :rlpf, :nlpf, :nrlpf
       c = (f[:cutoff] || 100).to_f
       out[:flpf] = out[:flpf] ? [out[:flpf], c].min : c
+      out[:fres] = [out[:fres].to_f, (f[:res] || 0.5).to_f].max if name == :rlpf || name == :nrlpf
     when :hpf, :rhpf, :nhpf, :nrhpf
       c = (f[:cutoff] || 100).to_f
       out[:fhpf] = out[:fhpf] ? [out[:fhpf], c].max : c
+      out[:fhres] = [out[:fhres].to_f, (f[:res] || 0.5).to_f].max if name == :rhpf || name == :nrhpf
     when :bitcrusher
       b = (f[:bits] || 8).to_f
       out[:crush] = out[:crush] ? [out[:crush], b].min : b
@@ -1007,6 +1009,7 @@ def play(n, *rest, **opts)
   %i[attack decay sustain release].each { |k| (v = __beats(o, k, bpm)) && ev[k.to_s[0].to_sym] = v }
   ev[:r] ||= 60.0 / bpm unless o.key?(:release)
   ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
+  ev[:res] = o[:res].to_f if o[:res]
   __fx(ev, bpm)
   __emit("p", s, ev)
   nil
@@ -1054,6 +1057,7 @@ def sample(name, *rest, **opts)
   ev = { amp: (o[:amp] || 1).to_f, pan: (o[:pan] || 0).to_f, rate: (o[:rate] || 1).to_f }
   ev[:i] = idx if idx
   ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
+  ev[:res] = o[:res].to_f if o[:res]
   %i[attack release].each { |k| (v = __beats(o, k, bpm)) && ev[k.to_s[0].to_sym] = v }
   if o[:beat_stretch] || o[:start] || o[:finish] || o[:pitch]
     __warn_once("smpopt", "sample options beat_stretch/start/finish/pitch are ignored in susynth")

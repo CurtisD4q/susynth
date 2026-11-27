@@ -65,7 +65,7 @@ func TestVoicesUnchanged(t *testing.T) {
 	if _, _, err := LoadSamples(dir); err != nil {
 		t.Fatal(err)
 	}
-	fx := Params{Gain: 0.8, Pan: -0.3, LPF: 3000, HPF: 120, Crush: 10, Shape: 0.2}
+	fx := Params{Gain: 0.8, Pan: -0.3, Crush: 10, Shape: 0.2} // filters have their own tests (filter_test.go)
 	cases := []struct {
 		name, word string
 		p          Params
@@ -102,11 +102,11 @@ func TestVoicesUnchanged(t *testing.T) {
 // band-limited. The saw is left out: it changed on purpose (PolyBLEP).
 var goldenVoices = map[string]uint64{
 	"bd":        0x3adcf34407fd1475,
-	"sn fx":     0xde6829a68ba71765,
+	"sn fx":     0x4f74ce1fce217e8c,
 	"hh":        0x9005c3893b3299e6,
 	"cp":        0xcc5880ffb8d3bded,
 	"sample":    0x9b79e53fac8ca8f9,
-	"sample fx": 0xb63913bb668dc23c,
+	"sample fx": 0xa9492360609027d6,
 	"sine":      0x6fdec24dd84d81d,
 	"tri":       0x6120a0999ba02605,
 	"square":    0x7044142963582381,
