@@ -396,7 +396,7 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 				s.Eng.SetDelay(g.DelayTime, g.DelayFB)
 			}
 			if g.RoomSet {
-				s.Eng.SetRoomSize(g.RoomSize)
+				s.Eng.SetReverb(g.RoomSize, g.RoomDamp)
 			}
 			hits = append(hits, h)
 		case "bpm":
@@ -439,6 +439,7 @@ type Globals struct {
 	DelayTime, DelayFB float64
 	RoomSet            bool
 	RoomSize           float64
+	RoomDamp           float64
 }
 
 func midiHz(n float64) float64 { return 440 * math.Pow(2, (n-69)/12) }
@@ -540,7 +541,7 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		g.DelaySet, g.DelayTime, g.DelayFB = true, v, get("dfb", 0.45)
 	}
 	if v, ok := kv["rsize"]; ok {
-		g.RoomSet, g.RoomSize = true, v
+		g.RoomSet, g.RoomSize, g.RoomDamp = true, v, get("rdamp", 0.5)
 	}
 	h.Params = p
 	return h, g, nil

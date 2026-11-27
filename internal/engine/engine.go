@@ -102,6 +102,7 @@ type Engine struct {
 	delaySeconds float64
 	delayFB      float64
 	roomSize     float64
+	roomDamp     float64
 	dsend, rsend []float32
 
 	// outputs
@@ -127,7 +128,7 @@ type Voice = synth.Voice
 // New returns a stopped engine at 60 BPM, Sonic Pi's default.
 func New() *Engine {
 	return &Engine{bpm: 60, tracks: map[string]*track{}, internal: true,
-		fx: newFXBus(), delaySeconds: 0.25, delayFB: 0.45, roomSize: 0.6, lastClock: -1}
+		fx: newFXBus(), delaySeconds: 0.25, delayFB: 0.45, roomSize: 0.6, roomDamp: 0.5, lastClock: -1}
 }
 
 // beatAt is the number of beats since play started at sample s.
@@ -273,11 +274,13 @@ func (e *Engine) SetDelay(seconds, feedback float64) {
 	e.delayFB = math.Max(0, math.Min(feedback, 0.95))
 }
 
-// SetRoomSize sets the reverb size 0..1 (from with_fx :reverb, room:).
-func (e *Engine) SetRoomSize(size float64) {
+// SetReverb sets the reverb's room size and damping, both 0..1 (from
+// with_fx :reverb, room: and damp:).
+func (e *Engine) SetReverb(size, damp float64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.roomSize = math.Max(0, math.Min(size, 1))
+	e.roomDamp = math.Max(0, math.Min(damp, 1))
 }
 
 // Schedule queues hits. Hits already in the past play at once.
@@ -506,7 +509,8 @@ func (e *Engine) Render(n int) []float32 {
 	e.clock(n)
 	e.mixVoices(mix, n)
 	ds := int(e.delaySeconds * SampleRate)
-	e.fx.process(mix, e.dsend, e.rsend, ds, float32(e.delayFB), float32(e.roomSize))
+	e.fx.rev.set(e.roomSize, e.roomDamp)
+	e.fx.process(mix, e.dsend, e.rsend, ds, float32(e.delayFB))
 	out := mix
 	for i, v := range mix {
 		out[i] = limit(v) * outScale
