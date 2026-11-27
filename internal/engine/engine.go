@@ -59,6 +59,21 @@ type track struct {
 	src        string
 	fstep      int // low-pass filter step, 0 = open
 	filter     trackFilter
+	gain       float32 // gain applied at the end of the last block
+	gainSet    bool    // gain has been applied at least once
+}
+
+// gainSlew is the most a track's gain moves per sample: a full 0 to 1 change
+// (mute, unmute, solo) takes 10 ms, so it never clicks.
+const gainSlew = float32(1) / (SampleRate / 100)
+
+// ramp is the gain i+1 samples after cur, moving toward target at gainSlew.
+func ramp(cur, target float32, i int) float32 {
+	d := float32(i+1) * gainSlew
+	if target > cur {
+		return min(cur+d, target)
+	}
+	return max(cur-d, target)
 }
 
 // Engine renders audio. All methods are safe for concurrent use.
@@ -568,26 +583,45 @@ func (e *Engine) clock(n int) {
 
 func (e *Engine) mixVoices(mix []float32, n int) {
 	solo := e.anySolo()
-	gains := map[int]float32{auditionTrack: 1}
+	type gainRamp struct{ from, to float32 }
+	gains := map[int]gainRamp{auditionTrack: {1, 1}}
 	filtered := map[int]*track{}
-	mid := e.samples + int64(n/2)
+	end := e.samples + int64(n)
 	for _, t := range e.tracks {
-		if t.id > 0 && audible(t, solo) {
-			gains[t.id] = float32(t.level) * e.deckGain(t, mid)
-			if t.filter.active(t.fstep) {
-				t.filter.bufs(n)
-				filtered[t.id] = t
-			}
+		if t.id <= 0 {
+			continue
+		}
+		// A muted track keeps playing at zero gain, so it rejoins mid-note;
+		// the gain glides to its target instead of jumping, so it never clicks.
+		var to float32
+		if audible(t, solo) {
+			to = float32(t.level) * e.deckGain(t, end)
+		}
+		if !t.gainSet {
+			t.gain, t.gainSet = to, true
+		}
+		gains[t.id] = gainRamp{t.gain, to}
+		t.gain = ramp(t.gain, to, n-1)
+		if t.filter.active(t.fstep) {
+			t.filter.bufs(n)
+			filtered[t.id] = t
 		}
 	}
 	live := e.voices[:0]
 	for _, v := range e.voices {
-		g := gains[v.Track]
+		gr, ok := gains[v.Track]
+		if !ok { // its track is gone (Stop): hold the gain while Kill fades it
+			gr = gainRamp{v.Gain, v.Gain}
+		}
 		dry, dl, rv := mix, e.dsend, e.rsend
 		if t := filtered[v.Track]; t != nil {
 			dry, dl, rv = t.filter.buf[0], t.filter.buf[1], t.filter.buf[2]
 		}
 		for i := 0; i < n && !v.Done(); i++ {
+			g := gr.to
+			if gr.from != gr.to {
+				g = ramp(gr.from, gr.to, i)
+			}
 			l, r := v.Next()
 			l, r = l*g*0.8, r*g*0.8
 			dry[i*2] += l
@@ -601,6 +635,7 @@ func (e *Engine) mixVoices(mix []float32, n int) {
 				rv[i*2+1] += r * v.SendRoom
 			}
 		}
+		v.Gain = ramp(gr.from, gr.to, n-1)
 		if !v.Done() {
 			live = append(live, v)
 		}
@@ -652,10 +687,24 @@ func (e *Engine) prune() {
 			i++
 		}
 		t.hist = t.hist[i:]
-		if t.refs == 0 && t.ended >= 0 && e.samples-max(t.ended, t.lastHit) > e.barSamples() {
+		if t.refs == 0 && t.ended >= 0 && e.samples-max(t.ended, t.lastHit) > e.barSamples() && !e.sounding(t.id) {
 			delete(e.tracks, name)
 		}
 	}
+}
+
+// sounding reports whether any voice of track id is still playing: its track
+// must stay, or the notes would lose their gain and stop dead.
+func (e *Engine) sounding(id int) bool {
+	if id <= 0 {
+		return false
+	}
+	for _, v := range e.voices {
+		if v.Track == id {
+			return true
+		}
+	}
+	return false
 }
 
 // StepCell is one cell of the step display.

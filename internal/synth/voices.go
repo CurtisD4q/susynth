@@ -118,6 +118,7 @@ const (
 type Voice struct {
 	Track               int
 	SendDelay, SendRoom float32 // bus send levels, read by the engine mixer
+	Gain                float32 // the track gain the engine mixer last applied
 
 	k         kind
 	sr        float64
