@@ -534,6 +534,9 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 	if c, ok := kv["fhpf"]; ok {
 		p.HPF = midiHz(c)
 	}
+	// res: on the note or sample, and the resonant filter effects
+	p.Res = math.Max(get("res", 0), get("fres", 0))
+	p.HPRes = get("fhres", 0)
 	p.Room = get("room", 0)
 	p.Delay = get("dly", 0)
 	p.Crush = get("crush", 0)

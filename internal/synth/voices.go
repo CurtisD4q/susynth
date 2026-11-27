@@ -90,6 +90,8 @@ type Params struct {
 	Wave  string  // tone voice for notes
 
 	LPF, HPF float64 // filter cutoffs in Hz, 0 = off
+	Res      float64 // low-pass resonance 0..1 (res:)
+	HPRes    float64 // high-pass resonance 0..1 (with_fx :rhpf)
 	Crush    float64 // bit depth 1..16, 0 = off
 	Shape    float64 // distortion 0..1
 	Delay    float64 // send to the delay bus 0..1
@@ -143,19 +145,19 @@ type Voice struct {
 	variant   float64
 
 	// per-voice effects and sample playback
-	lpA, hpA, shape float32
-	fl              [2]filterState // left (or mono), right
-	crush           float32
-	ph              [5]float64
-	smp             *Sample
-	chL, chR        []float32 // the sample's channels at the octave being played
-	stereo          bool
-	right           float32 // the right channel of the current stereo frame
-	pos, step       float64
-	att             int
+	shape     float32
+	fl        [2]filterState // left (or mono), right
+	crush     float32
+	ph        [5]float64
+	smp       *Sample
+	chL, chR  []float32 // the sample's channels at the octave being played
+	stereo    bool
+	right     float32 // the right channel of the current stereo frame
+	pos, step float64
+	att       int
 }
 
-type filterState struct{ lp1, lp2, hp1 float32 }
+type filterState struct{ lp, hp Filter }
 
 // fastStep is the fastest a sample is read before playback moves to a
 // half-rate octave copy. Reading at up to 1.2x keeps whatever could fold back
@@ -179,15 +181,13 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	v.gr = float32(g * math.Sin(ang))
 	v.variant = 1 + 0.06*float64(variant)
 	v.SendDelay, v.SendRoom = float32(p.Delay), float32(p.Room)
-	cut := func(hz float64) float32 {
-		hz = math.Max(20, math.Min(hz, float64(sr)*0.45))
-		return float32(1 - math.Exp(-2*math.Pi*hz/float64(sr)))
-	}
-	if p.LPF > 0 {
-		v.lpA = cut(p.LPF)
-	}
-	if p.HPF > 0 {
-		v.hpA = cut(p.HPF)
+	for ch := range v.fl {
+		if p.LPF > 0 {
+			v.fl[ch].lp = NewLowPass(p.LPF, p.Res, v.sr)
+		}
+		if p.HPF > 0 {
+			v.fl[ch].hp = NewHighPass(p.HPF, p.HPRes, v.sr)
+		}
 	}
 	if p.Crush > 0 {
 		v.crush = float32(math.Pow(2, math.Max(1, math.Min(16, p.Crush))-1))
@@ -299,14 +299,11 @@ func (v *Voice) Next() (float32, float32) {
 
 // effects runs the per-voice filters, crush and shape on one channel.
 func (v *Voice) effects(s float32, f *filterState) float32 {
-	if v.lpA > 0 {
-		f.lp1 += v.lpA * (s - f.lp1)
-		f.lp2 += v.lpA * (f.lp1 - f.lp2)
-		s = f.lp2
+	if f.lp.Active() {
+		s = f.lp.Process(s)
 	}
-	if v.hpA > 0 {
-		f.hp1 += v.hpA * (s - f.hp1)
-		s -= f.hp1
+	if f.hp.Active() {
+		s = f.hp.Process(s)
 	}
 	if v.crush > 0 {
 		s = float32(math.Round(float64(s*v.crush))) / v.crush

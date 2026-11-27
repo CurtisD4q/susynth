@@ -196,3 +196,58 @@ func TestRealtimeRedefine(t *testing.T) {
 		t.Error("tracks left after stop")
 	}
 }
+
+// res:, the resonant filter effects, reverb damp: and ping-pong all reach
+// the engine from real Ruby code.
+func TestRubyPassesFilterAndEffectSettings(t *testing.T) {
+	v := vm(t)
+	ms, err := v.Run(1, 0, 0, `
+with_fx :rlpf, cutoff: 90, res: 0.7 do
+  play 60, res: 0.3
+end
+play 62, res: 0.4
+with_fx :rhpf, res: 0.6 do
+  play 64
+end
+with_fx :reverb, damp: 0.8 do
+  play 65
+end
+with_fx :ping_pong, phase: 0.5 do
+  play 67
+end
+with_fx :echo do
+  play 69
+end
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	more, err := v.Advance(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms = append(ms, more...)
+	var hs []engine.Hit
+	var gs []Globals
+	for _, m := range ms {
+		if m.Kind() == "ev" {
+			h, g, err := Translate(m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hs, gs = append(hs, h), append(gs, g)
+		}
+	}
+	if len(hs) != 6 {
+		t.Fatalf("%d notes", len(hs))
+	}
+	if hs[0].Params.Res != 0.7 || hs[1].Params.Res != 0.4 || hs[2].Params.HPRes != 0.6 || hs[2].Params.HPF == 0 {
+		t.Errorf("filters: %+v / %+v / %+v", hs[0].Params, hs[1].Params, hs[2].Params)
+	}
+	if !gs[3].RoomSet || gs[3].RoomDamp != 0.8 {
+		t.Errorf("reverb damp: %+v", gs[3])
+	}
+	if !gs[4].DelaySet || !gs[4].PingPong || !gs[5].DelaySet || gs[5].PingPong {
+		t.Errorf("ping-pong: %+v, echo: %+v", gs[4], gs[5])
+	}
+}
