@@ -42,4 +42,4 @@
 
 
   ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
-  ⏎ go live   Esc n/p next/previous   [ ] move   d remove   Esc m pages
+  ⏎ go live   Esc n/p next/previous   [ ] move   d remove   m pages

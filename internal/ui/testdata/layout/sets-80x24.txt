@@ -21,4 +21,4 @@
                                               …
 
   ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
-  ↑↓ select   ⏎ load   a set list   n new   d delete   Esc m pages   ^Q quit
+  ↑↓ select   ⏎ load   a set list   n new   d delete   m pages   ^Q quit

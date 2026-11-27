@@ -1,6 +1,9 @@
 package mint
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Details that follow the selection.
 //
@@ -83,7 +86,7 @@ func expandCard(r Row, width int) []Row {
 type Selection struct {
 	Pane  int    // 0 for the screen's own sections, 1 and up for Panes
 	ID    string // the row's ID, if it has one
-	Label string // the row's label
+	Label string // the row's label, or a folding group's name
 	// For a table row: its cells, the table's headers, and its index.
 	Cells   []string
 	Headers []string
@@ -100,6 +103,33 @@ func (s *Screen) Selected() (Selection, bool) {
 		return Selection{}, false
 	}
 	return s.sel, true
+}
+
+// MoveCursor moves the cursor of the pane in focus by d of the rows that
+// can be selected, stopping at either end. A key that reorders a list calls
+// it so the cursor stays on the row it moved. It does nothing before the
+// screen has been drawn.
+func (s *Screen) MoveCursor(d int) {
+	if s == nil || s.focus < 0 || s.focus >= s.paneCount() {
+		return
+	}
+	st := s.uiAt(s.focus)
+	if st == nil {
+		return
+	}
+	if n := len(selectable(st.items)); n > 0 {
+		st.row = clampInt(st.row+d, 1, n)
+		s.noteFocusSelection()
+	}
+}
+
+// focusSig tells one selection from another.
+func (s *Screen) focusSig() string {
+	if !s.selHave {
+		return ""
+	}
+	return fmt.Sprintf("%d\x00%s\x00%s\x00%d\x00%s", s.sel.Pane, s.sel.ID, s.sel.Label,
+		s.sel.Index, strings.Join(s.sel.Cells, "\x00"))
 }
 
 // noteFocusSelection records the row under the cursor in the focused pane,
@@ -121,7 +151,11 @@ func (s *Screen) noteFocusSelection() {
 		n = 1
 	}
 	row := st.items[sel[n-1]-1]
-	s.sel = Selection{Pane: s.focus, ID: row.id, Label: CleanLine(row.label), Index: -1}
+	label := row.label
+	if row.kind == "section" {
+		label = row.name // a folding group's heading is known by its name
+	}
+	s.sel = Selection{Pane: s.focus, ID: row.id, Label: CleanLine(label), Index: -1}
 	if h, c, i, ok := row.TableCells(); ok {
 		s.sel.Cells, s.sel.Headers, s.sel.Index = c, h, i
 	}

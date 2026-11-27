@@ -6,11 +6,12 @@
       Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform                                                                          █
   ▶   Esc f  /  Esc b        next / previous page                                                                                                             █
   ≡   Esc                    from any page, back to Play                                                                                                      █
-  ●   Esc m                  the pages pop-up beside the icons: ↑↓ choose, Enter open, Esc back                                                               █
-  ♪   The number is the page's place in the pop-up. Press Esc, then the key within 1.5 s, or hold Alt.                                                        █
-  ⚙   F1-F7 still open those pages when the terminal sends function keys.                                                                                     █
-  ?   KEYS ON EACH PAGE                                                                                                                                       █
-  ◈   Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (asks first)                                                   █
+  ●   m                      the pages pop-up beside the icons: ↑↓ choose, Enter open, m or Esc close                                                         █
+  ♪   In the editor on Play, m types the letter: press Esc m there.                                                                                           █
+  ⚙   The number is the page's place in the pop-up. Press Esc, then the key within 1.5 s, or hold Alt.                                                        █
+  ?   F1-F7 still open those pages when the terminal sends function keys.                                                                                     █
+  ◈   KEYS ON EACH PAGE                                                                                                                                       █
+      Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (asks first)                                                   █
       Recordings             ↑↓ select · Enter show the path · d delete (asks first)                                                                          █
       Sounds                 ↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example                                                       █
       Settings               ↑↓ select · ←→ change · Enter edit or reload where it says so                                                                    █
@@ -21,7 +22,7 @@
       ^E                     run the block under the cursor (the whole live_loop; ┊ marks it)                                                                 █
       Esc Enter              run the whole buffer, like Sonic Pi's Run                                                                                        █
       ^G                     stop every live_loop and thread, like Sonic Pi's Stop                                                                            █
-      ^P                     stop, or run the whole buffer again                                                                                              █
+      ^P                     stop, or run the whole buffer again                                                                                              │
       ^R                     start / stop recording a WAV                                                                                                     │
       ^S  ^O                 save / load a set by name (sets are .rb files)                                                                                   │
       Esc u  n               mute / unmute track n — a digit alone does nothing                                                                               │
@@ -40,6 +41,5 @@
       ^C  ^X  ^V             copy / cut / paste; with nothing selected, copy or cut the whole line                                                            │
       terminal paste         Ctrl+Shift+V (Linux) or Cmd+V (macOS) pastes from other apps                                                                     │
       Backspace  Delete      delete the selection (or one character)                                                                                          │
-      ^Z  ^Y                 undo / redo                                                                                                                      │
   ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
-  ↑↓ PgUp PgDn scroll   Esc m pages   ^Q quit
+  ↑↓ PgUp PgDn scroll   m pages   ^Q quit
