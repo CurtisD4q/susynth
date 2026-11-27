@@ -1008,6 +1008,14 @@ def play(n, *rest, **opts)
   ev = { n: nn.to_f, amp: (o[:amp] || 1).to_f, pan: (o[:pan] || 0).to_f }
   %i[attack decay sustain release].each { |k| (v = __beats(o, k, bpm)) && ev[k.to_s[0].to_sym] = v }
   ev[:r] ||= 60.0 / bpm unless o.key?(:release)
+  { attack_level: :al, decay_level: :dl, sustain_level: :sl,
+    cutoff_attack_level: :cal, cutoff_decay_level: :cdl, cutoff_sustain_level: :csl }.each do |k, s|
+    ev[s] = o[k].to_f if o.key?(k)
+  end
+  { cutoff_attack: :ca, cutoff_decay: :cd, cutoff_sustain: :cs, cutoff_release: :cr }.each do |k, s|
+    (v = __beats(o, k, bpm)) && ev[s] = v
+  end
+  ev[:cmin] = o[:cutoff_min].to_f if o.key?(:cutoff_min)
   ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
   ev[:res] = o[:res].to_f if o[:res]
   __fx(ev, bpm)

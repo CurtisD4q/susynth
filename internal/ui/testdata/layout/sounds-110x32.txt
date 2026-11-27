@@ -9,7 +9,7 @@
   ●     mod_beep             sine                                                                  ▶ preview│
   ♪     saw                  saw, gently low-passed                                                ▶ preview│
   ⚙     mod_saw              saw                                                                   ▶ preview│
-  ?     tb303                acid bass: saw, use cutoff:                                           ▶ preview│
+  ?     tb303                acid bass: resonant filter sweep                                      ▶ preview│
   ◈     zawa                 saw                                                                   ▶ preview│
         growl                saw                                                                   ▶ preview│
         winwood_lead         saw lead                                                              ▶ preview│

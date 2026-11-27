@@ -98,7 +98,17 @@ type Params struct {
 	Room     float64 // send to the reverb bus 0..1
 	Release  float64 // tone release in seconds, 0 = default
 	Attack   float64 // tone attack in seconds, 0 = a 3 ms click guard
-	Note     float64 // exact MIDI note for tones (fractions allowed), 0 = from the word
+	Decay    float64 // tone decay in seconds (the gate holds attack+decay+sustain)
+
+	// AttackLevel, DecayLevel and SustainLevel are the envelope's levels;
+	// 0 means the default (see EnvTimes).
+	AttackLevel, DecayLevel, SustainLevel float64
+
+	// CutoffMin turns on the filter envelope (tb303): the low-pass cutoff
+	// moves between CutoffMin and LPF (Hz) as CutoffEnv goes from 0 to 1.
+	CutoffMin float64
+	CutoffEnv EnvTimes
+	Note      float64 // exact MIDI note for tones (fractions allowed), 0 = from the word
 }
 
 type kind int
@@ -135,7 +145,11 @@ type Voice struct {
 	prev      float32
 	lp        float32
 	gate      int
-	rel       int
+	env       Envelope
+	fenv      Envelope // the filter envelope, when cutoffMin > 0
+	cutoffMin float64
+	cutoffMax float64
+	res       float64
 	killed    bool
 	killStart int
 	done      bool
@@ -154,7 +168,6 @@ type Voice struct {
 	stereo    bool
 	right     float32 // the right channel of the current stereo frame
 	pos, step float64
-	att       int
 }
 
 type filterState struct{ lp, hp Filter }
@@ -224,19 +237,21 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 		note = p.Note
 	}
 	v.freq = 440 * math.Pow(2, (note-69)/12) * v.speed
-	v.att = int(0.003 * v.sr)
-	if p.Attack > 0.003 {
-		v.att = int(math.Min(p.Attack, 8) * v.sr)
-	}
 	if v.wave == "" {
 		v.wave = "saw"
 	}
-	if v.gate < int(0.005*v.sr) {
-		v.gate = int(0.005 * v.sr)
-	}
-	v.rel = int(0.08 * v.sr)
+	rel := 0.08
 	if p.Release > 0 {
-		v.rel = int(math.Max(0.005, math.Min(p.Release, 8)) * v.sr)
+		rel = p.Release
+	}
+	// the gate holds attack + decay + sustain; sustain is what is left
+	sus := math.Max(0, float64(v.gate)/v.sr-math.Max(p.Attack, minAttack)-p.Decay)
+	v.env = NewEnvelope(v.sr, EnvTimes{Attack: p.Attack, Decay: p.Decay, Sustain: sus, Release: rel,
+		AttackLevel: p.AttackLevel, DecayLevel: p.DecayLevel, SustainLevel: p.SustainLevel})
+	if p.CutoffMin > 0 && p.LPF > p.CutoffMin {
+		v.fenv = NewEnvelope(v.sr, p.CutoffEnv)
+		v.cutoffMin, v.cutoffMax, v.res = p.CutoffMin, p.LPF, p.Res
+		v.sweep()
 	}
 	if v.wave == "pluck" {
 		n := int(v.sr / v.freq)
@@ -441,20 +456,31 @@ func polyBLEP(t, dt float64) float64 {
 	return 0
 }
 
-func (v *Voice) tone() float32 {
-	age := v.t
-	// envelope: 3 ms attack, hold for gate, linear release.
-	env := float32(1)
-	if a := v.att; a > 0 && age < a {
-		env = float32(age) / float32(a)
+// sweepEvery is how often (samples) the filter envelope moves the cutoff.
+const sweepEvery = 16
+
+// sweep sets the low-pass cutoff from the filter envelope: between the
+// minimum and maximum cutoff, evenly in pitch.
+func (v *Voice) sweep() {
+	var e float64
+	for i := 0; i < sweepEvery; i++ {
+		e = float64(v.fenv.Next())
 	}
-	if age >= v.gate {
-		r := float32(age-v.gate) / float32(v.rel)
-		if r >= 1 {
-			v.done = true
-			return 0
-		}
-		env *= 1 - r
+	hz := v.cutoffMin * math.Pow(v.cutoffMax/v.cutoffMin, e)
+	for ch := range v.fl {
+		v.fl[ch].lp.Set(hz, v.res, v.sr)
+		v.fl[ch].lp.Snap()
+	}
+}
+
+func (v *Voice) tone() float32 {
+	if v.env.Done() {
+		v.done = true
+		return 0
+	}
+	env := v.env.Next()
+	if v.cutoffMin > 0 && v.t%sweepEvery == 0 && v.t > 0 {
+		v.sweep()
 	}
 	var s float32
 	switch v.wave {
@@ -476,7 +502,7 @@ func (v *Voice) tone() float32 {
 		v.lp += 0.35 * (s - v.lp)
 		s = v.lp
 	case "fm":
-		idx := 4 * float64(exp(float64(age)/v.sr*3))
+		idx := 4 * float64(exp(float64(v.t)/v.sr*3))
 		v.phase2 += v.freq * 2 * 2 * math.Pi / v.sr
 		v.phase += v.freq*2*math.Pi/v.sr + 0
 		s = float32(math.Sin(v.phase + idx*math.Sin(v.phase2)))
