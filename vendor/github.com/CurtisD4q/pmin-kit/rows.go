@@ -155,6 +155,8 @@ type Row struct {
 
 	// does says what Enter does on the row (see Does).
 	does func() string
+	// fit makes the row's text from the columns it has (see Fit).
+	fit func(cols int) string
 }
 
 // TableCells returns the column values of a table row. ok is false for
@@ -634,6 +636,16 @@ func Text(opts TextOpts) Row {
 		getStr:      opts.Get,
 		setStr:      opts.Set,
 	}
+}
+
+// Fit makes the text of a note or label when it is drawn: f is given the
+// columns the text has inside its pane, beside the page rail, so a chart or
+// a ruled line need not guess them from the terminal's width. Text wider
+// than that still wraps. f is called on each draw, so keep it cheap. Other
+// kinds of row ignore it.
+func (r Row) Fit(f func(cols int) string) Row {
+	r.fit = f
+	return r
 }
 
 // Note creates a single-line dim note row.

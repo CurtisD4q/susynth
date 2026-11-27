@@ -1,8 +1,8 @@
 github.com/CurtisD4q/pmin-base v0.0.0-20261122172944-820bcd6bb510/go.mod h1:HN1tNRcYB9Xb0Zgji5fy0moaCgHZi8mDrlatMRr1J00=
 github.com/CurtisD4q/pmin-base v0.0.0-20261123203826-23ade10c5ef5 h1:u7bAERgTfPmX2vGXuq84FiGtRpdR2T68IoPzYJ9UpVE=
 github.com/CurtisD4q/pmin-base v0.0.0-20261123203826-23ade10c5ef5/go.mod h1:HN1tNRcYB9Xb0Zgji5fy0moaCgHZi8mDrlatMRr1J00=
-github.com/CurtisD4q/pmin-kit v0.0.0-20261127061912-a58d8d007d06 h1:AVvd9GsShsyKRPbvW8sml3WcBFjeaCiX+oIYUtjO7WI=
-github.com/CurtisD4q/pmin-kit v0.0.0-20261127061912-a58d8d007d06/go.mod h1:6BPRoanXAo3DBEFY/wONYpItXF5I7s8v0+pqPB1ViN0=
+github.com/CurtisD4q/pmin-kit v0.0.0-20261127064004-f3fa3bbf2e67 h1:wK4uy/ytLqNYti9es7bNVcPqMvcQVZXWk5wO0PpSdSo=
+github.com/CurtisD4q/pmin-kit v0.0.0-20261127064004-f3fa3bbf2e67/go.mod h1:6BPRoanXAo3DBEFY/wONYpItXF5I7s8v0+pqPB1ViN0=
 github.com/CurtisD4q/pmin-sys v0.0.0-20261122173255-2d622fa382f1/go.mod h1:V0Rr6rAlFn0iGiPZhLFEewR2YSQCukKlo9cAH/g8AqY=
 github.com/ebitengine/oto/v3 v3.5.1 h1:7gL5DxxSQp8S1Me2jDSp+gSAyondYxpjM5RPBBqLT0c=
 github.com/ebitengine/oto/v3 v3.5.1/go.mod h1:Elkm7yzTRns3w2efvibzVOoQ65YOwmec9a76dCiK10o=

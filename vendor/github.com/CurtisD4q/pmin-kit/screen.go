@@ -354,6 +354,10 @@ type screenResult struct {
 
 // expand turns one Row into the lines it occupies at this width.
 func expand(r Row, width int) []Row {
+	if r.fit != nil && (r.wtype == wtNote || r.wtype == wtLabel) {
+		// The columns a note has: eight go to its margins and the scroll bar.
+		protect(func() { r.label = r.fit(max(10, width-8)) })
+	}
 	switch r.wtype {
 	case wtRadioGroup:
 		var out []Row
