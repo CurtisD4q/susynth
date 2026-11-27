@@ -388,7 +388,13 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 				s.mu.Unlock()
 				if !seen {
 					line, _ := strconv.Atoi(m.Arg(2))
-					s.note(Note{Kind: "err", Line: line, Thread: m.Arg(1), Text: key})
+					if m.Arg(3) == "s" {
+						// a sample file that can't be read is skipped and the
+						// rest of the music plays on, so it is a warning
+						s.note(Note{Kind: "log", Line: line, Thread: m.Arg(1), Text: key + "; it is skipped"})
+					} else {
+						s.note(Note{Kind: "err", Line: line, Thread: m.Arg(1), Text: key})
+					}
 				}
 				continue
 			}

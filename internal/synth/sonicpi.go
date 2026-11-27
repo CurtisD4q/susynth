@@ -90,6 +90,17 @@ var SonicSynths = []SonicSynth{
 	{"sc808_tommid", "", "tom:4", "808 tom"},
 	{"sc808_tomhi", "", "tom:8", "808 tom"},
 	{"sc808_cowbell", "", "cb", "808 cowbell"},
+	// Stand-ins for Sonic Pi synths susynth has no voice of its own for yet,
+	// so code that uses them still plays.
+	{"rhodey", "fm", "", "electric piano (FM stand-in)"},
+	{"dark_sea_horn", "organ", "", "dark horn drone (organ stand-in)"},
+	{"gabberkick", "", "bd", "gabber kick (kick stand-in)"},
+	{"sc808_claves", "", "rim", "808 claves (rim stand-in)"},
+	{"sc808_congalo", "", "tom", "808 low conga (tom stand-in)"},
+	{"sc808_congamid", "", "tom:4", "808 mid conga (tom stand-in)"},
+	{"sc808_congahi", "", "tom:8", "808 high conga (tom stand-in)"},
+	{"sc808_cymbal", "", "oh", "808 cymbal (open hat stand-in)"},
+	{"sc808_maracas", "", "hh", "808 maracas (closed hat stand-in)"},
 }
 
 // SonicSample is a built-in Sonic Pi sample name and the drum that plays it.

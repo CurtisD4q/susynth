@@ -372,9 +372,12 @@ end
 
 def sleep(beats)
   th = __need_thread("sleep")
-  b = beats.to_f
-  raise ArgumentError, "sleep needs a number of beats, 0 or more" if b.negative? || b.nan?
+  b = beats.is_a?(Numeric) ? beats.to_f : beats.to_s.to_f
+  raise ArgumentError, "sleep needs a number of beats" if b.nan? || b.infinite?
   th.time += b * 60.0 / th.ctx[:bpm] / th.ctx[:density]
+  # Sonic Pi lets time go backwards (a negative sleep) and a sleep inside
+  # time_warp only moves that block's time: neither hands control back.
+  return nil if b.negative? || th.ctx[:warp]
   th.slept = true
   Fiber.yield(:sleep)
   nil
@@ -441,8 +444,11 @@ def cue(name, *args, **kw)
   __cue(name, val, true)
 end
 
-def stop
-  raise SusynthStop
+# stop ends this thread; stop :name ends the loop or thread called name.
+def stop(name = nil)
+  raise SusynthStop if name.nil?
+  __kill_named(name)
+  nil
 end
 
 def live_loop(name = nil, **opts, &blk)
@@ -580,18 +586,26 @@ def at(times = [0], values = nil, &blk)
 end
 
 def density(d, &blk)
+  raise ArgumentError, "density needs a do ... end block" unless blk
+  raise ArgumentError, "density must be above 0" unless d.is_a?(Numeric) && d.positive?
   c = __ctx
   old = c[:density]
   c[:density] = old * d.to_f
-  d.to_i.times { blk.call }
+  reps = d < 1 ? 1 : d.to_i
+  reps.times { |i| blk.arity.zero? ? blk.call : blk.call(i) }
+  nil
 ensure
   c[:density] = old if c
 end
 
 def use_bpm(b, &blk)
   raise ArgumentError, "use_bpm does not take a block, use with_bpm" if blk
+  unless b.is_a?(Numeric) && b.positive?
+    # use_bpm :link, or a tempo read with get before anything set it
+    __warn_once("bpm#{b.inspect}", "use_bpm #{b.inspect} isn't a tempo here; keeping #{__ctx[:bpm].round(2)} bpm")
+    return nil
+  end
   b = b.to_f
-  raise ArgumentError, "bpm must be above 0" unless b.positive?
   __top_set(:bpm, b)
   __send("bpm", b, format("%.6f", $__cur ? $__cur.time : 0)) if $__cur.nil? || $__cur.kind == :run
   nil
@@ -600,7 +614,7 @@ end
 def with_bpm(b, &blk)
   c = __ctx
   old = c[:bpm]
-  c[:bpm] = b.to_f
+  c[:bpm] = b.is_a?(Numeric) && b.positive? ? b.to_f : old
   blk.call
 ensure
   c[:bpm] = old if c
@@ -750,7 +764,7 @@ class Ring
   def look(k = :___default, **_o) = self[__ctx[:ticks].fetch(k, 0)]
   def choose = @a.empty? ? nil : @a[__ctx[:rng].rand(@a.size)]
   def pick(n = 1) = Ring.new(Array.new(n) { choose })
-  def shuffle = Ring.new(@a.shuffle(random: __ctx[:rng]))
+  def shuffle = Ring.new(@a.__orig_shuffle(random: __ctx[:rng]))
   def reverse = Ring.new(@a.reverse)
   def rotate(n = 1) = Ring.new(@a.rotate(n))
   def mirror = Ring.new(@a + @a.reverse)
@@ -763,8 +777,9 @@ class Ring
   def butfirst = Ring.new(@a.drop(1))
   def first(n = nil) = n ? Ring.new(@a.first(n)) : @a.first
   def last(n = nil) = n ? Ring.new(@a.last(n)) : @a.last
-  def +(o) = Ring.new(@a + o.to_a)
-  def -(o) = Ring.new(@a - o.to_a)
+  # a number moves every note: chord(:e3, :minor) + 12
+  def +(o) = o.is_a?(Numeric) ? Ring.new(@a.map { |x| x.nil? ? x : x + o }) : Ring.new(@a + o.to_a)
+  def -(o) = o.is_a?(Numeric) ? Ring.new(@a.map { |x| x.nil? ? x : x - o }) : Ring.new(@a - o.to_a)
   def scale(f) = Ring.new(@a.map { |x| x * f })
   def ==(o) = o.respond_to?(:to_a) && @a == o.to_a
   def to_s = "(ring #{@a.map(&:inspect).join(', ')})"
@@ -855,14 +870,19 @@ def factor?(a, b) = (a % b).zero?
 
 # randomness: deterministic per thread, like Sonic Pi
 def rrand(a, b, **_o) = a + __ctx[:rng].rand * (b - a)
+def __range_args(r) = [r.begin.to_f, r.end.to_f]
 def rrand_i(a, b, **_o) = a.to_i + __ctx[:rng].rand((b.to_i - a.to_i).abs + 1) * (b < a ? -1 : 1)
-def rand(m = 1) = __ctx[:rng].rand * m
-def rand_i(m = 2) = __ctx[:rng].rand(m.to_i)
+def rand(m = 1) = m.is_a?(Range) ? rrand(*__range_args(m)) : __ctx[:rng].rand * m
+def rand_i(m = 2) = m.is_a?(Range) ? rrand_i(m.begin, m.end) : __ctx[:rng].rand(m.to_i)
 def rand_look(m = 1) = Random.new(__ctx[:rng].seed + 1).rand * m
 def dice(n = 6) = __ctx[:rng].rand(n.to_i) + 1
 def one_in(n) = __ctx[:rng].rand(n.to_i).zero?
 def choose(list) = list.to_a.empty? ? nil : list.to_a[__ctx[:rng].rand(list.to_a.size)]
-def pick(list, n = 1, **_o) = Ring.new(Array.new(n) { choose(list) })
+# pick with no list is a sample filter: sample "tabla_", pick
+def pick(list = nil, n = 1, **_o)
+  return ->(names) { [choose(names)] } if list.nil?
+  Ring.new(Array.new(n) { choose(list) })
+end
 def shuffle(list) = Ring.new(list.to_a.shuffle(random: __ctx[:rng]))
 def use_random_seed(s) = (__ctx[:rng] = Random.new(s.to_i)) && nil
 def with_random_seed(s, &blk)
@@ -892,13 +912,11 @@ end
 
 def use_synth(s, &blk)
   raise ArgumentError, "use_synth does not take a block, use with_synth" if blk
-  __check_synth(s)
-  __top_set(:synth, s.to_sym)
+  __top_set(:synth, __synth_name(s))
 end
 
 def with_synth(s, &blk)
-  __check_synth(s)
-  __with(:synth, s.to_sym, &blk)
+  __with(:synth, __synth_name(s), &blk)
 end
 
 def current_synth = __ctx[:synth]
@@ -907,10 +925,18 @@ def sample_names(*_a) = Ring.new($__samples.map(&:to_sym))
 def all_sample_names = sample_names
 def fx_names = FX_SUPPORTED
 
-def __check_synth(s)
-  return if $__synths.empty? || $__synths.include?(s.to_s)
-  raise ArgumentError, "synth #{s.inspect} isn't available (try :beep :saw :prophet :tb303 :pluck :fm …)"
+SOUND_IN = %w[sound_in sound_in_stereo].freeze
+
+# __synth_name gives the synth to play: the name asked for, or :beep with a
+# warning when susynth hasn't got it, so the music carries on.
+def __synth_name(s)
+  n = s.to_s.sub(/\A:/, "")
+  return n.to_sym if $__synths.empty? || $__synths.include?(n) || SOUND_IN.include?(n)
+  __warn_once("syn#{n}", "synth #{s.inspect} isn't in susynth; :beep plays instead")
+  :beep
 end
+
+def __check_synth(s) = __synth_name(s)
 
 def use_synth_defaults(**o) = __top_set(:sdef, o)
 def use_merged_synth_defaults(**o) = __top_set(:sdef, __ctx[:sdef].merge(o))
@@ -926,17 +952,18 @@ def use_octave(n) = __top_set(:octave, n)
 def with_octave(n, &blk) = __with(:octave, n, &blk)
 
 def with_fx(name, reps: 1, **opts, &blk)
-  name = name.to_sym
+  name = name.to_s.sub(/\A:/, "").sub(/\Afx_/, "").to_sym
+  node = SusynthNode.new(:fx, name, nil)
   unless FX_SUPPORTED.include?(name)
     __warn_once("fx#{name}", "with_fx #{name.inspect} isn't available in susynth; the block plays without it")
     r = nil
-    reps.to_i.times { r = blk.call(nil) }
+    reps.to_i.times { r = blk.call(node) }
     return r
   end
   c = __ctx
   c[:fx] = c[:fx] + [[name, opts]]
   r = nil
-  reps.to_i.times { r = blk.call(nil) }
+  reps.to_i.times { r = blk.call(node) }
   r
 ensure
   c[:fx] = c[:fx][0...-1] if c && FX_SUPPORTED.include?(name)
@@ -1004,17 +1031,46 @@ def __emit(kind, name, o)
   __send("ev", format("%.6f", th.time), __tname(th), line, kind, name, kv, th.run_id.to_i)
 end
 
-def play(n, *rest, **opts)
-  opts = rest.first.merge(opts) if rest.first.is_a?(Hash)
-  if n.is_a?(Array) || n.is_a?(Ring)
-    n.to_a.each { |x| play(x, **opts) }
-    return nil
+# A node stands for a sound that has started (a note, a sample or an effect),
+# so code that keeps hold of one (s = play 60 ... control s, note: 65) runs.
+class SusynthNode
+  attr_reader :kind, :name, :t_end
+  def initialize(kind, name, t_end)
+    @kind, @name, @t_end = kind, name, t_end
   end
+  def control(**o) = Object.send(:control, self, **o)
+  def kill(**_o) = nil
+  def pause(**_o) = nil
+  def run(**_o) = nil
+  def live? = $__cur.nil? || @t_end.nil? || $__cur.time < @t_end
+  alias alive? live?
+  alias running? live?
+  def destroyed? = !live?
+  def paused? = false
+  def to_s = "(node #{@kind} #{@name})"
+  alias inspect to_s
+end
+
+def play(n = :__none, *rest, **opts, &_blk)
+  opts = rest.first.merge(opts) if rest.first.is_a?(Hash)
+  if n.is_a?(Hash)
+    opts = n.merge(opts)
+    n = :__none
+  end
+  if n.is_a?(Array) || n.is_a?(Ring)
+    last = nil
+    n.to_a.each { |x| last = play(x, **opts) }
+    return last
+  end
+  n = 52 if n == :__none
   c = __ctx
   o = c[:sdef].merge(opts)
   return nil if o.key?(:on) && !o[:on]
-  s = (o.delete(:synth) || c[:synth]).to_sym
-  __check_synth(s)
+  s = __synth_name(o.delete(:synth) || c[:synth])
+  if SOUND_IN.include?(s.to_s)
+    __warn_once("sndin", "synth #{s.inspect} needs a live audio input, which susynth hasn't got; it is skipped")
+    return nil
+  end
   nn = note(o.key?(:note) ? o.delete(:note) : n)
   return nil if nn.nil?
   nn += c[:transpose] + c[:octave] * 12
@@ -1034,10 +1090,13 @@ def play(n, *rest, **opts)
   ev[:res] = o[:res].to_f if o[:res]
   __fx(ev, bpm)
   __emit("p", s, ev)
-  nil
+  th = $__cur
+  SusynthNode.new(:synth, s, th && th.time + ev[:a].to_f + ev[:d].to_f + ev[:s].to_f + ev[:r].to_f)
 end
 
-def synth(name, **opts)
+def synth(name, *rest, **opts, &blk)
+  opts = rest.first.merge(opts) if rest.first.is_a?(Hash)
+  return play(**opts, &blk) if name.nil?
   play(opts.key?(:note) ? opts[:note] : 52, synth: name, **opts.except(:note))
 end
 
@@ -1060,19 +1119,56 @@ def play_pattern_timed(notes, times, **opts)
   nil
 end
 
-def sample(name, *rest, **opts)
+SAMPLE_EXT = /\.(wav|wave|aif|aiff|flac|ogg|oga|mp3)\z/i
+
+# __sample_path? is true for a string that names a file or folder rather
+# than filtering the built-in sample names.
+def __sample_path?(s) = s.include?("/") || s.include?("\\") || s.start_with?("~") || s.match?(SAMPLE_EXT)
+
+# __sample_filter picks a built-in sample the way Sonic Pi's filters do:
+# every string or symbol must be part of the name, a number picks the nth
+# match and a proc (or lambda) narrows the list.
+def __sample_filter(args)
+  idx = 0
+  list = $__samples.sort
+  args.each do |a|
+    case a
+    when Integer then idx = a
+    when String, Symbol then list = list.select { |n| n.include?(a.to_s) }
+    when Regexp then list = list.select { |n| n.match?(a) }
+    when Proc then list = Array(a.call(list)).map(&:to_s)
+    end
+  end
+  list.empty? ? nil : list[idx % list.size]
+end
+
+def sample(name = nil, *rest, **opts, &_blk)
   idx = rest.first.is_a?(Integer) ? rest.first : nil
   c = __ctx
   o = c[:smpdef].merge(opts)
   return nil if o.key?(:on) && !o[:on]
+  name = name.first if name.is_a?(Array) && name.size == 1
   case name
   when Symbol
     n = name.to_s
-    unless $__samples.empty? || $__samples.include?(n)
-      raise ArgumentError, "sample #{name.inspect} isn't available here; drums like :bd_haus :drum_snare_hard " \
-                           ":drum_cymbal_closed are built in, or put #{n}.wav in your samples folder"
+    if !$__samples.empty? && !$__samples.include?(n)
+      __warn_once("smp#{n}", "sample #{name.inspect} isn't in susynth yet; it is skipped")
+      return nil
     end
-  when String then n = name
+  when String
+    if __sample_path?(name) && rest.none? { |a| a.is_a?(String) || a.is_a?(Proc) || a.is_a?(Symbol) }
+      n = name
+    else
+      args = (__sample_path?(name) ? [] : [name]) + rest
+      n = __sample_filter(args)
+      idx = nil
+      unless n
+        __warn_once("smpf#{args.inspect}", "no built-in sample matches #{args.map(&:inspect).join(', ')}; it is skipped")
+        return nil
+      end
+    end
+  when nil
+    return nil
   else raise ArgumentError, "sample needs a name like :bd_haus or a path to a .wav file"
   end
   bpm = c[:bpm]
@@ -1086,7 +1182,7 @@ def sample(name, *rest, **opts)
   end
   __fx(ev, bpm)
   __emit("s", n, ev)
-  nil
+  SusynthNode.new(:sample, n, nil)
 end
 
 def sample_duration(*_a, **_o) = 1.0 * 60.0 / current_bpm
@@ -1096,7 +1192,7 @@ def sample_free(*_a) = nil
 def sample_free_all = nil
 
 def control(*_a, **_o)
-  __warn_once("control", "control isn't supported in susynth: notes can't be changed once started")
+  __warn_once("control", "control isn't supported in susynth yet: sounds keep the settings they started with")
   nil
 end
 
@@ -1148,7 +1244,280 @@ def p(*a)
   a.size <= 1 ? a.first : a
 end
 
+# ---- the rest of Sonic Pi's language ---------------------------------------------
+#
+# Sonic Pi adds a few methods to Ruby's own classes, and has many functions
+# that only matter with its own app (MIDI devices, recording, Ableton Link).
+# Those run here as harmless no-ops, so code written for Sonic Pi carries on.
+
+class String
+  def ring = Ring.new(chars)
+  def tick(*a, **o) = ring.tick(*a, **o)
+  def look(*a, **o) = ring.look(*a, **o)
+end
+
+class Symbol
+  def ring = to_s.ring
+  def +(o) = rest? ? self : note(self) + (o.is_a?(Symbol) ? note(o) : o)
+  def -(o) = rest? ? self : note(self) - (o.is_a?(Symbol) ? note(o) : o)
+  def to_f = rest? ? 0.0 : note(self).to_f
+  def to_i = to_f.to_i
+  def rest? = self == :r || self == :rest
+end
+
+class NilClass
+  def +(_o) = nil
+  def -(_o) = nil
+end
+
+class Float
+  def times(&blk)
+    return to_enum(:times) unless blk
+    to_i.times { |i| blk.call(i.to_f) }
+    self
+  end
+end
+
+class Numeric
+  # Sonic Pi's max and min bound a number; Ruby has no Numeric#max.
+  def max(o) = self <= o ? self : o
+  def min(o) = self >= o ? self : o
+end
+
+class Array
+  def pick(n = nil, *opts)
+    n, opts = nil, [n] unless n.nil? || n.is_a?(Numeric)
+    skip = opts.first.is_a?(Hash) ? opts.first[:skip].to_i : 0
+    skip.times { choose }
+    Array.new((n || 1).to_i) { choose }
+  end
+  # inside running code, shuffle and sample use the thread's own random
+  # numbers, so every run of the same code sounds the same
+  alias_method :__orig_shuffle, :shuffle
+  alias_method :__orig_sample, :sample
+  def shuffle(*a, **o) = $__cur && o.empty? ? __orig_shuffle(random: __ctx[:rng]) : __orig_shuffle(*a, **o)
+  def sample(*a, **o) = $__cur && a.empty? && o.empty? ? choose : __orig_sample(*a, **o)
+end
+
+class Ring
+  def ramp = Ramp.new(to_a)
+  def pick(n = nil, *opts) = Ring.new(to_a.pick(n, *opts))
+  def notes = Ring.new(to_a.map { |x| note(x) })
+end
+
+# A ramp is a ring that stops at its last value instead of wrapping round.
+class Ramp < Ring
+  def [](i, len = nil)
+    return super if len || i.is_a?(Range)
+    a = to_a
+    a.empty? ? nil : a[i.to_i.clamp(0, a.size - 1)]
+  end
+end
+
+def ramp(*a) = Ramp.new(a)
+def vector(*a) = a.freeze
+def map(*a, **kw) = (a.first.is_a?(Hash) ? a.first : {}).merge(kw)
+def rest?(n) = n.nil? || n == :r || n == :rest
+def inc(n) = n + 1
+def dec(n) = n - 1
+def doubles(start, num) = Ring.new(Array.new(num.to_i) { |i| start * 2**i })
+def halves(start, num) = Ring.new(Array.new(num.to_i) { |i| start / 2.0**i })
+def octs(start, num_octaves = 1) = Ring.new(Array.new(num_octaves.to_i) { |i| note(start) + 12 * i })
+def note_range(low, high, pitches: nil, **_o)
+  lo, hi = note(low), note(high)
+  lo, hi = hi, lo if lo > hi
+  pcs = pitches && pitches.to_a.map { |x| note(x) % 12 }
+  Ring.new((lo.ceil..hi.floor).select { |x| pcs.nil? || pcs.include?(x % 12) })
+end
+def math_scale(v, lo, hi, nlo, nhi) = nlo + (v - lo).to_f * (nhi - nlo) / (hi - lo)
+def pitch_to_ratio(m) = 2.0**(m.to_f / 12)
+def ratio_to_pitch(r) = 12 * Math.log2(r.to_f)
+def rdist(width, centre = 0, **_o) = centre + rrand(-width, width)
+def rand_back(_n = 1) = nil
+def rand_i_look(m = 2) = Random.new(__ctx[:rng].seed + 1).rand(m.to_i)
+def tuplets(list, **_o) = Ring.new(list.to_a)
+
+# time_warp plays its block a little earlier or later (in beats) without
+# moving the thread's own time.
+def time_warp(times = 0, params = nil, &blk)
+  raise ArgumentError, "time_warp needs a do ... end block" unless blk
+  th = __need_thread("time_warp")
+  had = params
+  times = [times] if times.is_a?(Numeric)
+  params ||= times
+  ps = params.to_a
+  base, old = th.time, th.ctx[:warp]
+  th.ctx[:warp] = true
+  times.to_a.each_with_index do |d, i|
+    th.time = base + d.to_f * 60.0 / th.ctx[:bpm] / th.ctx[:density]
+    case blk.arity
+    when 0 then blk.call
+    when 1 then blk.call(ps[i % ps.size])
+    else blk.call(d, had ? ps[i % ps.size] : i)
+    end
+    th.time = base
+  end
+  nil
+ensure
+  if th
+    th.time = base
+    th.ctx[:warp] = old
+  end
+end
+
+def with_swing(shift = 0.1, pulse = 4, tick: :swing, offset: 0, **_o, &blk)
+  raise ArgumentError, "with_swing needs a do ... end block" unless blk
+  if ((tick_counter_advance(tick) + offset.to_i) % pulse.to_i).zero?
+    time_warp(shift, &blk)
+  else
+    blk.call
+  end
+end
+
+def use_bpm_mul(m) = use_bpm(__ctx[:bpm] * m.to_f)
+def with_bpm_mul(m, &blk) = with_bpm(__ctx[:bpm] * m.to_f, &blk)
+def use_sample_bpm(name, num_beats: 1, **_o) = use_bpm(num_beats.to_f * 60.0 / sample_duration(name))
+def with_sample_bpm(name, num_beats: 1, **_o, &blk) = with_bpm(num_beats.to_f * 60.0 / sample_duration(name), &blk)
+def with_merged_sample_defaults(**o, &blk) = __with(:smpdef, __ctx[:smpdef].merge(o), &blk)
+def current_octave = __ctx[:octave]
+def current_synth_defaults = __ctx[:sdef]
+def current_sample_defaults = __ctx[:smpdef]
+def current_beat_duration = 60.0 / current_bpm
+def current_bpm_mode = :normal
+def current_random_seed = __ctx[:rng].seed
+def current_random_source = :white
+def current_sched_ahead_time = 0.5
+def current_time = Time.at(0) + ($__cur ? $__cur.time : 0)
+def current_debug = false
+def current_arg_checks = false
+def current_cent_tuning = 0
+def current_volume = 1
+def current_drive = 0
+def current_midi_defaults = {}
+def current_track = nil
+def version = "5.1.0"
+def status = {}
+def block_slept? = !!($__cur && $__cur.slept)
+
+def block_duration(&blk)
+  th = __need_thread("block_duration")
+  t0 = th.time
+  blk.call
+  (th.time - t0) * th.ctx[:bpm] / 60.0
+end
+
+# defonce runs its block the first time only and keeps the answer.
+$__defonce = {}
+def defonce(name, override: false, &blk)
+  key = name.to_sym
+  $__defonce[key] = blk.call if override || !$__defonce.key?(key)
+  val = $__defonce[key]
+  Object.send(:define_method, key) { |*_a| val }
+  Object.send(:private, key)
+  nil
+end
+def ndefine(name, &blk) = define(name, &blk)
+
+def comment(*_a) = nil
+def uncomment(*_a, &blk) = blk&.call
+
+def use_random_source(_s) = nil
+def with_random_source(_s, &blk) = blk&.call
+
+def kill(node = nil, **_o)
+  return __kill_named(node) if node.is_a?(Symbol) || node.is_a?(String)
+  nil
+end
+
+def assert(arg, msg = nil) = arg ? true : raise("Assert failed#{msg ? ": #{msg}" : ''}")
+def assert_not(arg, msg = nil) = assert(!arg, msg)
+def assert_equal(a, b, msg = nil) = assert(a == b, msg || "#{a.inspect} isn't #{b.inspect}")
+def assert_not_equal(a, b, msg = nil) = assert(a != b, msg || "#{a.inspect} is #{b.inspect}")
+def assert_similar(a, b, msg = nil) = assert(a == b || (a.to_f - b.to_f).abs < 1e-5, msg)
+def assert_error(cls = StandardError, msg = nil)
+  yield
+  raise "Assert failed: expected #{cls}#{msg ? ": #{msg}" : ''}"
+rescue cls
+  true
+end
+
+def run_code(code, **_o) = TOPLEVEL_BINDING.eval(code.to_s, "run_code", 1) && nil
+
+%i[run_file eval_file load_buffer load_example load_synthdef load_synthdefs].each do |m|
+  define_method(m) do |*_a, **_o|
+    __warn_once("file#{m}", "#{m} can't read other files from inside susynth; it is skipped")
+    nil
+  end
+end
+
+def spark(*a) = puts(a.flatten.inspect)
+def spark_graph(*a) = puts(a.flatten.inspect)
+
+def sample_paths(*a) = Ring.new(a.flatten.map(&:to_s))
+def sample_groups = Ring.new($__samples.map { |n| n.split("_").first }.uniq.map(&:to_sym))
+def sample_loaded?(*_a) = true
+def sample_info(*a) = { name: a.first, duration: sample_duration(*a) }
+def sample_buffer(*a) = a.first
+def buffer(*a, **_o) = a.first
+
+# MIDI, recording, Ableton Link, live audio and tracks need Sonic Pi's own
+# app and devices; here they quietly do nothing.
+%i[midi_all_notes_off midi_channel_pressure midi_clock_beat midi_clock_tick midi_continue
+   midi_local_control_off midi_local_control_on midi_mode midi_pc midi_poly_pressure midi_raw
+   midi_reset midi_sound_off midi_start midi_stop midi_sysex
+   recording_start recording_stop recording_save recording_delete
+   link link_audio link_sync set_link_bpm! live_audio live_track use_track
+   track_control track_midi track_midi_all_notes_off track_midi_cc track_midi_note_off
+   track_midi_note_on track_midi_pitch_bend].each do |m|
+  define_method(m) do |*_a, **_o|
+    __warn_once("io#{m}", "#{m} needs Sonic Pi's app or a device; it does nothing in susynth")
+    nil
+  end
+end
+
+def midi_notes(*a) = Ring.new(a.map { |x| note(x) })
+def midi_clock_sources = Ring.new([])
+def tracks = Ring.new([])
+def midi_sync(*_a, **_o) = nil
+
+%i[reset clear reset_mixer! set_control_delta! set_drive! set_recording_bit_depth! use_arg_bpm_scaling
+   use_midi_logging use_osc_logging use_merged_midi_defaults scsynth_info].each do |m|
+  define_method(m) { |*_a, **_o| nil }
+end
+
+# with_* settings that only matter to Sonic Pi's app: the block runs as it is.
+%i[with_arg_bpm_scaling with_arg_checks with_cent_tuning with_debug with_merged_midi_defaults
+   with_midi_defaults with_midi_logging with_osc with_osc_logging with_real_time with_sched_ahead_time
+   with_send with_timing_guarantees with_track with_tuning].each do |m|
+  define_method(m) { |*_a, **_o, &blk| blk&.call }
+end
+
+def with_cue_logging(on = true, &blk) = use_cue_logging(on, &blk)
+
 # ---- evaluation ---------------------------------------------------------------------
+
+# Sonic Pi rewrites Lisp-style calls such as (ring 1, 2, 3) or
+# (chord :e3, :minor) into ring(1, 2, 3) before running the code. The
+# rewrite keeps every character's position, so line numbers stay right.
+VEC_FNS = %w[bools chord chord_degree chord_invert doubles halves knit line midi_notes note_range octs
+             ramp range ring sample_names sample_paths scale spread stretch tracks vector].freeze
+STRING_OR_COMMENT = /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|#[^\n]*/m
+
+def __preparse(code)
+  rb = String.new(code)
+  masked = rb.gsub(STRING_OR_COMMENT) { |m| m.gsub(/[^\n]/, " ") }
+  VEC_FNS.each do |fn|
+    re = /\((\s*)#{fn}([,[:space:]]+)/
+    pos = 0
+    while (m = masked.match(re, pos))
+      rep = " " + m[1] + fn + "(" + (" " * (m[2].size - 1))
+      rb[m.begin(0)...m.end(0)] = rep
+      masked[m.begin(0)...m.end(0)] = rep
+      pos = m.end(0)
+    end
+  end
+  rb
+end
 
 def __syntax_line(e)
   m = e.message.match(/buffer:(\d+)/)
@@ -1173,6 +1542,7 @@ end
 # and the code that runs can't disagree). first <= 0 runs the whole buffer and
 # resets top-level defaults, the way Sonic Pi's Run does.
 def __run(id, first, last, at, swap, code)
+  code = __preparse(code)
   begin
     __parse(code)
   rescue SyntaxError => e
@@ -1202,7 +1572,7 @@ def __run(id, first, last, at, swap, code)
 end
 
 def __check(code)
-  __parse(code)
+  __parse(__preparse(code))
 rescue SyntaxError => e
   __send("err", __syntax_line(e), "", __syntax_msg(e))
 end
