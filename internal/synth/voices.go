@@ -380,6 +380,24 @@ func (v *Voice) sample() float32 {
 	return v.tone()
 }
 
+// polyBLEP smooths the jump of a ramp that wraps at phase 0, spreading it
+// over the samples either side of the wrap so it has (almost) no energy above
+// the Nyquist frequency to fold back as aliasing. Subtract it from 2t-1.
+func polyBLEP(t, dt float64) float64 {
+	dt = math.Min(math.Abs(dt), 0.5)
+	switch {
+	case dt == 0:
+		return 0
+	case t < dt:
+		x := t / dt
+		return x + x - x*x - 1
+	case t > 1-dt:
+		x := (t - 1) / dt
+		return x*x + x + x + 1
+	}
+	return 0
+}
+
 func (v *Voice) tone() float32 {
 	age := v.t
 	// envelope: 3 ms attack, hold for gate, linear release.
@@ -445,10 +463,11 @@ func (v *Voice) tone() float32 {
 		s = v.ks[i]
 		v.ks[i] = 0.5 * (v.ks[i] + v.ks[j]) * 0.997
 		v.ksPos = j
-	default: // saw
-		v.phase += v.freq / v.sr
+	default: // saw, band-limited so high notes do not alias
+		dt := v.freq / v.sr
+		v.phase += dt
 		v.phase -= math.Floor(v.phase)
-		raw := float32(2*v.phase - 1)
+		raw := float32(2*v.phase - 1 - polyBLEP(v.phase, dt))
 		v.lp += 0.3 * (raw - v.lp)
 		s = v.lp
 	}
