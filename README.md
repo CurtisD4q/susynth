@@ -288,6 +288,10 @@ Put `.wav` files in the samples folder (shown on the Settings page; by default
 * a file anywhere in there, `kick.wav`, can also be played as `sample :kick`
 * or give a path: `sample "~/Music/loop.wav"`
 
+Files at any sample rate (44.1 kHz, 96 kHz, …) are converted to 48 kHz once, when they load,
+so they play at normal speed exactly as recorded. Stereo files stay stereo (`pan:` then works
+as a balance), and `rate:` changes are band-limited, so fast playback doesn't alias.
+
 On Settings, highlight *Samples* and press `Enter` to reload after adding files.
 
 ### 10. Mix while you play
