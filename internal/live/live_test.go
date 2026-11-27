@@ -251,3 +251,55 @@ end
 		t.Errorf("ping-pong: %+v, echo: %+v", gs[4], gs[5])
 	}
 }
+
+// Envelope levels and tb303's filter defaults reach the engine from Ruby.
+func TestRubyPassesEnvelopes(t *testing.T) {
+	v := vm(t)
+	ms, err := v.Run(1, 0, 0, `
+use_bpm 60
+play 60, attack: 0.1, decay: 0.2, sustain: 0.3, release: 0.4, attack_level: 0.8, sustain_level: 0.3
+use_synth :tb303
+play 40
+play 40, cutoff: 90, cutoff_min: 50, cutoff_release: 0.2, res: 0.2
+use_synth :saw
+play 40
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	more, err := v.Advance(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ps []synth.Params
+	var gates []int
+	for _, m := range append(ms, more...) {
+		if m.Kind() == "ev" {
+			h, _, err := Translate(m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ps, gates = append(ps, h.Params), append(gates, h.Gate)
+		}
+	}
+	if len(ps) != 4 {
+		t.Fatalf("%d notes", len(ps))
+	}
+	a := ps[0]
+	if a.Attack != 0.1 || a.Decay != 0.2 || a.Release != 0.4 || a.AttackLevel != 0.8 || a.SustainLevel != 0.3 ||
+		a.DecayLevel != 0 || gates[0] != 28800 {
+		t.Errorf("envelope: %+v gate %d", a, gates[0])
+	}
+	b := ps[1] // tb303 defaults: cutoff 120, cutoff_min 30, res 0.9, filter env follows the amp env
+	if math.Abs(b.LPF-midiHz(120)) > 0.01 || math.Abs(b.CutoffMin-midiHz(30)) > 0.01 || b.Res != 0.9 ||
+		b.CutoffEnv.Release != b.Release {
+		t.Errorf("tb303 defaults: %+v", b)
+	}
+	c := ps[2]
+	if math.Abs(c.LPF-midiHz(90)) > 0.01 || math.Abs(c.CutoffMin-midiHz(50)) > 0.01 || c.Res != 0.2 || c.CutoffEnv.Release != 0.2 {
+		t.Errorf("tb303 options: %+v", c)
+	}
+	if d := ps[3]; d.LPF != 0 || d.CutoffMin != 0 || d.Res != 0 {
+		t.Errorf("saw should have no filter by default: %+v", d)
+	}
+}

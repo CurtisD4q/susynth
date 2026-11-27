@@ -474,6 +474,16 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		}
 		return d
 	}
+	// level reads an envelope level: absent is 0 (the default); a real 0 is
+	// sent as a tiny value, which EnvTimes takes as silence.
+	level := func(k string) float64 {
+		v, ok := kv[k]
+		if !ok {
+			return 0
+		}
+		return math.Max(v, 1e-9)
+	}
+	defRes := 0.0 // the synth's own resonance
 	p := synth.Params{Gain: get("amp", 1), Pan: get("pan", 0), Speed: 1}
 	switch kind {
 	case "p":
@@ -494,11 +504,22 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		h.Word = strconv.Itoa(int(math.Round(math.Min(127, n))))
 		h.Label = noteLetters[int(math.Round(n))%12]
 		a, d, sus, r := get("a", 0), get("d", 0), get("s", 0), get("r", 1)
-		p.Attack = a
+		p.Attack, p.Decay = a, d
 		p.Release = math.Max(r, 0.005)
+		p.AttackLevel, p.DecayLevel, p.SustainLevel = level("al"), level("dl"), level("sl")
 		h.Gate = int((a + d + sus) * engine.SampleRate)
-		if c, ok := kv["cutoff"]; ok {
-			p.LPF = midiHz(c)
+		fd := sy.Filter()
+		defRes = fd.Res
+		cut := get("cutoff", fd.Cutoff)
+		if cut > 0 {
+			p.LPF = midiHz(cut)
+		}
+		if cmin := get("cmin", fd.CutoffMin); cmin > 0 && cut > cmin {
+			p.CutoffMin = midiHz(cmin)
+			p.CutoffEnv = synth.EnvTimes{
+				Attack: get("ca", a), Decay: get("cd", d), Sustain: get("cs", sus), Release: get("cr", r),
+				AttackLevel: level("cal"), DecayLevel: level("cdl"), SustainLevel: level("csl"),
+			}
 		}
 	case "s":
 		idx := int(get("i", 0))
@@ -535,7 +556,7 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		p.HPF = midiHz(c)
 	}
 	// res: on the note or sample, and the resonant filter effects
-	p.Res = math.Max(get("res", 0), get("fres", 0))
+	p.Res = math.Max(get("res", defRes), get("fres", 0))
 	p.HPRes = get("fhres", 0)
 	p.Room = get("room", 0)
 	p.Delay = get("dly", 0)

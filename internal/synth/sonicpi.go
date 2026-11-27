@@ -20,6 +20,18 @@ type SonicSynth struct {
 	Name, Wave, Drum, Desc string
 }
 
+// FilterDefaults are a synth's own cutoff (MIDI note, 0 = none), filter
+// envelope floor (cutoff_min, 0 = no filter envelope) and resonance, as
+// Sonic Pi gives them. Only :tb303 has a filter envelope in Sonic Pi.
+type FilterDefaults struct{ Cutoff, CutoffMin, Res float64 }
+
+var filterDefaults = map[string]FilterDefaults{
+	"tb303": {Cutoff: 120, CutoffMin: 30, Res: 0.9},
+}
+
+// Filter returns the synth's filter defaults.
+func (s SonicSynth) Filter() FilterDefaults { return filterDefaults[s.Name] }
+
 // SonicSynths lists the Sonic Pi synth names susynth accepts.
 var SonicSynths = []SonicSynth{
 	{"beep", "sine", "", "pure sine (Sonic Pi's default)"},
@@ -28,7 +40,7 @@ var SonicSynths = []SonicSynth{
 	{"mod_beep", "sine", "", "sine"},
 	{"saw", "saw", "", "saw, gently low-passed"},
 	{"mod_saw", "saw", "", "saw"},
-	{"tb303", "saw", "", "acid bass: saw, use cutoff:"},
+	{"tb303", "saw", "", "acid bass: resonant filter sweep"},
 	{"zawa", "saw", "", "saw"},
 	{"growl", "saw", "", "saw"},
 	{"winwood_lead", "saw", "", "saw lead"},

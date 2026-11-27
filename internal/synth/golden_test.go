@@ -57,8 +57,9 @@ func monoWAV(t *testing.T, dir, name string) {
 }
 
 // Voices that play the same sound as before must give bit-identical output:
-// this pins drums, every tone wave and a mono 48 kHz sample at normal speed,
-// each with the per-voice effects, so sample-playback changes cannot leak.
+// this pins the drums and a mono 48 kHz sample at normal speed, with the
+// per-voice effects. Tone waves left this check when their envelope was
+// replaced (envelope_test.go covers it); filters have filter_test.go.
 func TestVoicesUnchanged(t *testing.T) {
 	dir := t.TempDir()
 	monoWAV(t, dir, "goldmono")
@@ -76,14 +77,6 @@ func TestVoicesUnchanged(t *testing.T) {
 		{"cp", "cp", Params{Gain: 1}},
 		{"sample", "goldmono", Params{Gain: 1}},
 		{"sample fx", "goldmono", fx},
-		{"sine", "a4", Params{Gain: 1, Wave: "sine"}},
-		{"tri", "c5", Params{Gain: 1, Wave: "tri", Release: 0.2}},
-		{"square", "e3", Params{Gain: 1, Wave: "square"}},
-		{"fm", "g4", Params{Gain: 1, Wave: "fm"}},
-		{"supersaw", "c4", Params{Gain: 1, Wave: "supersaw", Attack: 0.02}},
-		{"organ", "d4", Params{Gain: 1, Wave: "organ"}},
-		{"pluck", "a3", Params{Gain: 1, Wave: "pluck"}},
-		{"noise", "c6", Params{Gain: 1, Wave: "noise"}},
 	}
 	for _, c := range cases {
 		got := voiceHash(t, c.word, c.p)
@@ -107,12 +100,4 @@ var goldenVoices = map[string]uint64{
 	"cp":        0xcc5880ffb8d3bded,
 	"sample":    0x9b79e53fac8ca8f9,
 	"sample fx": 0xa9492360609027d6,
-	"sine":      0x6fdec24dd84d81d,
-	"tri":       0x6120a0999ba02605,
-	"square":    0x7044142963582381,
-	"fm":        0x66104a5dcf373af1,
-	"supersaw":  0xf3aea813c415a761,
-	"organ":     0xcdeab9f74053647d,
-	"pluck":     0xa3f7cf10833d4ea5,
-	"noise":     0xcc420fa9fcf873dd,
 }
