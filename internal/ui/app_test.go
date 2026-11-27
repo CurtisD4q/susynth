@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -9,10 +8,6 @@ import (
 
 	"github.com/susynth/susynth/internal/engine"
 )
-
-var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-
-func plain(s string) string { return ansiRe.ReplaceAllString(s, "") }
 
 func testApp() *App {
 	a := &App{

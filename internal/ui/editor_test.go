@@ -4,7 +4,6 @@ import (
 	mint "github.com/CurtisD4q/pmin-kit"
 
 	"testing"
-	"time"
 )
 
 func TestSelectCutPasteAcrossLines(t *testing.T) {
@@ -74,18 +73,6 @@ func TestSelectAllAndUndoRedo(t *testing.T) {
 	e.Redo()
 	if e.Text() != "xy\n" {
 		t.Errorf("redo: %q", e.Text())
-	}
-}
-
-func feed(s string) func(time.Duration) (byte, bool) {
-	b := []byte(s)
-	return func(time.Duration) (byte, bool) {
-		if len(b) == 0 {
-			return 0, false
-		}
-		c := b[0]
-		b = b[1:]
-		return c, true
 	}
 }
 
