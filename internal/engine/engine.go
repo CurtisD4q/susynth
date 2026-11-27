@@ -470,6 +470,31 @@ func (e *Engine) StopRecording() (time.Duration, error) {
 	return d, err
 }
 
+// The master stage. Below the knee it is exactly linear, so normal levels
+// pass untouched; above it the level bends smoothly (slope 1 at the knee, so
+// no corner) toward the ceiling and never clips.
+const (
+	masterScale = 28800                        // int16 units per 1.0 of mix
+	limitCeil   = float32(32000) / masterScale // the loudest output, ~-0.2 dBFS
+	limitKnee   = limitCeil * 0.7079           // 3 dB below the ceiling
+	limitRange  = limitCeil - limitKnee
+)
+
+func limit(v float32) float32 {
+	a := v
+	if a < 0 {
+		a = -a
+	}
+	if a <= limitKnee {
+		return v
+	}
+	y := limitKnee + limitRange*float32(math.Tanh(float64((a-limitKnee)/limitRange)))
+	if v < 0 {
+		return -y
+	}
+	return y
+}
+
 // Render produces n stereo frames (interleaved int16).
 func (e *Engine) Render(n int) []int16 {
 	e.mu.Lock()
@@ -483,7 +508,7 @@ func (e *Engine) Render(n int) []int16 {
 	e.fx.process(mix, e.dsend, e.rsend, ds, float32(e.delayFB), float32(e.roomSize))
 	out := make([]int16, n*2)
 	for i, v := range mix {
-		out[i] = int16(math.Tanh(float64(v)*0.9) * 32000)
+		out[i] = int16(math.Round(float64(limit(v)) * masterScale))
 	}
 	e.samples += int64(n)
 	if e.rec != nil {
