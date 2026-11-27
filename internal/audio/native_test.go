@@ -17,12 +17,12 @@ func TestNativeTone(t *testing.T) {
 	if err != nil {
 		t.Skip("no device:", err)
 	}
-	buf := make([]int16, 960)
+	buf := make([]float32, 960)
 	ph := 0.0
 	start := time.Now()
 	for i := 0; i < 200; i++ { // 2 seconds, written in real-time-sized blocks
 		for j := 0; j < 480; j++ {
-			v := int16(8000 * math.Sin(ph))
+			v := float32(0.25 * math.Sin(ph))
 			ph += 2 * math.Pi * 440 / 48000
 			buf[2*j], buf[2*j+1] = v, v
 		}

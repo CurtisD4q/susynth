@@ -9,13 +9,13 @@ import (
 
 // held starts one long sine note (detuned so a block edge is never a zero
 // crossing) and renders a quarter second.
-func held(t *testing.T) (*Engine, []int16) {
+func held(t *testing.T) (*Engine, []float32) {
 	t.Helper()
 	e := New()
 	e.Play()
 	e.Schedule(Hit{At: 0, Track: "s", Word: "a4", Gate: SampleRate * 3,
 		Params: synth.Params{Wave: "sine", Note: 70.3, Gain: 1, Attack: 0.01}})
-	var out []int16
+	var out []float32
 	for i := 0; i < 25; i++ {
 		out = append(out, e.Render(480)...)
 	}
@@ -23,16 +23,16 @@ func held(t *testing.T) (*Engine, []int16) {
 }
 
 // largestStep is the biggest jump between neighbouring left samples.
-func largestStep(x []int16) float64 {
+func largestStep(x []float32) float64 {
 	m := 0.0
 	for i := 2; i < len(x); i += 2 {
-		m = math.Max(m, math.Abs(float64(x[i])-float64(x[i-2])))
+		m = math.Max(m, math.Abs(i16(x[i])-i16(x[i-2])))
 	}
 	return m
 }
 
-func renderBlocks(e *Engine, n int) []int16 {
-	var out []int16
+func renderBlocks(e *Engine, n int) []float32 {
+	var out []float32
 	for i := 0; i < n; i++ {
 		out = append(out, e.Render(480)...)
 	}
@@ -102,10 +102,10 @@ func TestStopFadesInsteadOfCutting(t *testing.T) {
 	}
 }
 
-func peak(x []int16) int {
+func peak(x []float32) int {
 	m := 0
 	for _, v := range x {
-		m = max(m, int(math.Abs(float64(v))))
+		m = max(m, int(math.Abs(i16(v))))
 	}
 	return m
 }

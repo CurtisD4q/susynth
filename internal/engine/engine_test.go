@@ -11,10 +11,14 @@ import (
 	"github.com/susynth/susynth/internal/synth"
 )
 
-func rms(buf []int16, from, to int) float64 {
+// i16 is a float sample in 16-bit steps, so levels in these tests read as
+// they did when the engine rendered int16.
+func i16(v float32) float64 { return float64(v) * 32768 }
+
+func rms(buf []float32, from, to int) float64 {
 	var s float64
 	for i := from * 2; i < to*2 && i < len(buf); i++ {
-		s += float64(buf[i]) * float64(buf[i])
+		s += i16(buf[i]) * i16(buf[i])
 	}
 	return math.Sqrt(s / float64((to-from)*2))
 }
@@ -24,9 +28,9 @@ func hit(at int64, track, word string) Hit {
 }
 
 // onset finds the first frame louder than a small threshold.
-func onset(buf []int16) int {
+func onset(buf []float32) int {
 	for i := 0; i < len(buf)/2; i++ {
-		if math.Abs(float64(buf[i*2])) > 200 {
+		if math.Abs(i16(buf[i*2])) > 200 {
 			return i
 		}
 	}
@@ -38,7 +42,7 @@ func TestHitsStartOnTheirSample(t *testing.T) {
 		e := New()
 		e.Play()
 		e.Schedule(hit(at, "a", "bd"))
-		var out []int16
+		var out []float32
 		for i := 0; i < 110; i++ {
 			out = append(out, e.Render(480)...)
 		}
@@ -164,7 +168,7 @@ func TestEndedThreadsLeaveAndTheirQueuedNotesGo(t *testing.T) {
 	e.ThreadStarted("riff", true)
 	e.Schedule(hit(96000, "riff", "bd"))
 	e.ThreadEnded("riff")
-	var out []int16
+	var out []float32
 	for i := 0; i < 30; i++ {
 		out = append(out, e.Render(4800)...)
 	}
@@ -298,7 +302,7 @@ func TestEffectsAddTailsAndSends(t *testing.T) {
 	wet.Schedule(h)
 	dry.Play()
 	wet.Play()
-	var d, w []int16
+	var d, w []float32
 	for i := 0; i < 150; i++ {
 		d = append(d, dry.Render(480)...)
 		w = append(w, wet.Render(480)...)

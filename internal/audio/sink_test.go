@@ -3,9 +3,12 @@ package audio
 import (
 	"context"
 	"encoding/binary"
+	"math"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/susynth/susynth/internal/pcm"
 )
 
 // A simulated sound card pulls 30 ms at a time at real speed, while an
@@ -14,7 +17,7 @@ import (
 // inserted: the bug this guards against padded short reads with zeros,
 // which chopped live playback into short pieces.
 func TestNativeSinkNeverInsertsGaps(t *testing.T) {
-	s := &nativeSink{}
+	s := &nativeSink{enc: pcm.NewEncoder(pcm.Float32)}
 	s.cond = sync.NewCond(&s.mu)
 
 	const secs = 2
@@ -25,12 +28,12 @@ func TestNativeSinkNeverInsertsGaps(t *testing.T) {
 	go func() { // the engine
 		begin := time.Now()
 		written := 0
-		buf := make([]int16, 960)
+		buf := make([]float32, 960)
 		for written < total {
 			heard := int(time.Since(begin).Seconds() * 48000)
 			for written < heard+4800 && written < total {
 				for j := 0; j < 480; j++ {
-					v := int16((written+j)%30000 + 1) // never zero: easy to spot gaps
+					v := float32((written+j)%30000+1) / 32768 // never zero: easy to spot gaps
 					buf[2*j], buf[2*j+1] = v, v
 				}
 				s.Write(buf)
@@ -40,19 +43,19 @@ func TestNativeSinkNeverInsertsGaps(t *testing.T) {
 		}
 	}()
 
-	var got []int16
-	chunk := make([]byte, 1440*4) // 30 ms
+	var got []float32
+	chunk := make([]byte, 1440*frameBytes) // 30 ms
 	begin := time.Now()
 	for len(got) < total && ctx.Err() == nil {
 		n, err := s.Read(chunk)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for i := 0; i+3 < n; i += 4 {
-			got = append(got, int16(binary.LittleEndian.Uint16(chunk[i:])))
+		for i := 0; i+frameBytes-1 < n; i += frameBytes {
+			got = append(got, math.Float32frombits(binary.LittleEndian.Uint32(chunk[i:])))
 		}
 		// the card plays what it got before asking again
-		time.Sleep(time.Duration(n/4) * time.Second / 48000)
+		time.Sleep(time.Duration(n/frameBytes) * time.Second / 48000)
 		if time.Since(begin) > 10*time.Second {
 			t.Fatal("too slow")
 		}
@@ -62,7 +65,7 @@ func TestNativeSinkNeverInsertsGaps(t *testing.T) {
 	for i, v := range got[:total] {
 		if v == 0 {
 			silent++
-		} else if v != int16(i%30000+1) {
+		} else if v != float32(i%30000+1)/32768 {
 			wrong++
 		}
 	}

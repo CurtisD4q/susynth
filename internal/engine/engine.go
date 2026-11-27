@@ -470,11 +470,12 @@ func (e *Engine) StopRecording() (time.Duration, error) {
 	return d, err
 }
 
-// The master stage. Below the knee it is exactly linear, so normal levels
-// pass untouched; above it the level bends smoothly (slope 1 at the knee, so
-// no corner) toward the ceiling and never clips.
+// The master stage is a limiter. Below the knee it is exactly linear, so normal levels pass untouched; above it the
+// level bends smoothly (slope 1 at the knee, so no corner) toward the
+// ceiling and never clips. Output is float, full scale ±1.
 const (
-	masterScale = 28800                        // int16 units per 1.0 of mix
+	masterScale = 28800                        // mix 1.0 is this many 16-bit steps
+	outScale    = float32(masterScale) / 32768 // mix 1.0 in full-scale float
 	limitCeil   = float32(32000) / masterScale // the loudest output, ~-0.2 dBFS
 	limitKnee   = limitCeil * 0.7079           // 3 dB below the ceiling
 	limitRange  = limitCeil - limitKnee
@@ -495,8 +496,8 @@ func limit(v float32) float32 {
 	return y
 }
 
-// Render produces n stereo frames (interleaved int16).
-func (e *Engine) Render(n int) []int16 {
+// Render produces n stereo frames, interleaved float32 at full scale ±1.
+func (e *Engine) Render(n int) []float32 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	mix := make([]float32, n*2)
@@ -506,9 +507,9 @@ func (e *Engine) Render(n int) []int16 {
 	e.mixVoices(mix, n)
 	ds := int(e.delaySeconds * SampleRate)
 	e.fx.process(mix, e.dsend, e.rsend, ds, float32(e.delayFB), float32(e.roomSize))
-	out := make([]int16, n*2)
+	out := mix
 	for i, v := range mix {
-		out[i] = int16(math.Round(float64(limit(v)) * masterScale))
+		out[i] = limit(v) * outScale
 	}
 	e.samples += int64(n)
 	if e.rec != nil {
@@ -812,7 +813,7 @@ func (e *Engine) Snapshot() View {
 
 // Run renders audio into write until ctx is cancelled. The scheduler ticks
 // every 10 ms and keeps ~100 ms rendered ahead of the wall clock.
-func (e *Engine) Run(ctx context.Context, write func([]int16) error, sinkLatency time.Duration) error {
+func (e *Engine) Run(ctx context.Context, write func([]float32) error, sinkLatency time.Duration) error {
 	block := SampleRate / 100
 	begin := time.Now()
 	e.mu.Lock()
@@ -858,7 +859,7 @@ func (e *Engine) Run(ctx context.Context, write func([]int16) error, sinkLatency
 // RenderOffline renders seconds of audio without a device. Before each block,
 // feed is asked to schedule everything due up to the given time, so code can
 // run in lockstep with rendering.
-func (e *Engine) RenderOffline(seconds float64, feed func(until float64) error, write func([]int16) error) error {
+func (e *Engine) RenderOffline(seconds float64, feed func(until float64) error, write func([]float32) error) error {
 	e.Play()
 	total := int64(seconds * SampleRate)
 	for done := int64(0); done < total; {

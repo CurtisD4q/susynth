@@ -7,8 +7,8 @@ import (
 	"github.com/susynth/susynth/internal/synth"
 )
 
-func render(e *Engine, seconds float64) []int16 {
-	var out []int16
+func render(e *Engine, seconds float64) []float32 {
+	var out []float32
 	for i := 0; i < int(seconds*100); i++ {
 		out = append(out, e.Render(SampleRate/100)...)
 	}
@@ -17,10 +17,10 @@ func render(e *Engine, seconds float64) []int16 {
 
 // brightness is the size of the sample-to-sample change: high notes and
 // buzz make it large, a low-passed sound small.
-func brightness(buf []int16) float64 {
+func brightness(buf []float32) float64 {
 	var s float64
 	for i := 2; i < len(buf); i += 2 {
-		d := float64(buf[i]) - float64(buf[i-2])
+		d := i16(buf[i]) - i16(buf[i-2])
 		s += d * d
 	}
 	return math.Sqrt(s / float64(len(buf)/2))

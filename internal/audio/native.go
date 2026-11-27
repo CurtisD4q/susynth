@@ -1,13 +1,14 @@
 package audio
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/ebitengine/oto/v3"
+
+	"github.com/susynth/susynth/internal/pcm"
 )
 
 // The native backend talks to the sound system directly through oto: PulseAudio
@@ -18,7 +19,8 @@ const (
 	nativeBuffer = 40 * time.Millisecond  // oto's device buffer
 	playerBuffer = 30 * time.Millisecond  // how much oto pulls from us at a time
 	nativeAhead  = 100 * time.Millisecond // how much we keep queued ahead of oto
-	bytesPerSec  = 48000 * 4              // stereo int16
+	frameBytes   = 8                      // stereo float32
+	bytesPerSec  = 48000 * frameBytes
 )
 
 var (
@@ -33,7 +35,7 @@ func nativeContext() (*oto.Context, error) {
 		c, ready, err := oto.NewContext(&oto.NewContextOptions{
 			SampleRate:   48000,
 			ChannelCount: 2,
-			Format:       oto.FormatSignedInt16LE,
+			Format:       oto.FormatFloat32LE, // oto converts for the device
 			BufferSize:   nativeBuffer,
 		})
 		if err != nil {
@@ -61,6 +63,7 @@ type nativeSink struct {
 	cond   *sync.Cond
 	q      []byte
 	closed bool
+	enc    *pcm.Encoder
 }
 
 func openNative() (Sink, error) {
@@ -68,10 +71,10 @@ func openNative() (Sink, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &nativeSink{}
+	s := &nativeSink{enc: pcm.NewEncoder(pcm.Float32)}
 	s.cond = sync.NewCond(&s.mu)
 	s.player = c.NewPlayer(s)
-	s.player.SetBufferSize(int(playerBuffer.Seconds()*bytesPerSec) / 4 * 4)
+	s.player.SetBufferSize(int(playerBuffer.Seconds()*bytesPerSec) / frameBytes * frameBytes)
 	s.player.Play()
 	return s, nil
 }
@@ -87,14 +90,14 @@ func (s *nativeSink) Latency() time.Duration {
 func (s *nativeSink) Read(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.q) < 4 && !s.closed {
+	if len(s.q) < frameBytes && !s.closed {
 		deadline := time.Now().Add(50 * time.Millisecond)
 		t := time.AfterFunc(50*time.Millisecond, func() {
 			s.mu.Lock()
 			s.cond.Broadcast()
 			s.mu.Unlock()
 		})
-		for len(s.q) < 4 && !s.closed && time.Now().Before(deadline) {
+		for len(s.q) < frameBytes && !s.closed && time.Now().Before(deadline) {
 			s.cond.Wait()
 		}
 		t.Stop()
@@ -102,20 +105,20 @@ func (s *nativeSink) Read(p []byte) (int, error) {
 	if s.closed {
 		return 0, io.EOF
 	}
-	if len(s.q) < 4 { // the engine has stalled: a little silence, not a long gap
-		n := min(len(p), int(0.005*bytesPerSec)) / 4 * 4
+	if len(s.q) < frameBytes { // the engine has stalled: a little silence, not a long gap
+		n := min(len(p), int(0.005*bytesPerSec)) / frameBytes * frameBytes
 		clear(p[:n])
 		return n, nil
 	}
-	n := min(len(p), len(s.q)) / 4 * 4
+	n := min(len(p), len(s.q)) / frameBytes * frameBytes
 	copy(p, s.q[:n])
 	s.q = s.q[n:]
 	s.cond.Broadcast()
 	return n, nil
 }
 
-func (s *nativeSink) Write(frames []int16) error {
-	max := int(nativeAhead.Seconds() * 48000 * 4)
+func (s *nativeSink) Write(frames []float32) error {
+	max := int(nativeAhead.Seconds() * bytesPerSec)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for len(s.q) > max && !s.closed {
@@ -124,9 +127,7 @@ func (s *nativeSink) Write(frames []int16) error {
 	if s.closed {
 		return fmt.Errorf("audio sink closed")
 	}
-	for _, v := range frames {
-		s.q = binary.LittleEndian.AppendUint16(s.q, uint16(v))
-	}
+	s.q = s.enc.Append(s.q, frames)
 	s.cond.Broadcast()
 	if s.player != nil {
 		if err := s.player.Err(); err != nil {

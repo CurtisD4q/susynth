@@ -52,7 +52,7 @@ func TestTranslate(t *testing.T) {
 func TestRenderSonicPiCode(t *testing.T) {
 	v := vm(t)
 	e := engine.New()
-	var out []int16
+	var out []float32
 	notes, err := Render(v, e, `
 use_bpm 120
 live_loop :drums do
@@ -65,7 +65,7 @@ live_loop :bass do
   play :e2, release: 0.3
   sleep 1
 end
-`, 2.1, func(b []int16) error { out = append(out, b...); return nil })
+`, 2.1, func(b []float32) error { out = append(out, b...); return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,10 +85,12 @@ end
 	}
 }
 
-func rms(buf []int16, from, to int) float64 {
+// rms is in 16-bit steps, so the thresholds read as they did with int16.
+func rms(buf []float32, from, to int) float64 {
 	var s float64
 	for i := from * 2; i < to*2 && i < len(buf); i++ {
-		s += float64(buf[i]) * float64(buf[i])
+		v := float64(buf[i]) * 32768
+		s += v * v
 	}
 	return math.Sqrt(s / float64((to-from)*2))
 }
@@ -131,7 +133,7 @@ func TestQuantiseSecondRunLandsOnTheBar(t *testing.T) {
 	s.Run("use_bpm 60\nsample :bd_haus\n", 0)
 	s.Run("sample :bd_haus\n", 0)
 	s.tick() // the immediate hit is due now; the bar hit waits until Ruby is advanced to it
-	var out []int16
+	var out []float32
 	for i := 0; i < 450; i++ { // 4.5 s, one bar is 4 s
 		out = append(out, e.Render(480)...)
 		s.tick()

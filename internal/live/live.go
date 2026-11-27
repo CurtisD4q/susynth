@@ -583,7 +583,7 @@ func Collect(vm *rubyvm.VM, code string, seconds float64) ([]engine.Hit, float64
 
 // Render plays code through a fresh engine for seconds and writes the audio,
 // in lockstep with Ruby. Ruby must be ready.
-func Render(vm *rubyvm.VM, eng *engine.Engine, code string, seconds float64, write func([]int16) error) ([]Note, error) {
+func Render(vm *rubyvm.VM, eng *engine.Engine, code string, seconds float64, write func([]float32) error) ([]Note, error) {
 	s := New(vm, eng)
 	if _, err := vm.StopAll(); err != nil {
 		return nil, err
