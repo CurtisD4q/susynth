@@ -144,13 +144,24 @@ type Voice struct {
 
 	// per-voice effects and sample playback
 	lpA, hpA, shape float32
-	lp1, lp2, hp1   float32
+	fl              [2]filterState // left (or mono), right
 	crush           float32
 	ph              [5]float64
 	smp             *Sample
+	chL, chR        []float32 // the sample's channels at the octave being played
+	stereo          bool
+	right           float32 // the right channel of the current stereo frame
 	pos, step       float64
 	att             int
 }
+
+type filterState struct{ lp1, lp2, hp1 float32 }
+
+// fastStep is the fastest a sample is read before playback moves to a
+// half-rate octave copy. Reading at up to 1.2x keeps whatever could fold back
+// above ~20.6 kHz, and moving down an octave still leaves at least ~13.7 kHz
+// of the sample's top end, whatever the speed.
+const fastStep = 1.2
 
 // New builds a voice for a sound word. delay is the number of frames before
 // it starts sounding; gate is how long a tone is held (frames).
@@ -186,7 +197,16 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	if sm := lookupSample(name, variant); sm != nil {
 		v.k = kSample
 		v.smp = sm
+		v.chL, v.chR = sm.Data, sm.Right
 		v.step = float64(sm.Rate) / float64(sr) * v.speed
+		for _, o := range sm.oct { // fast playback reads a band-limited copy
+			if v.step <= fastStep {
+				break
+			}
+			v.chL, v.chR = o.l, o.r
+			v.step = float64(o.rate) / float64(sr) * v.speed
+		}
+		v.stereo = v.chR != nil
 		return v, nil
 	}
 
@@ -257,20 +277,10 @@ func (v *Voice) Next() (float32, float32) {
 	}
 	s := v.sample()
 	v.t++
-	if v.lpA > 0 {
-		v.lp1 += v.lpA * (s - v.lp1)
-		v.lp2 += v.lpA * (v.lp1 - v.lp2)
-		s = v.lp2
-	}
-	if v.hpA > 0 {
-		v.hp1 += v.hpA * (s - v.hp1)
-		s -= v.hp1
-	}
-	if v.crush > 0 {
-		s = float32(math.Round(float64(s*v.crush))) / v.crush
-	}
-	if v.shape > 0 {
-		s = float32(math.Tanh(float64(s)*(1+float64(v.shape)*10))) * 0.8
+	s = v.effects(s, &v.fl[0])
+	var r float32
+	if v.stereo {
+		r = v.effects(v.right, &v.fl[1])
 	}
 	if v.killed {
 		fade := 1 - float32(v.t-v.killStart)/(0.005*float32(v.sr))
@@ -279,8 +289,32 @@ func (v *Voice) Next() (float32, float32) {
 			return 0, 0
 		}
 		s *= fade
+		r *= fade
+	}
+	if v.stereo { // pan works as balance
+		return s * v.gl, r * v.gr
 	}
 	return s * v.gl, s * v.gr
+}
+
+// effects runs the per-voice filters, crush and shape on one channel.
+func (v *Voice) effects(s float32, f *filterState) float32 {
+	if v.lpA > 0 {
+		f.lp1 += v.lpA * (s - f.lp1)
+		f.lp2 += v.lpA * (f.lp1 - f.lp2)
+		s = f.lp2
+	}
+	if v.hpA > 0 {
+		f.hp1 += v.hpA * (s - f.hp1)
+		s -= f.hp1
+	}
+	if v.crush > 0 {
+		s = float32(math.Round(float64(s*v.crush))) / v.crush
+	}
+	if v.shape > 0 {
+		s = float32(math.Tanh(float64(s)*(1+float64(v.shape)*10))) * 0.8
+	}
+	return s
 }
 
 func exp(x float64) float32 { return float32(math.Exp(-x)) }
@@ -368,14 +402,26 @@ func (v *Voice) sample() float32 {
 	}
 	if v.k == kSample {
 		i := int(v.pos)
-		if i+1 >= len(v.smp.Data) {
+		if i+1 >= len(v.chL) {
 			v.done = true
 			return 0
 		}
-		f := float32(v.pos - float64(i))
-		out := v.smp.Data[i]*(1-f) + v.smp.Data[i+1]*f
+		var l, r float32
+		if v.step == 1 { // a loaded sample at normal speed: no interpolation
+			l = v.chL[i]
+			if v.stereo {
+				r = v.chR[i]
+			}
+		} else {
+			f := float32(v.pos - float64(i))
+			l = interpolate(v.chL, i, f)
+			if v.stereo {
+				r = interpolate(v.chR, i, f)
+			}
+		}
 		v.pos += v.step
-		return out * 0.9
+		v.right = r * 0.9
+		return l * 0.9
 	}
 	return v.tone()
 }

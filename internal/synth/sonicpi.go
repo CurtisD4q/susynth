@@ -243,6 +243,10 @@ func loadFile(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("sample %q: %w", path, err)
 	}
+	if s.prepared() > maxSampleTotal {
+		return "", fmt.Errorf("sample %q is too long to load", path)
+	}
+	s.prepare()
 	s.Name = filepath.Base(path)
 	key := fmt.Sprintf("@file%d", len(fileCache.keys)+1)
 	reg.Lock()
