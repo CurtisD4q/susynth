@@ -16,7 +16,6 @@ import (
 	"github.com/susynth/susynth/internal/paths"
 	"github.com/susynth/susynth/internal/rubyvm"
 	"github.com/susynth/susynth/internal/synth"
-	"github.com/susynth/susynth/internal/ui"
 )
 
 const usage = `susynth — live-code music in your terminal, in Sonic Pi's language
@@ -83,7 +82,7 @@ func main() {
 	theme := fs.String("theme", "", "colour theme")
 	fs.Usage = func() { fmt.Print(usage) }
 	fs.Parse(args)
-	if err := ui.Run(ui.Options{File: fs.Arg(0), Sink: *sink, Theme: *theme}); err != nil {
+	if err := runEditor(fs.Arg(0), *sink, *theme); err != nil {
 		fmt.Fprintln(os.Stderr, "susynth:", err)
 		os.Exit(1)
 	}

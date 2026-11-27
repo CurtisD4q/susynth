@@ -1,15 +1,15 @@
 
- ◇ susynth › Play · night-drive • · no audio
+ ◇ susynth › ▶ Play · night-drive • · no audio
  ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-      Editor · ^E run block · Esc-Enter run all                 Log · Alt+↑↓ scroll · Esc l tracks
-      ───────────────────────────────────────────────────────── ─────────────────────────────────────────────
-  ▶    ┊ 1 use_bpm 120                                           00:00:00 hello from the drums loop
-  ≡      2 live_loop :bass do                                    00:00:00 undefined method 'sampel' for main
-  ●      3   play 60
-  ♪      4
-  ⚙      5   sleep 1
-  ?      6 end
+     Editor · ^E run block · Esc-Enter run all                    Log · Alt+↑↓ scroll · Esc l tracks
+     ──────────────────────────────────────────────────────────── ───────────────────────────────────────────
+  ▶  ┊ 1 use_bpm 120                                              00:00:00 hello from the drums loop
+  ≡    2 live_loop :bass do                                       00:00:00 undefined method 'sampel' for main
+  ●    3   play 60
+  ♪    4
+  ⚙    5   sleep 1
+  ?    6 end
   ◈
 
 
@@ -28,5 +28,5 @@
 
 
 
-
-  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off               ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ^E run   ^G stop   ^P play   ^R rec   ^S/^O set   Esc m pages   ^Q quit

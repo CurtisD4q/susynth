@@ -35,7 +35,7 @@ end
 | ![Piano roll](screenshots/pianoroll.png) **Piano roll (`Esc r`):** every note each loop plays, scrolling live; colours match the key at the bottom, drums have their own lanes. | ![Copy and paste](screenshots/select.png) **Selecting:** Shift+arrows select, then `^C` / `^X` / `^V`. |
 | ![Settings](screenshots/settings.png) **Settings (`Esc 5`):** audio output, OSC, MIDI, samples folder, theme. (Taken with audio off, so it shows `none`.) | ![Help](screenshots/help.png) **Help (`Esc 6`):** keys and a Sonic Pi language reference. |
 
-The pictures above were taken before the pages moved down the left. The app now lists them there as icons; `Esc m` opens a pop-up with names and the numbers that open each page (`Esc` then `1` for Play, `2` for Sets, …).
+The pictures above were taken before susynth became a Mint program. The pages are now icons down the left; `Esc m` opens them as a pop-up, in order, so `Esc` then a page's place in it opens that page (`1` for Play, `2` for Sets, …).
 
 ## How it works
 
@@ -262,7 +262,7 @@ Available effects: `reverb`, `echo`, `lpf`, `hpf`, `bitcrusher`, `distortion`, `
 
 ### 8. Find sounds
 
-Press `Esc` then `4` for the Sounds page (Esc m shows the numbers). Groups fold open and
+Press `Esc` then `4` for the Sounds page (Esc m lists the pages in order). Groups fold open and
 shut with `←` / `→`. Highlight a synth or sample and press `Enter` to hear it, or `i` to
 insert an example into your set. `Esc` returns to the editor.
 
@@ -359,7 +359,7 @@ Deleting the cache is safe; Ruby is compiled again on the next launch.
 | `Esc l` | session log in the right-hand pane (errors, `puts`, `cue`); Alt+↑↓ scrolls |
 | `Esc r` | switch the right-hand pane between Tracks and the piano roll |
 | `Esc x` | export MIDI (runs silently in a second sandbox; the music keeps playing) |
-| `Esc 1` … `Esc 7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform (Esc m shows the numbers) |
+| `Esc 1` … `Esc 7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform (Esc m lists the pages in order) |
 | `Esc m` | The pages pop-up beside the icons: ↑↓ choose, Enter open, Esc back |
 | `Esc f` / `Esc b` | next / previous page · `Esc` alone goes back to Play |
 
@@ -396,12 +396,17 @@ provenance and licences in `internal/rubyvm/LICENSES`).
 * [ruby.wasm](https://github.com/ruby/ruby.wasm) 2.7.1 build of CRuby 3.4.1 (Ruby/BSD; MIT).
 * [oto](https://github.com/ebitengine/oto) v3.5.1 for audio output, with purego, jfreymuth/pulse
   and x/sys.
+* [pmin-kit](https://github.com/CurtisD4q/pmin-kit), pmin's terminal interface kit: it runs
+  the terminal and draws everything around susynth's panes (the trail along the top, the
+  page icons and pop-up, the pane titles, the footer and the pop-ups), the same way it does
+  for pmin's other programs. susynth draws inside its panes and keeps its own keys.
 * [pmin-base](https://github.com/CurtisD4q/pmin-base), the first layer of the pmin foundation:
   wording (`text`), cleaning text before it reaches the terminal (`clean`) and keeping paths
   inside a folder (`values`). susynth is one of the programs built with pmin (tier `example`
-  in `pmin.json`): it uses only the foundation, and its screen code stays its own so it keeps
-  running on Windows. pmin-base is a private repository; it is vendored like the rest, so the
-  build still works offline, and updating it needs `GOPRIVATE='github.com/CurtisD4q/*'`.
+  in `pmin.json`). pmin-kit and pmin-base are private repositories; they are vendored like
+  the rest, so the build still works offline, and updating them needs
+  `GOPRIVATE='github.com/CurtisD4q/*'`. pmin-kit needs a Unix terminal, so on Windows the
+  live editor is left out of the build, as it always was unavailable there.
 
 The sandbox blocked the Go module proxy and checksum database, so modules were fetched from
 GitHub with checksum verification off; run `go mod verify` on a networked machine.

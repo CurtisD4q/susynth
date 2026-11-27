@@ -1,9 +1,9 @@
 // Package ui is the terminal front end: editor, track panes, step display,
-// transport bar and toasts. It lays out the screen the way Mint apps do
-// (title, one divider, panes side by side, pinned bar). The screen code is
-// its own, because susynth also runs on Windows and redraws many times a
-// second; the small helpers (wording, clipping, cleaning text, checking
-// paths) come from pmin-base.
+// transport and toasts. It is a Mint program: pmin-kit runs the terminal,
+// the trail, the pages, the pane titles, the footer and the pop-ups, and
+// susynth draws what is inside its panes (the code, the piano roll, the
+// lists) and keeps its own keys. The small helpers (wording, clipping,
+// cleaning text, checking paths) come from pmin-base.
 package ui
 
 import (
@@ -15,12 +15,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
+
+	mint "github.com/CurtisD4q/pmin-kit"
 
 	"github.com/susynth/susynth/internal/audio"
 	"github.com/susynth/susynth/internal/config"
@@ -40,7 +40,7 @@ type Options struct {
 const starter = `# susynth: Sonic Pi code, running in real Ruby.
 # ^E runs the block under the cursor, Esc-Enter runs everything.
 # ^G stops all loops. ^Q quits.
-# Esc then 1-7 changes page (Esc m shows the numbers). Esc 6 is help.
+# Esc then 1-7 changes page (Esc m lists them). Esc 6 is help.
 
 use_bpm 120
 
@@ -82,14 +82,14 @@ type prompt struct {
 
 // App is the whole UI state.
 type App struct {
-	railOn  bool // the page rail has the keys (Esc m)
-	railSel int  // the page selected in the rail
+	ctx    *mint.Ctx    // while a key is being handled: to change page
+	scr    *mint.Screen // the page shown
+	inMint bool         // running under Mint: questions are its pop-ups
 
-	term *Term
-	cfg  config.Config
-	eng  *engine.Engine
-	ed   *Editor
-	th   *Theme
+	cfg config.Config
+	eng *engine.Engine
+	ed  *Editor
+	th  *Theme
 
 	sink      audio.Sink
 	cancel    context.CancelFunc
@@ -145,15 +145,10 @@ func Run(o Options) error {
 	if o.Theme != "" {
 		cfg.Theme = o.Theme
 	}
-	term, err := openTerm()
-	if err != nil {
-		return err
+	if !mint.Interactive() {
+		return errors.New("susynth needs an interactive terminal (for headless use try: susynth render set.syn -o out.wav)")
 	}
-	defer term.Close()
-
-	a := &App{term: term, cfg: cfg, eng: engine.New(), th: themeByName(cfg.Theme),
-		marks: map[int]bool{}, audioFail: make(chan error, 1), live: -1, laterMsgs: make(chan laterMsg, 8)}
-	a.eng.SetBPM(cfg.BPM)
+	a := newApp(cfg)
 	// Ruby boots in the background; the editor is usable straight away
 	a.vm = rubyvm.Start(paths.CacheDir())
 	a.seq = live.New(a.vm, a.eng)
@@ -161,7 +156,6 @@ func Run(o Options) error {
 	sctx, scancel := context.WithCancel(context.Background())
 	a.seqCancel = scancel
 	a.seq.Start(sctx)
-	a.ps.closed = map[string]bool{"Samples": true, "Drum synths": true}
 	a.loadInitial(o, first)
 	a.loadSetlist()
 	a.startAudio(cfg.Sink)
@@ -170,7 +164,19 @@ func Run(o Options) error {
 	}
 	a.reloadSamples(false)
 	defer a.shutdown()
-	return a.loop()
+	a.inMint = true
+	mint.ToastDuration = 4 * time.Second
+	a.app().Run()
+	return nil
+}
+
+func newApp(cfg config.Config) *App {
+	a := &App{cfg: cfg, eng: engine.New(), th: themeByName(cfg.Theme),
+		marks: map[int]bool{}, audioFail: make(chan error, 1), live: -1, laterMsgs: make(chan laterMsg, 8)}
+	a.eng.SetBPM(cfg.BPM)
+	a.ps.closed = map[string]bool{"Samples": true, "Drum synths": true}
+	a.usePalette()
+	return a
 }
 
 func (a *App) loadInitial(o Options, first bool) {
@@ -237,6 +243,14 @@ func (a *App) addLog(kind, text string, line int) {
 	}
 	if kind != "cue" {
 		a.status, a.statusErr, a.statusAt = text, kind == "err", time.Now()
+		if a.inMint && (kind == "info" || kind == "err") {
+			// Shown on the footer for a few seconds; the log keeps it (Esc l).
+			if kind == "err" {
+				mint.ToastError(text)
+			} else {
+				mint.Toast(text)
+			}
+		}
 	}
 }
 
@@ -282,64 +296,6 @@ func (a *App) cycleAudio() { a.stepAudio(1) }
 
 // ---- main loop --------------------------------------------------------------
 
-func (a *App) loop() error {
-	keys := make(chan key, 64)
-	go readKeys(keys)
-	winch := make(chan os.Signal, 1)
-	watchResize(winch)
-	term := make(chan os.Signal, 1)
-	signal.Notify(term, syscall.SIGTERM, syscall.SIGHUP)
-	hz := a.cfg.FrameHz
-	tick := time.NewTicker(time.Second / time.Duration(hz))
-	defer tick.Stop()
-	var prev []string
-	w, h := a.term.size()
-	for !a.quit {
-		select {
-		case k := <-keys:
-			a.handleKey(k)
-		case <-winch:
-			w, h = a.term.size()
-			prev = nil
-		case <-term:
-			return nil
-		case err := <-a.audioFail:
-			a.say("audio output stopped ("+err.Error()+") — switched to silent; Esc a picks another", true)
-			a.startAudio("none")
-		case <-tick.C:
-		}
-		a.pollSeq()
-		if !a.escAt.IsZero() && time.Since(a.escAt) >= escWindow {
-			a.escAt = time.Time{}
-		}
-		if a.cfg.FrameHz != hz {
-			hz = a.cfg.FrameHz
-			tick.Reset(time.Second / time.Duration(hz))
-		}
-		prev = a.render(w, h, prev)
-	}
-	return nil
-}
-
-func (a *App) render(w, h int, prev []string) []string {
-	f, cx, cy := a.draw(w, h)
-	rows := f.rows()
-	t := a.term
-	for i, r := range rows {
-		if i < len(prev) && prev[i] == r {
-			continue
-		}
-		t.write(moveTo(i, 0) + r)
-	}
-	if cx >= 0 {
-		t.write("\x1b[0m" + moveTo(cy, cx) + "\x1b[?25h")
-	} else {
-		t.write("\x1b[?25l")
-	}
-	t.flush()
-	return rows
-}
-
 // ---- keys -------------------------------------------------------------------
 
 var loopRe = regexp.MustCompile(`^\s*live_loop\s+:?"?([A-Za-z_][A-Za-z0-9_]*)`)
@@ -373,9 +329,6 @@ func (a *App) handleKey(k key) {
 		a.trackCommand(k)
 		return
 	}
-	if a.railKey(k) {
-		return
-	}
 	// "Esc, then a key" shortcuts: a person can't press the second key within
 	// the few milliseconds that mark an Alt+key, so a lone Esc arms the next
 	// key for a moment. The transport shows Esc… while it is armed. Esc goes
@@ -407,7 +360,9 @@ func (a *App) handleKey(k key) {
 		return
 	}
 	if k.alt && k.kind == kRune && k.r == 'm' {
-		a.railOn, a.railSel = true, int(a.page)
+		if a.ctx != nil {
+			a.ctx.OpenPages()
+		}
 		return
 	}
 	if k.alt && k.kind == kRune {
@@ -546,7 +501,7 @@ func (a *App) copySelection(cut bool) {
 		text = ed.Line(ed.row) + "\n"
 	}
 	a.clipboard = text
-	a.term.copyToSystem(text)
+	copyToSystem(text)
 	n := strings.Count(strings.TrimSuffix(text, "\n"), "\n") + 1
 	what := txt.Count(n, "line")
 	if !whole && n == 1 {
@@ -660,6 +615,7 @@ func (a *App) altKey(k key) {
 		a.liveStep(-1)
 	case k.r == 't':
 		a.th = nextTheme(a.th)
+		a.usePalette()
 		a.say("theme: "+a.th.Name, false)
 	case k.r == 'a':
 		a.cycleAudio()
@@ -798,7 +754,23 @@ func (a *App) pollSeq() {
 
 // ---- sets & recording --------------------------------------------------------
 
+// startPrompt asks for a name or a number. On the Play page the question
+// is typed on the line under the code, so nothing covers the code while
+// music plays; on the other pages it is a Mint pop-up.
 func (a *App) startPrompt(kind, label, initial string) {
+	if a.page != pagePlay && a.inMint {
+		title := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(label), ":"))
+		if title != "" {
+			title = strings.ToUpper(title[:1]) + title[1:]
+		}
+		name, ok := mint.Prompt(title, "", initial)
+		if !ok {
+			a.say("cancelled", false)
+			return
+		}
+		a.finishPrompt(kind, strings.TrimSpace(name))
+		return
+	}
 	a.prompt = &prompt{label: label, buf: []rune(initial), kind: kind}
 }
 
@@ -811,44 +783,7 @@ func (a *App) promptKey(k key) {
 	case k.kind == kEnter && !k.alt:
 		name := strings.TrimSpace(string(p.buf))
 		a.prompt = nil
-		switch p.kind {
-		case "oscaddr":
-			if err := validAddr(name); err != nil {
-				a.say(err.Error(), true)
-				return
-			}
-			a.cfg.OSCAddr = name
-			a.applyOutputs()
-			a.saveConfig()
-			return
-		case "mididev":
-			a.cfg.MidiDev = name
-			a.applyOutputs()
-			a.saveConfig()
-			if a.cfg.MidiDev != "" {
-				a.say("MIDI output: "+a.cfg.MidiDev, false)
-			}
-			return
-		}
-		if name == "" {
-			if p.kind == "load" {
-				a.say("sets: "+a.listSets(), false)
-			}
-			return
-		}
-		switch p.kind {
-		case "save":
-			a.saveSet(name)
-		case "midi":
-			var n int
-			if _, err := fmt.Sscanf(name, "%d", &n); err != nil || n < 1 || n > 600 {
-				a.say("seconds must be a number from 1 to 600", true)
-				return
-			}
-			a.exportMIDI(n)
-		default:
-			a.loadSet(name)
-		}
+		a.finishPrompt(p.kind, name)
 	case k.kind == kBackspace:
 		if len(p.buf) > 0 {
 			p.buf = p.buf[:len(p.buf)-1]
@@ -857,6 +792,48 @@ func (a *App) promptKey(k key) {
 		p.buf = append(p.buf, k.r)
 	case k.kind == kPaste:
 		p.buf = append(p.buf, []rune(strings.TrimSpace(strings.SplitN(k.text, "\n", 2)[0]))...)
+	}
+}
+
+// finishPrompt acts on what was typed for a question of this kind.
+func (a *App) finishPrompt(kind, name string) {
+	switch kind {
+	case "oscaddr":
+		if err := validAddr(name); err != nil {
+			a.say(err.Error(), true)
+			return
+		}
+		a.cfg.OSCAddr = name
+		a.applyOutputs()
+		a.saveConfig()
+		return
+	case "mididev":
+		a.cfg.MidiDev = name
+		a.applyOutputs()
+		a.saveConfig()
+		if a.cfg.MidiDev != "" {
+			a.say("MIDI output: "+a.cfg.MidiDev, false)
+		}
+		return
+	}
+	if name == "" {
+		if kind == "load" {
+			a.say("sets: "+a.listSets(), false)
+		}
+		return
+	}
+	switch kind {
+	case "save":
+		a.saveSet(name)
+	case "midi":
+		var n int
+		if _, err := fmt.Sscanf(name, "%d", &n); err != nil || n < 1 || n > 600 {
+			a.say("seconds must be a number from 1 to 600", true)
+			return
+		}
+		a.exportMIDI(n)
+	default:
+		a.loadSet(name)
 	}
 }
 

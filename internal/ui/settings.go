@@ -103,6 +103,7 @@ func (a *App) changeSetting(i, d int, enter bool) {
 		for k, t := range themes {
 			if t == a.th {
 				a.th = themes[((k+d)%n+n)%n]
+				a.usePalette()
 				break
 			}
 		}

@@ -3,7 +3,12 @@
 github.com/CurtisD4q/pmin-base/clean
 github.com/CurtisD4q/pmin-base/selfinstall
 github.com/CurtisD4q/pmin-base/text
+github.com/CurtisD4q/pmin-base/util
 github.com/CurtisD4q/pmin-base/values
+# github.com/CurtisD4q/pmin-kit v0.0.0-20261127012236-12847fa28de1
+## explicit; go 1.21
+github.com/CurtisD4q/pmin-kit
+github.com/CurtisD4q/pmin-kit/theme
 # github.com/ebitengine/oto/v3 v3.5.1
 ## explicit; go 1.25.0
 github.com/ebitengine/oto/v3

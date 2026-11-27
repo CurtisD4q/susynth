@@ -1,32 +1,32 @@
 
- ◇ susynth › Sounds · night-drive • · no audio
+ ◇ susynth › ♪ Sounds · Sonic Pi names, played by susynth's own synthesised sound…   ⏎ opens or folds Synths
  ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-      Sounds · Sonic Pi names, played by susynth's own synthesised sounds · ←→ fold a group
-      ───────────────────────────────────────────────────────────────────────────────────────────────────────
-  ▶     ▾ Synths  46
-  ≡        beep                 pure sine (Sonic Pi's default)
-  ●        sine                 pure sine
-  ♪        mod_sine             sine
-  ⚙        mod_beep             sine
-  ?        saw                  saw, gently low-passed
-  ◈        mod_saw              saw
-           tb303                acid bass: saw, use cutoff:
-           zawa                 saw
-           growl                saw
-           winwood_lead         saw lead
-           bass_foundation      saw bass
-           bass_highend         saw bass
-           dsaw                 detuned saws
-           mod_dsaw             detuned saws
-           supersaw             five detuned saws
-           prophet              wide analogue-style pad
-           blade                detuned saws
-           hoover               detuned saws
-        ───────────────────────────────────────────────────────────────────────────────────────────────────
-         use_synth :name, then play notes; each plays the nearest susynth voice
-         Enter or ←→ opens and folds this group
+      ▾ Synths                                                                                              █
+        beep                 pure sine (Sonic Pi's default)                                        ▶ preview█
+  ▶     sine                 pure sine                                                             ▶ preview█
+  ≡     mod_sine             sine                                                                  ▶ preview│
+  ●     mod_beep             sine                                                                  ▶ preview│
+  ♪     saw                  saw, gently low-passed                                                ▶ preview│
+  ⚙     mod_saw              saw                                                                   ▶ preview│
+  ?     tb303                acid bass: saw, use cutoff:                                           ▶ preview│
+  ◈     zawa                 saw                                                                   ▶ preview│
+        growl                saw                                                                   ▶ preview│
+        winwood_lead         saw lead                                                              ▶ preview│
+        bass_foundation      saw bass                                                              ▶ preview│
+        bass_highend         saw bass                                                              ▶ preview│
+        dsaw                 detuned saws                                                          ▶ preview│
+        mod_dsaw             detuned saws                                                          ▶ preview│
+        supersaw             five detuned saws                                                     ▶ preview│
+        prophet              wide analogue-style pad                                               ▶ preview│
+        blade                detuned saws                                                          ▶ preview│
+        hoover               detuned saws                                                          ▶ preview│
+        tech_saws            detuned saws                                                          ▶ preview│
+        square               square, low-passed                                                    ▶ preview│
+        pulse                square                                                                ▶ preview│
+     ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
-
-
-  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off               ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit
+      use_synth :name, then play notes; each plays the nearest susynth voice
+      Enter or ←→ opens and folds this group
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ↑↓ select   ⏎ preview   ←→ fold   i insert   Esc m pages   ^Q quit

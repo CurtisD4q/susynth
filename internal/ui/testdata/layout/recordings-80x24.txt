@@ -1,16 +1,16 @@
 
- ◇ susynth › Recordings · night-drive • · no audio
+ ◇ susynth › ● Recordings · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────
 
-      Recordings · 2 recorded · /tmp/susynth-layout/data/recordings
-      ─────────────────────────────────────────────────────────────────────────
-  ▶      File                              Length      Size  Recorded
-  ≡      ────────────────────────────────  ──────  ────────  ────────
-  ●     ›set-20261120-2100.wav               3:25   37.5 MB  2026-11-20 21:00
-  ♪      set-20261119-2200.mid               midi       4 B  2026-11-19 21:30
-  ⚙
+     Recordings  ⏎ opens set-20261120-2100.…  Details
+     ──────────────────────────────────────── ─────────────────────────────────
+  ▶      File             Length     Size     set-20261120-2100.wav
+  ≡      ───────────────  ──────  ───────     3:25 · 37.5 MB
+  ●    ▸ set-20261120-2…    3:25  37.5 MB     recorded 2026-11-20 21:00
+  ♪      set-20261119-2…    midi      4 B
+  ⚙                                           WAV audio, 16-bit stereo at 4800…
   ?
-  ◈
+  ◈                                           /tmp/susynth-layout/data/recordi…
 
 
 
@@ -20,5 +20,5 @@
 
 
 
-
-  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ↑↓ select   ⏎ path   d delete   Esc m pages   ^Q quit

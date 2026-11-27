@@ -1,16 +1,16 @@
 
- ◇ susynth › Recordings · night-drive • · no audio
+ ◇ susynth › ● Recordings · night-drive • · no audio
  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-      Recordings · 2 recorded · /tmp/susynth-layout/data/recordings                         Details
-      ───────────────────────────────────────────────────────────────────────────────────── ───────────────────────────────────────────────────────────────────
-  ▶      File                              Length      Size                                  set-20261120-2100.wav
-  ≡      ────────────────────────────────  ──────      ────                                  3:25 · 37.5 MB
-  ●     ›set-20261120-2100.wav               3:25   37.5 MB                                  recorded 2026-11-20 21:00
-  ♪      set-20261119-2200.mid               midi       4 B
-  ⚙                                                                                          WAV audio, 16-bit stereo at 48000 Hz
+     Recordings · 2 recorded · /tmp/susynth-layout/data/…  ⏎ opens set-20261120-2100.wav  Details
+     ──────────────────────────────────────────────────────────────────────────────────── ─────────────────────────────────────────────────────────────────────
+  ▶      File                   Length     Size                                           set-20261120-2100.wav
+  ≡      ─────────────────────  ──────  ───────                                           3:25 · 37.5 MB
+  ●    ▸ set-20261120-2100.wav    3:25  37.5 MB                                           recorded 2026-11-20 21:00
+  ♪      set-20261119-2200.mid    midi      4 B
+  ⚙                                                                                       WAV audio, 16-bit stereo at 48000 Hz
   ?
-  ◈                                                                                          /tmp/susynth-layout/data/recordings/set-20261120-2100.wav
+  ◈                                                                                       /tmp/susynth-layout/data/recordings/set-20261120-2100.wav
 
 
 
@@ -41,5 +41,5 @@
 
 
 
-
-  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off                                                                 ^E run  ^G stop  ^P play  ^R rec  ^S/^O set  ^Q quit
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ↑↓ select   ⏎ path   d delete   Esc m pages   ^Q quit

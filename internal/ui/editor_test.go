@@ -1,6 +1,8 @@
 package ui
 
 import (
+	mint "github.com/CurtisD4q/pmin-kit"
+
 	"testing"
 	"time"
 )
@@ -87,22 +89,29 @@ func feed(s string) func(time.Duration) (byte, bool) {
 	}
 }
 
-func TestShiftArrowsAndBracketedPaste(t *testing.T) {
-	for in, want := range map[string]key{
-		"1;2A": {kind: kUp, shift: true},
-		"1;2D": {kind: kLeft, shift: true},
-		"1;2H": {kind: kHome, shift: true},
-		"5;2~": {kind: kPgUp, shift: true},
-		"1;5C": {kind: kRight},         // Ctrl+Right: not a selection
-		"1;3A": {kind: kUp, alt: true}, // Alt+Up
-		"B":    {kind: kDown},
+func TestShiftArrowsAndAltKeys(t *testing.T) {
+	for _, c := range []struct {
+		in   mint.Key
+		want key
+	}{
+		{mint.Key{Name: "up", Special: true, Shift: true}, key{kind: kUp, shift: true}},
+		{mint.Key{Name: "left", Special: true, Shift: true}, key{kind: kLeft, shift: true}},
+		{mint.Key{Name: "home", Special: true, Shift: true}, key{kind: kHome, shift: true}},
+		{mint.Key{Name: "pgup", Special: true, Shift: true}, key{kind: kPgUp, shift: true}},
+		{mint.Key{Name: "right", Special: true, Ctrl: true}, key{kind: kRight}}, // Ctrl+Right: not a selection
+		{mint.Key{Name: "up", Special: true, Alt: true}, key{kind: kUp, alt: true}},
+		{mint.Key{Name: "M-m", Special: true}, key{kind: kRune, r: 'm', alt: true}},
+		{mint.Key{Name: "M-\r", Special: true}, key{kind: kEnter, alt: true}},
+		{mint.Key{Name: "esc", Special: true}, key{kind: kEsc}},
+		{mint.Key{Name: "\x05"}, key{kind: kCtrl, r: 'e'}},
+		{mint.Key{Name: "\r"}, key{kind: kEnter}},
+		{mint.Key{Name: "\x7f"}, key{kind: kBackspace}},
+		{mint.Key{Name: "f3", Special: true}, key{kind: kFn, r: 3}},
+		{mint.Key{Name: "é"}, key{kind: kRune, r: 'é'}},
 	} {
-		if got := parseCSI(feed(in)); got != want {
-			t.Errorf("%q: got %+v want %+v", in, got, want)
+		got, ok := keyFrom(&c.in)
+		if !ok || got != c.want {
+			t.Errorf("%+v: got %+v want %+v", c.in, got, c.want)
 		}
-	}
-	got := parseCSI(feed("200~live_loop :a do\r  play 60\x1b[201~"))
-	if got.kind != kPaste || got.text != "live_loop :a do\r  play 60" {
-		t.Errorf("paste: %+v", got)
 	}
 }

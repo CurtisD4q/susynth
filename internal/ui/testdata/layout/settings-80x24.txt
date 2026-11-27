@@ -1,24 +1,24 @@
 
- ◇ susynth › Settings · night-drive • · no audio
+ ◇ susynth › ⚙ Settings · saved automatically                 ←→ changes Theme
  ─────────────────────────────────────────────────────────────────────────────
 
-      Settings · saved automatically
-      ─────────────────────────────────────────────────────────────────────────
-  ▶      Theme                   ‹ default                      ›
-  ≡      Audio output            ‹                              ›
-  ●      Tempo (BPM)             ‹ 60                           ›
-  ♪      Start on next bar       ‹ off                          ›
-  ⚙      Internal synth          ‹ off                          ›
-  ?      OSC → SuperDirt         ‹ off                          ›
-  ◈      OSC address             ‹                              ›
-         MIDI output             ‹ off                          ›
-         MIDI clock              ‹ off                          ›
-         Samples                 ‹ 0 banks, 0 files             ›
-         Reopen last set         ‹ off                          ›
-         Screen refresh          ‹ 0 Hz                         ›
-        ─────────────────────────────────────────────────────────────────────
-         default, large (projector) or contrast (washed-out projectors)
+      ▸ Theme                                                      ‹ default ›
+        Audio output                                                     ‹ — ›
+  ▶     Tempo (BPM)                                                     ‹ 60 ›
+  ≡     Start on next bar                                              ‹ off ›
+  ●     Internal synth                                                 ‹ off ›
+  ♪     OSC → SuperDirt                                                ‹ off ›
+  ⚙     OSC address                                                      ‹ — ›
+  ?     MIDI output                                                    ‹ off ›
+  ◈     MIDI clock                                                     ‹ off ›
+        Samples                                           ‹ 0 banks, 0 files ›
+        Reopen last set                                                ‹ off ›
+        Screen refresh                                                ‹ 0 Hz ›
 
 
 
-  ▶ play  60 bpm  bar 1  ● ○ ○ ○  rec off
+     ─────────────────────────────────────────────────────────────────────────
+
+      default, large (projector) or contrast (washed-out projectors)
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ↑↓ select   ←→ change   ⏎ edit   Esc m pages   ^Q quit

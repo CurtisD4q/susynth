@@ -81,12 +81,6 @@ func (f *frame) hline(x, y, w int, r rune, s style) {
 	}
 }
 
-func (f *frame) vline(x, y, h int, r rune, s style) {
-	for i := 0; i < h; i++ {
-		f.put(x, y+i, r, s)
-	}
-}
-
 func sgr(s style) string {
 	var b strings.Builder
 	b.WriteString("\x1b[0")

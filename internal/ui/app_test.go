@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/susynth/susynth/internal/engine"
 )
@@ -20,6 +21,7 @@ func testApp() *App {
 		th:    themeByName("default"),
 		marks: map[int]bool{},
 		page:  pagePlay,
+		ps:    pageState{closed: map[string]bool{}},
 	}
 	a.lineSnap = a.ed.Lines()
 	a.eng.Play()
@@ -29,8 +31,7 @@ func testApp() *App {
 }
 
 func frameText(a *App) string {
-	f, _, _ := a.draw(110, 32)
-	return strings.Join(f.rows(), "\n")
+	return strings.Join(a.drawRows(110), "\n")
 }
 
 func TestEscDoesNotClearOrMute(t *testing.T) {
@@ -93,8 +94,7 @@ func TestMuteAndStopNeedAShownPrefix(t *testing.T) {
 
 func TestDeletedLoopIsMarkedNotInCode(t *testing.T) {
 	a := testApp()
-	wide, _, _ := a.draw(140, 32)
-	got := strings.Join(wide.rows(), "\n")
+	got := strings.Join(a.drawText(140, 32), "\n")
 	if !strings.Contains(got, "not in code") {
 		t.Fatal("drums was removed from the text but is not marked")
 	}
@@ -282,11 +282,10 @@ func TestPageKeysLeaveTransportAndTrackShortcuts(t *testing.T) {
 	}
 }
 
-func TestRailShowsEscNumbers(t *testing.T) {
+func TestTheTrailAndThePageIcons(t *testing.T) {
 	a := testApp()
-	wide, _, _ := a.draw(110, 32)
-	title := plain(wide.rows()[1])
-	screen := plain(strings.Join(wide.rows(), "\n"))
+	rows := a.drawRows(110)
+	screen := strings.Join(rows, "\n")
 	if strings.Contains(screen, "F6") {
 		t.Fatalf("the screen advertises a function key:\n%s", screen)
 	}
@@ -294,50 +293,30 @@ func TestRailShowsEscNumbers(t *testing.T) {
 	if strings.Contains(screen, "Shift+arrows select") {
 		t.Fatalf("the hint line is still drawn:\n%s", screen)
 	}
-	// The pages run down the left, numbered as Esc then the number opens
-	// them; the top line is the trail.
-	// Shut, the rail is the icons only; Esc m opens it with names and numbers.
-	if strings.Contains(screen, "Pages") || strings.Contains(screen, "Recordings") || !strings.Contains(screen, "♪") {
-		t.Errorf("the shut rail is wrong:\n%s", screen)
+	// The top line is the trail; the pages are icons down the left, and
+	// Esc m opens them as Mint's pop-up.
+	if !strings.Contains(rows[1], "susynth › ▶ Play") {
+		t.Errorf("trail %q", rows[1])
 	}
-	a.handleKey(key{kind: kRune, r: 'm', alt: true})
-	open := plain(strings.Join(a.drawRows(110), "\n"))
-	a.handleKey(key{kind: kEsc})
-	for _, want := range []string{"Pages", "▶ Play", "≡ Sets", "● Recordings", "♪ Sounds", "⚙ Settings", "? Help", "◈ Perform"} {
-		if !strings.Contains(open, want) {
-			t.Errorf("the open rail lacks %q:\n%s", want, open)
+	for _, icon := range pageIcons {
+		if !strings.Contains(screen, icon) {
+			t.Errorf("no %s icon:\n%s", icon, screen)
 		}
 	}
-	if !strings.Contains(title, "susynth › Play") {
-		t.Errorf("trail %q", title)
+	if strings.Contains(screen, "Recordings") {
+		t.Errorf("the shut pages show their names:\n%s", screen)
 	}
-	if strings.Contains(title, "F1") || strings.Contains(title, "F4") {
-		t.Fatalf("title still advertises function keys: %q", title)
+	if !strings.Contains(screen, "Esc m pages") {
+		t.Errorf("the footer does not say how to open the pages:\n%s", screen)
 	}
 
 	a.gotoPage(pageSounds)
-	if title = plain(a.drawRow(110, 1)); !strings.Contains(title, "susynth › Sounds") {
+	if title := a.drawRows(110)[1]; !strings.Contains(title, "susynth › ♪ Sounds") {
 		t.Fatalf("sounds trail %q", title)
-	}
-	// Esc m moves the keys into the rail; Enter opens the page chosen.
-	a.gotoPage(pagePlay)
-	a.handleKey(key{kind: kRune, r: 'm', alt: true})
-	if !a.railOn {
-		t.Fatal("Esc m did not open the rail")
-	}
-	a.handleKey(key{kind: kDown})
-	a.handleKey(key{kind: kEnter})
-	if a.railOn || a.page != pageSets {
-		t.Fatalf("Enter in the rail: rail %v, page %v", a.railOn, a.page)
-	}
-	a.handleKey(key{kind: kRune, r: 'm', alt: true})
-	a.handleKey(key{kind: kEsc})
-	if a.railOn || a.page != pageSets {
-		t.Fatalf("Esc in the rail: rail %v, page %v", a.railOn, a.page)
 	}
 
 	a.gotoPage(pageHelp)
-	help := plain(strings.Join(a.drawRows(110), "\n"))
+	help := strings.Join(a.drawRows(110), "\n")
 	for _, want := range []string{"Esc 1 … Esc 7", "Esc f  /  Esc b"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help page missing %q", want)
@@ -365,14 +344,62 @@ func TestRailShowsEscNumbers(t *testing.T) {
 	}
 }
 
-func (a *App) drawRow(w, y int) string {
-	f, _, _ := a.draw(w, 32)
-	return f.rows()[y]
+// drawRows is the page as Mint shows it, w columns by 32 rows, as text.
+func (a *App) drawRows(w int) []string { return a.drawText(w, 32) }
+
+func (a *App) drawText(w, h int) []string {
+	return gridText(a.app().FrameText(int(a.page)+1, h, w), h, w)
 }
 
-func (a *App) drawRows(w int) []string {
-	f, _, _ := a.draw(w, 32)
-	return f.rows()
+// gridText lays a frame out on an h × w grid of plain text.
+func gridText(frame string, h, w int) []string {
+	grid := make([][]rune, h)
+	for i := range grid {
+		grid[i] = []rune(strings.Repeat(" ", w))
+	}
+	row, col := 0, 0
+	for i := 0; i < len(frame); {
+		if frame[i] == 0x1b && i+1 < len(frame) && frame[i+1] == '[' {
+			j := i + 2
+			for j < len(frame) && (frame[j] < 0x40 || frame[j] > 0x7e) {
+				j++
+			}
+			if j < len(frame) && frame[j] == 'H' {
+				r, c, _ := strings.Cut(frame[i+2:j], ";")
+				row, col = atoi(r)-1, atoi(c)-1
+			}
+			i = j + 1
+			continue
+		}
+		r, n := utf8.DecodeRuneInString(frame[i:])
+		i += n
+		if r < ' ' {
+			continue
+		}
+		if row >= 0 && row < h && col >= 0 && col < w {
+			grid[row][col] = r
+		}
+		col++
+	}
+	out := make([]string, h)
+	for i, g := range grid {
+		out[i] = string(g)
+	}
+	return out
+}
+
+func atoi(s string) int {
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 1
+		}
+		n = n*10 + int(c-'0')
+	}
+	if n == 0 {
+		return 1
+	}
+	return n
 }
 
 func TestRunBlockIsHighlighted(t *testing.T) {
