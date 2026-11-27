@@ -67,8 +67,7 @@ The pages are icons down the left. Press `m` to open them as a pop-up (in the ed
 Sonic Pi's synth, sample and effect **names** work, but the sounds are susynth's own
 synthesised voices (no SuperCollider, no sample files): `:prophet` plays a supersaw,
 `:bd_haus` plays the built-in kick, and so on. The Sounds page lists every name. Effects map onto
-susynth's filters, bit crusher, distortion, echo and reverb; effects with no equivalent are
-skipped with a note. Put your own `.wav` files in the samples folder to use real samples
+susynth's own (below); effects with no equivalent are skipped with a note. Put your own `.wav` files in the samples folder to use real samples
 (`sample :mybank, 2`, `sample :kick`, or `sample "~/path/to/file.wav"`).
 
 The engine works in 32-bit float to the sound card and records 24-bit WAVs. Synths have
@@ -465,9 +464,12 @@ sync, ring/tick, define, hashes, interpolation, chords, spread, effects, error l
 recovery from a loop that never sleeps), Ruby → engine → audio rendered offline and checked
 for beats, live redefinition in real time, the editor through a pty including a first launch
 with an empty cache, rendered levels (no clipping), MIDI export, cross-compiles for five targets.
+Sound quality is measured by tests (`internal/audiotest`): aliasing, distortion, clicks on
+changes, dither, reverb decay and density, echo, filter and EQ responses, envelopes, compression.
 
-**Not verified:** a real sound card, macOS, Windows, a real MIDI device or SuperDirt, and how
-close each Sonic Pi synth sounds to the original (it won't sound the same).
+**Not verified:** a real sound card, macOS, Windows, a real MIDI device or SuperDirt, listening
+(every sound change was measured, not heard), and how close each Sonic Pi synth sounds to the
+original (it won't sound the same).
 
 ## Known gaps
 
