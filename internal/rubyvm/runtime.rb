@@ -958,6 +958,7 @@ def __fx(out, bpm)
       out[:dly] = [out[:dly].to_f, (f[:mix] || 1).to_f * 0.6].max
       out[:dtime] = phase
       out[:dfb] = (f[:feedback] || 10**(-3 * phase / [decay, 0.01].max)).to_f.clamp(0, 0.95)
+      out[:dpp] = name == :ping_pong ? 1 : 0
     when :lpf, :rlpf, :nlpf, :nrlpf
       c = (f[:cutoff] || 100).to_f
       out[:flpf] = out[:flpf] ? [out[:flpf], c].min : c

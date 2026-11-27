@@ -101,6 +101,7 @@ type Engine struct {
 	fx           *fxBus
 	delaySeconds float64
 	delayFB      float64
+	pingPong     bool
 	roomSize     float64
 	roomDamp     float64
 	dsend, rsend []float32
@@ -266,12 +267,14 @@ func (e *Engine) BPM() float64 {
 	return e.bpm
 }
 
-// SetDelay sets the echo bus time and feedback (from with_fx :echo).
-func (e *Engine) SetDelay(seconds, feedback float64) {
+// SetDelay sets the echo bus time, feedback and mode (from with_fx :echo or
+// :ping_pong). A new time glides in, so changing it never clicks.
+func (e *Engine) SetDelay(seconds, feedback float64, pingPong bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.delaySeconds = math.Max(0.001, math.Min(seconds, 3.9))
 	e.delayFB = math.Max(0, math.Min(feedback, 0.95))
+	e.pingPong = pingPong
 }
 
 // SetReverb sets the reverb's room size and damping, both 0..1 (from
@@ -508,9 +511,9 @@ func (e *Engine) Render(n int) []float32 {
 	e.startHits(n)
 	e.clock(n)
 	e.mixVoices(mix, n)
-	ds := int(e.delaySeconds * SampleRate)
 	e.fx.rev.set(e.roomSize, e.roomDamp)
-	e.fx.process(mix, e.dsend, e.rsend, ds, float32(e.delayFB))
+	e.fx.echo.set(e.delaySeconds, e.delayFB, e.pingPong)
+	e.fx.process(mix, e.dsend, e.rsend)
 	out := mix
 	for i, v := range mix {
 		out[i] = limit(v) * outScale
