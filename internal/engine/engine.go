@@ -38,6 +38,7 @@ type Hit struct {
 	Gate   int // frames a tone is held before its release
 	Label  byte
 	Line   int // source line, for the editor
+	Run    int // the run that made the code, for the editor
 }
 
 type stamp struct {
@@ -56,6 +57,8 @@ type track struct {
 	lastHit    int64
 	ended      int64
 	src        string
+	fstep      int // low-pass filter step, 0 = open
+	filter     trackFilter
 }
 
 // Engine renders audio. All methods are safe for concurrent use.
@@ -94,6 +97,13 @@ type Engine struct {
 	startPending   bool
 	outputDelay    time.Duration
 	lastClock      int64
+
+	// live controls (live.go)
+	muteNew  bool
+	fadeFrom int64
+	fadeLen  int64
+	fadeDone bool
+	lit      []litHit
 }
 
 // Voice aliases synth.Voice so engine callers need one import.
@@ -203,6 +213,8 @@ func (e *Engine) stopLocked() {
 	e.queue = nil
 	e.tracks = map[string]*track{}
 	e.roll = nil
+	e.lit = nil
+	e.fadeLen = 0
 	for _, v := range e.voices {
 		v.Kill()
 	}
@@ -295,6 +307,9 @@ func (e *Engine) number(t *track) {
 func (e *Engine) ThreadStarted(name string, loop bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if old, ok := e.tracks[name]; e.muteNew && (!ok || old.refs == 0) {
+		e.track(name).mute = true
+	}
 	t := e.track(name)
 	t.refs++
 	t.loop = t.loop || loop
@@ -500,6 +515,9 @@ func (e *Engine) startHits(n int) {
 		if !audible(t, solo) {
 			continue
 		}
+		if h.Line > 0 && !isOld(t.name) {
+			e.lit = append(e.lit, litHit{at: h.At, line: h.Line, run: h.Run})
+		}
 		off := h.At - e.samples
 		if off < 0 {
 			off = 0
@@ -551,26 +569,36 @@ func (e *Engine) clock(n int) {
 func (e *Engine) mixVoices(mix []float32, n int) {
 	solo := e.anySolo()
 	gains := map[int]float32{auditionTrack: 1}
+	filtered := map[int]*track{}
+	mid := e.samples + int64(n/2)
 	for _, t := range e.tracks {
 		if t.id > 0 && audible(t, solo) {
-			gains[t.id] = float32(t.level)
+			gains[t.id] = float32(t.level) * e.deckGain(t, mid)
+			if t.filter.active(t.fstep) {
+				t.filter.bufs(n)
+				filtered[t.id] = t
+			}
 		}
 	}
 	live := e.voices[:0]
 	for _, v := range e.voices {
 		g := gains[v.Track]
+		dry, dl, rv := mix, e.dsend, e.rsend
+		if t := filtered[v.Track]; t != nil {
+			dry, dl, rv = t.filter.buf[0], t.filter.buf[1], t.filter.buf[2]
+		}
 		for i := 0; i < n && !v.Done(); i++ {
 			l, r := v.Next()
 			l, r = l*g*0.8, r*g*0.8
-			mix[i*2] += l
-			mix[i*2+1] += r
+			dry[i*2] += l
+			dry[i*2+1] += r
 			if v.SendDelay > 0 {
-				e.dsend[i*2] += l * v.SendDelay
-				e.dsend[i*2+1] += r * v.SendDelay
+				dl[i*2] += l * v.SendDelay
+				dl[i*2+1] += r * v.SendDelay
 			}
 			if v.SendRoom > 0 {
-				e.rsend[i*2] += l * v.SendRoom
-				e.rsend[i*2+1] += r * v.SendRoom
+				rv[i*2] += l * v.SendRoom
+				rv[i*2+1] += r * v.SendRoom
 			}
 		}
 		if !v.Done() {
@@ -578,6 +606,9 @@ func (e *Engine) mixVoices(mix []float32, n int) {
 		}
 	}
 	e.voices = live
+	for _, t := range filtered {
+		t.filter.run(FilterHz(t.fstep), [3][]float32{mix, e.dsend, e.rsend}, n)
+	}
 }
 
 // barSamples is one bar at the current tempo.
@@ -588,6 +619,24 @@ func (e *Engine) barSamples() int64 {
 // prune drops old step history and finished tracks that have gone quiet.
 func (e *Engine) prune() {
 	keep := e.samples - 3*e.barSamples()
+	if len(e.lit) > 0 {
+		i := 0
+		for i < len(e.lit) && (e.lit[i].at < e.samples-litKeep || len(e.lit)-i > 2000) {
+			i++
+		}
+		if i > 0 {
+			e.lit = append(e.lit[:0:0], e.lit[i:]...)
+		}
+	}
+	if e.fadeLen > 0 && e.fadeDone {
+		old := false
+		for _, t := range e.tracks {
+			old = old || isOld(t.name)
+		}
+		if !old {
+			e.fadeLen, e.fadeDone = 0, false
+		}
+	}
 	if len(e.roll) > 0 {
 		i := 0
 		for i < len(e.roll) && (e.roll[i].End < e.samples-rollKeep*SampleRate || len(e.roll)-i > 4000) {
@@ -624,6 +673,9 @@ type TrackView struct {
 	Mute  bool
 	Solo  bool
 	Level float64
+	Old   bool    // part of the old set after a mix (Name starts with OldPrefix)
+	Fade  float64 // the old set's fade level now, 1 = full
+	LPF   float64 // the track filter's cutoff in Hz, 0 = open
 	Steps [StepCells]StepCell
 }
 
@@ -671,7 +723,8 @@ func (e *Engine) Snapshot() View {
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].id < list[j].id })
 	for _, t := range list {
-		tv := TrackView{ID: t.id, Name: t.name, Loop: t.loop, Src: t.src, Mute: t.mute, Solo: t.solo, Level: t.level}
+		tv := TrackView{ID: t.id, Name: t.name, Loop: t.loop, Src: t.src, Mute: t.mute, Solo: t.solo, Level: t.level,
+			Old: isOld(t.name), Fade: float64(e.deckGain(t, heard)), LPF: FilterHz(t.fstep)}
 		for _, s := range t.hist {
 			cell := int((e.beatAt(s.at) - barStart) / BeatsPerCycle * StepCells)
 			if cell >= 0 && cell < StepCells {

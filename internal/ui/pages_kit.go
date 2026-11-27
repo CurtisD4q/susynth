@@ -116,7 +116,7 @@ func (a *App) listScreen(s *mint.Screen, p page) {
 					return mint.Mark{}
 				},
 				OnSelect: func(c *mint.Ctx, i int, _ []string) { a.onRow(c, i, key{kind: kEnter}) },
-				Empty:    "the set list is empty — open Esc 2 Sets, select a set and press a to add it",
+				Empty:    "the set list is empty — press m, open Sets, select a set and press a to add it",
 			})}},
 		}
 	case pageSettings:

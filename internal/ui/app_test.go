@@ -1,11 +1,14 @@
 package ui
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
+	mint "github.com/CurtisD4q/pmin-kit"
 	"github.com/susynth/susynth/internal/engine"
 )
 
@@ -40,7 +43,7 @@ func TestEscDoesNotClearOrMute(t *testing.T) {
 	if !strings.Contains(frameText(a), "Esc…") {
 		t.Fatal("transport has no pending-Esc indicator")
 	}
-	// 8 and 9 are not pages. 1–7 switch pages and are covered separately.
+	// A digit after Esc changes nothing; it says how the track keys work.
 	a.handleKey(key{kind: kRune, r: '9'})
 	for _, tr := range a.eng.Snapshot().Tracks {
 		if tr.Mute {
@@ -156,21 +159,22 @@ func TestPageKeysSkipTheEditor(t *testing.T) {
 		t.Fatalf("editor received %q", got)
 	}
 
-	// Esc then a tab number jumps there and does not insert the digit.
-	a.handleKey(key{kind: kEsc})
-	a.handleKey(key{kind: kRune, r: '4'})
-	if a.page != pageSounds {
-		t.Fatalf("Esc 4 -> page %d, want Sounds", a.page)
+	// Esc or Alt with a digit is no page shortcut, and inserts nothing.
+	for r := '0'; r <= '9'; r++ {
+		a.handleKey(key{kind: kEsc})
+		a.handleKey(key{kind: kRune, r: r})
+		if a.page != pagePlay {
+			t.Fatalf("Esc %c changed page to %d", r, a.page)
+		}
+		a.handleKey(key{kind: kRune, r: r, alt: true})
+		if a.page != pagePlay {
+			t.Fatalf("Alt+%c changed page to %d", r, a.page)
+		}
 	}
 	if a.ed.Text() != got {
-		t.Fatalf("Esc 4 inserted into the editor: %q", a.ed.Text())
+		t.Fatalf("Esc or Alt with a digit typed into the editor: %q", a.ed.Text())
 	}
-
-	// Alt+digit is the same jump, in one chord.
-	a.handleKey(key{kind: kRune, r: '5', alt: true})
-	if a.page != pageSettings {
-		t.Fatalf("Alt+5 -> page %d, want Settings", a.page)
-	}
+	a.gotoPage(pageSettings)
 
 	// Esc f / Esc b cycle from the page Esc was pressed on, wrapping.
 	a.handleKey(key{kind: kEsc})
@@ -195,7 +199,7 @@ func TestPageKeysSkipTheEditor(t *testing.T) {
 		t.Fatalf("Alt+f from Perform -> page %d, want Play", a.page)
 	}
 
-	// Older cycle keys and F-keys still move, and never insert.
+	// Older cycle keys still move, and never insert.
 	text := a.ed.Text()
 	a.handleKey(key{kind: kRune, r: ']', alt: true})
 	if a.page != pageSets {
@@ -205,13 +209,12 @@ func TestPageKeysSkipTheEditor(t *testing.T) {
 	if a.page != pagePlay {
 		t.Fatalf("Alt+[ -> page %d, want Play", a.page)
 	}
-	a.handleKey(key{kind: kFn, r: 7})
-	if a.page != pagePerform {
-		t.Fatalf("F7 -> page %d, want Perform", a.page)
-	}
-	a.handleKey(key{kind: kFn, r: 8})
-	if a.page != pagePerform {
-		t.Fatalf("F8 changed page to %d", a.page)
+	// Function keys do nothing: they are not read at all.
+	for i := 1; i <= 12; i++ {
+		name := fmt.Sprintf("f%d", i)
+		if k, ok := keyFrom(&mint.Key{Name: name, Special: true}); ok {
+			t.Fatalf("%s was read as %+v", name, k)
+		}
 	}
 	if a.ed.Text() != text {
 		t.Fatal("a page key changed the editor")
@@ -315,7 +318,7 @@ func TestTheTrailAndThePageIcons(t *testing.T) {
 
 	a.gotoPage(pageHelp)
 	help := strings.Join(a.drawRows(110), "\n")
-	for _, want := range []string{"Esc 1 … Esc 7", "Esc f  /  Esc b"} {
+	for _, want := range []string{"the pages pop-up", "Esc f  /  Esc b"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help page missing %q", want)
 		}
@@ -331,13 +334,16 @@ func TestTheTrailAndThePageIcons(t *testing.T) {
 		all.WriteByte('\n')
 	}
 	body := all.String()
-	for _, want := range []string{"Esc 4 Sounds", "Esc 5 Settings", "Esc 1 … Esc 7", "Esc f  /  Esc b",
+	for _, want := range []string{"press Esc m there", "the Sounds page", "the Settings page", "Esc f  /  Esc b",
 		"a add to the set list", "Enter show the path", "i insert the example", "[ ] reorder", "←→ change"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("help text missing %q", want)
 		}
 	}
-	if strings.Contains(body, "F1 … F7") || strings.Contains(body, "F4") || strings.Contains(body, "F5") || strings.Contains(body, "F2") {
+	if regexp.MustCompile(`(Esc|Alt\+) ?[0-9]`).MatchString(body) {
+		t.Fatalf("help text still documents Esc and a number:\n%s", body)
+	}
+	if regexp.MustCompile(`\bF[0-9]`).MatchString(body) {
 		t.Fatalf("help text still documents function keys:\n%s", body)
 	}
 }

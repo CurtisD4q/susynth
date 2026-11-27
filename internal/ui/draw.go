@@ -53,6 +53,7 @@ func (a *App) drawEditor(f *frame, x, y, w, h int) (int, int) {
 		bad[e.Line] = true
 	}
 	bf, bl, bok := rubyvm.BlockRange(a.ed.Text(), a.ed.row+1)
+	lit := a.litRows()
 	for i := 0; i < textH; i++ {
 		row := a.ed.top + i
 		if row >= len(a.ed.lines) {
@@ -77,6 +78,14 @@ func (a *App) drawEditor(f *frame, x, y, w, h int) (int, int) {
 		}
 		f.text(x+1, yy, fmt.Sprintf("%2d", row+1), num, 2)
 		a.drawCode(f, x+gutterW, yy, a.ed.lines[row], a.ed.left, textW, base)
+		if _, on := lit[row]; on {
+			// the sound this line made is starting now
+			s, e := litSpan(a.ed.lines[row])
+			for c := max(s, a.ed.left); c < e && c-a.ed.left < textW; c++ {
+				f.tint(x+gutterW+c-a.ed.left, yy, style{fg: th.Lit.fg, bg: th.Lit.bg, bold: true})
+			}
+			f.text(x+1, yy, fmt.Sprintf("%2d", row+1), th.Lit, 2)
+		}
 		// selection: the selected characters, plus one cell for a selected line break
 		for c := a.ed.left; c <= len(a.ed.lines[row]) && c-a.ed.left < textW; c++ {
 			if a.ed.Selected(row, c) {
@@ -239,7 +248,8 @@ func (a *App) drawTracks(f *frame, x, y, w, h int, v engine.View) {
 
 		f.text(x, yy, fmt.Sprintf("%d", t.ID), th.Muted, 0)
 		nameW := 12
-		f.text(x+2, yy, ":"+t.Name, th.Keyword, nameW)
+		shown := strings.TrimPrefix(t.Name, engine.OldPrefix)
+		f.text(x+2, yy, ":"+shown, th.Keyword, nameW)
 		lx := x + 2 + nameW + 1
 		// level bar (8 cells = 100%)
 		n := int(t.Level*8 + 0.5)
@@ -264,8 +274,16 @@ func (a *App) drawTracks(f *frame, x, y, w, h int, v engine.View) {
 		if t.Solo {
 			tag("[SOLO]", th.SoloTag)
 		}
-		if t.Loop && !names[t.Name] {
+		switch {
+		case t.Old && t.Fade < 0.999:
+			tag(fmt.Sprintf("old set %d%%", int(t.Fade*100+0.5)), th.Pending)
+		case t.Old:
+			tag("old set", th.Pending)
+		case t.Loop && !names[t.Name]:
 			tag("not in code", th.Pending)
+		}
+		if t.LPF > 0 {
+			tag("lpf "+hzLabel(t.LPF), th.SoloTag)
 		}
 		if src := soundName(t.Src); cx < x+w && src != "" {
 			f.text(cx, yy, src, th.Muted, x+w-cx)

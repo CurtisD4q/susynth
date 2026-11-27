@@ -30,12 +30,12 @@ end
 
 | | |
 |---|---|
-| ![Playing](screenshots/play.png) **Play (`Esc 1`):** four `live_loop`s running; the Tracks pane shows each loop's level, last sound and a one-bar step display. | ![An error in one loop](screenshots/error.png) **An error in one loop:** a typo on line 34 stops `:melody` and is marked in red; the other loops keep playing. |
-| ![First launch](screenshots/coldstart.png) **First launch:** the editor opens at once while Ruby compiles in the background; code you run now starts when Ruby is ready. | ![Sounds](screenshots/sounds.png) **Sounds (`Esc 4`):** Sonic Pi synth, sample and effect names in folding groups; `Enter` previews, `i` inserts an example. |
+| ![Playing](screenshots/play.png) **Play:** four `live_loop`s running; each sound lights up its line as it plays, and the Tracks pane shows each loop's level, last sound and a one-bar step display. | ![An error in one loop](screenshots/error.png) **A change that fails:** a typo on line 34 is marked in red, and `:melody` keeps playing the version that worked, so nothing drops out. |
+| ![First launch](screenshots/coldstart.png) **First launch:** the editor opens at once while Ruby compiles in the background; code you run now starts when Ruby is ready. | ![Sounds](screenshots/sounds.png) **Sounds:** Sonic Pi synth, sample and effect names in folding groups; `Enter` previews, `i` inserts an example. |
 | ![Piano roll](screenshots/pianoroll.png) **Piano roll (`Esc r`):** every note each loop plays, scrolling live; colours match the key at the bottom, drums have their own lanes. | ![Copy and paste](screenshots/select.png) **Selecting:** Shift+arrows select, then `^C` / `^X` / `^V`. |
-| ![Settings](screenshots/settings.png) **Settings (`Esc 5`):** audio output, OSC, MIDI, samples folder, theme. (Taken with audio off, so it shows `none`.) | ![Help](screenshots/help.png) **Help (`Esc 6`):** keys and a Sonic Pi language reference. |
+| ![Settings](screenshots/settings.png) **Settings:** when changes are heard, audio output, OSC, MIDI, samples folder, theme. (Taken with audio off, so it shows `none`.) | ![Help](screenshots/help.png) **Help:** keys and a Sonic Pi language reference. |
 
-The pages are icons down the left. Press `m` to open them as a pop-up (in the editor on Play, where `m` types the letter, press `Esc` then `m`). They are in order, so `Esc` then a page's place in it opens that page (`1` for Play, `2` for Sets, …).
+The pages are icons down the left. Press `m` to open them as a pop-up (in the editor on Play, where `m` types the letter, press `Esc` then `m`).
 
 ## How it works
 
@@ -66,7 +66,7 @@ The pages are icons down the left. Press `m` to open them as a pop-up (in the ed
 
 Sonic Pi's synth, sample and effect **names** work, but the sounds are susynth's own
 synthesised voices (no SuperCollider, no sample files): `:prophet` plays a supersaw,
-`:bd_haus` plays the built-in kick, and so on. The Sounds page (`Esc 4`) lists every name. Effects map onto
+`:bd_haus` plays the built-in kick, and so on. The Sounds page lists every name. Effects map onto
 susynth's filters, bit crusher, distortion, echo and reverb; effects with no equivalent are
 skipped with a note. Put your own `.wav` files in the samples folder to use real samples
 (`sample :mybank, 2`, `sample :kick`, or `sample "~/path/to/file.wav"`).
@@ -184,8 +184,8 @@ Put the cursor anywhere inside the loop and press `^E`. A kick plays once a beat
 
 ### 4. Change it while it plays
 
-Edit the loop and press `^E` again. The new version takes over on the loop's next pass, so
-the music never stops:
+Edit the loop and press `^E` again. You hear the new version from the next beat, and it
+carries on from the same place in the loop, so the music never stops or jumps:
 
 ```ruby
 live_loop :beat do
@@ -198,9 +198,22 @@ end
 
 `^E` runs the Ruby block the cursor is in: the whole `live_loop` (or other `do`/`end`),
 even when that block has blank lines inside it. A dotted bar in the margin shows the lines
-that will run. `Esc Enter` runs the whole file again. In Settings (`Esc 5`), **Start on next bar** makes a
-run wait for the next bar while something is already playing; the first run still starts
-immediately. The setting is saved.
+that will run. `Esc Enter` runs the whole file again.
+
+**Changes heard** in Settings says when a change reaches the music: on the **next beat** (the
+default), the **next bar**, or the loop's **next pass**, which is how Sonic Pi does it. With
+next beat or next bar, susynth quietly runs the new version from the start of the pass the
+loop is in, then switches to it on the beat, so a change half-way through an 8-bar loop is
+heard in place, at the right point in the loop. The first run always starts at once.
+
+While you edit, the code lights up as it plays: each `play` or `sample` is highlighted for a
+moment when its sound starts.
+
+**Live knobs:** put the cursor on a number and press `Ctrl+↑` / `Ctrl+↓` to nudge it
+(`Shift` for ten steps: 0.8 becomes 0.9, or 1.8). While music plays, each nudge runs the loop
+again, so you hear it on the next beat. One `^Z` takes back a run of nudges. Where
+`Ctrl+↑` / `Ctrl+↓` are taken (macOS uses them for Mission Control), press `Esc` then `↑` /
+`↓` instead.
 
 ### 5. Copy, cut, paste and undo
 
@@ -258,7 +271,7 @@ end
 ```
 
 Available effects: `reverb`, `echo`, `lpf`, `hpf`, `bitcrusher`, `distortion`, `level` and
-`pan` (plus a few aliases). The Sounds page (`Esc 4`) lists them all.
+`pan` (plus a few aliases). The Sounds page lists them all.
 
 ### 8. Find sounds
 
@@ -268,14 +281,14 @@ insert an example into your set. `Esc` returns to the editor.
 
 ### 9. Use your own samples
 
-Put `.wav` files in the samples folder (shown on Settings, `Esc 5`; by default
+Put `.wav` files in the samples folder (shown on the Settings page; by default
 `~/.local/share/susynth/samples`):
 
 * a folder `samples/kit/` becomes `sample :kit, 0`, `sample :kit, 1`, …
 * a file anywhere in there, `kick.wav`, can also be played as `sample :kick`
 * or give a path: `sample "~/Music/loop.wav"`
 
-On Settings (`Esc 5`), highlight *Samples* and press `Enter` to reload after adding files.
+On Settings, highlight *Samples* and press `Enter` to reload after adding files.
 
 ### 10. Mix while you play
 
@@ -285,6 +298,9 @@ On Settings (`Esc 5`), highlight *Samples* and press `Enter` to reload after add
   cursor is in. `^G` still stops everything.
 * `Esc s` then a number solos a track; `Esc s 0` clears solo.
 * With the cursor inside a loop, `Esc -` and `Esc =` lower or raise its level.
+* With the cursor inside a loop, `Esc ,` closes a low-pass filter on it and `Esc .` opens
+  it again (`Esc <` / `Esc >` in big steps), like the filter knob on a DJ mixer. It acts on
+  notes that are already sounding, and the Tracks pane shows it (`lpf 2.1 kHz`).
 * A `live_loop` you delete (or rename) keeps playing until you stop it, and its row says
   **not in code** so it is not invisible.
 
@@ -305,7 +321,10 @@ are doing. Press `Esc r` again for Tracks. A wider terminal shows more history.
 ### 12. When something goes wrong
 
 * **Syntax error:** nothing runs; a red row names the line. Fix it and press `^E` again.
-* **Error inside a loop** (a typo, a wrong name): that loop stops, the others keep playing.
+* **A change that fails** (a typo, a wrong name) does not stop the music. If it fails before
+  it takes over, the old version keeps playing; if it fails later, the version that worked
+  comes back, in time. The error is shown and the log says which happened.
+* **An error in a loop that was already working:** that loop stops, the others keep playing.
 * **A loop with no `sleep`:** that loop stops with `did not sleep`. Every other loop keeps
   playing. Add a `sleep` and press `^E` again.
 * `puts "bar #{tick}"` and `cue :drop` are written to the log, with the time. `Esc l` opens
@@ -316,8 +335,8 @@ are doing. Press `Esc r` again for Tracks. A wider terminal shows more history.
 
 ### 13. Save, record and export
 
-* `^S` saves the set (as a `.rb` file); `^O` loads one. Sets (`Esc 2`) lists them.
-* `^R` starts and stops recording what you hear to a WAV file; Recordings (`Esc 3`) lists them.
+* `^S` saves the set (as a `.rb` file); `^O` loads one. The Sets page lists them.
+* `^R` starts and stops recording what you hear to a WAV file; the Recordings page lists them.
 * `Esc x` exports a MIDI file. It runs your code silently in a second sandbox, so the music
   keeps playing.
 * Without the editor: `./susynth render -seconds 60 set.rb` writes a WAV and
@@ -325,9 +344,22 @@ are doing. Press `Esc r` again for Tracks. A wider terminal shows more history.
 
 ### 14. Perform a set list
 
-On Sets (`Esc 2`), highlight a set and press `a` to add it to the set list. On Perform
-(`Esc 7`), reorder with `[` / `]` and press `Enter` to go live with a set. During a show,
+On Sets, highlight a set and press `a` to add it to the set list. On Perform,
+reorder with `[` / `]` and press `Enter` to go live with a set. During a show,
 `Esc n` and `Esc p` move to the next and previous set.
+
+To blend from one set into the next, as a DJ would, mix it in instead: `i` on Perform, or
+`Esc i` for the next set in the list.
+
+1. The new set starts on the next bar with every part muted, beside the set that is playing.
+   That set becomes the **old set**: its tracks say `old set`, and its loops keep their own
+   names, cues and `sync`s, so both sets can have a `:drums`.
+2. Bring the new parts in one at a time with `Esc u` and a track number.
+3. Lower or filter the old parts as you like, stop them one by one with `Esc k`, or press
+   `Esc o` to fade the whole old set out over 2 bars. It stops when the fade ends.
+
+The new set's `use_bpm` sets the tempo shown on the bar; the old set keeps playing at its
+own tempo until it stops.
 
 ### Where things are kept
 
@@ -356,27 +388,30 @@ Deleting the cache is safe; Ruby is compiled again on the next launch.
 | `Esc k` then a number | stop that track (`Enter` stops the loop under the cursor) |
 | `Esc s` then a number | solo that track (`0` clears solo) |
 | `Esc -` / `Esc =` | level of the live_loop the cursor is in |
+| `Esc ,` / `Esc .` | close / open a filter on the live_loop the cursor is in (`Esc <` / `Esc >`: big steps) |
+| `Ctrl+↑` / `Ctrl+↓` | nudge the number under the cursor (`Shift` for 10×); heard on the next beat. Or `Esc` then `↑` / `↓` |
+| `Esc i` / `Esc o` | mix in the next set (it starts muted) / fade out the old set |
 | `Esc l` | session log in the right-hand pane (errors, `puts`, `cue`); Alt+↑↓ scrolls |
 | `Esc r` | switch the right-hand pane between Tracks and the piano roll |
 | `Esc x` | export MIDI (runs silently in a second sandbox; the music keeps playing) |
-| `Esc 1` … `Esc 7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform |
 | `m` | The pages pop-up beside the icons: ↑↓ choose, Enter open, `m` or `Esc` close. In the editor, press `Esc` then `m` |
 | `Esc f` / `Esc b` | next / previous page · `Esc` alone goes back to Play |
 
-**Esc shortcuts** (`Esc 4`, `Esc r`, `Esc u`, `Esc Enter`…): press `Esc`, let go, then the key within
+**Esc shortcuts** (`Esc m`, `Esc r`, `Esc u`, `Esc Enter`…): press `Esc`, let go, then the key within
 about 1.5 seconds — the transport shows `Esc…` while it waits — or hold `Alt` (or `Option`
 set to act as Meta on macOS) and press the key. `Esc` alone goes back to Play and does not
-clear the message row or the log. Pages use that same prefix: `Esc` then `1`–`7`, or `Esc f` /
-`Esc b` to cycle. Those are plain Esc and digit/letter bytes, so they work over SSH, inside
-tmux, and on laptops where function keys need Fn or are taken by the desktop. `F1`–`F7` still
-open those pages when a terminal actually delivers them. `Esc ]` also moves to the next page,
-and `Esc [` / `Esc M` to the previous one, where the terminal delivers them.
+clear the message row or the log. These are plain Esc and letter bytes, so they work over SSH
+and inside tmux.
 
-As in Sonic Pi: re-running a `live_loop` swaps its body in on its next pass; an error inside
-a loop stops that loop only. A loop that never sleeps stops with `did not sleep` and the
-others keep playing. A loop you delete from the text is marked **not in code** and keeps
-playing until `Esc k` (that track) or `^G` (everything). **Start on next bar** in Settings
-holds a run until the next bar.
+**Pages** open from the pop-up (`m`, or `Esc m` in the editor); `Esc f` / `Esc b` step through
+them. `Esc ]` also moves to the next page, and `Esc [` / `Esc M` to the previous one, where
+the terminal delivers them.
+
+Re-running a `live_loop` is heard on the next beat, from the same place in the loop (choose
+next bar, or Sonic Pi's next pass, in Settings). A change that fails leaves the working
+version playing; an error in a loop that was working stops that loop only. A loop that never
+sleeps stops with `did not sleep` and the others keep playing. A loop you delete from the text
+is marked **not in code** and keeps playing until `Esc k` (that track) or `^G` (everything).
 
 ## Build
 
@@ -425,5 +460,5 @@ close each Sonic Pi synth sounds to the original (it won't sound the same).
 ## Known gaps
 
 * No `control` (changing a note while it plays), no `sample` `start:`/`finish:`/`beat_stretch:`,
-  and only the effects listed on Sounds (`Esc 4`). MIDI/OSC calls in code are skipped; use Settings (`Esc 5`).
+  and only the effects listed on the Sounds page. MIDI/OSC calls in code are skipped; use the Settings page.
 * Ruby's own `Thread` isn't available; Sonic Pi's `in_thread` and `live_loop` are.

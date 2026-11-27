@@ -120,14 +120,14 @@ func TestStuckLoopLeavesTheOthersRunning(t *testing.T) {
 	}
 }
 
-// With "start on next bar", a run while music is already playing waits for
-// the bar. The first run still starts at once, because that starts the bar.
+// With changes on the next bar, a run while music is already playing waits
+// for the bar. The first run still starts at once, because that starts the bar.
 func TestQuantiseSecondRunLandsOnTheBar(t *testing.T) {
 	v := vm(t)
 	e := engine.New()
 	e.SetBPM(60)
 	s := New(v, e)
-	s.SetQuantise(true)
+	s.SetChangeOn(OnBar)
 	s.Run("use_bpm 60\nsample :bd_haus\n", 0)
 	s.Run("sample :bd_haus\n", 0)
 	s.tick() // the immediate hit is due now; the bar hit waits until Ruby is advanced to it
@@ -147,7 +147,7 @@ func TestQuantiseSecondRunLandsOnTheBar(t *testing.T) {
 	}
 	var quantised bool
 	for _, n := range s.Notes() {
-		if n.Kind == "ran" && n.Quantised {
+		if n.Kind == "ran" && n.When == OnBar {
 			quantised = true
 		}
 		if n.Kind == "err" {
@@ -160,7 +160,7 @@ func TestQuantiseSecondRunLandsOnTheBar(t *testing.T) {
 }
 
 // Real time: the sequencer keeps Ruby ahead of the audio clock, and a
-// redefined loop takes over on its next pass.
+// redefined loop takes over on the next beat.
 func TestRealtimeRedefine(t *testing.T) {
 	v := vm(t)
 	e := engine.New()

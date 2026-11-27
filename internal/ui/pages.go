@@ -32,15 +32,6 @@ const (
 
 var pageNames = [numPages]string{"Play", "Sets", "Recordings", "Sounds", "Settings", "Help", "Perform"}
 
-// pageByNumber maps the digit drawn in the rail to that page. '1' is Play.
-func pageByNumber(r rune) (page, bool) {
-	i := int(r - '1')
-	if i < 0 || i >= int(numPages) {
-		return 0, false
-	}
-	return page(i), true
-}
-
 // pageStep reports +1 or -1 for a next/previous page key, otherwise 0.
 // Esc f / Esc b (and Alt+f / Alt+b) are the pair to use: f and b are
 // unshifted on Latin keyboards, and a terminal sends Alt+letter as ESC
@@ -421,6 +412,8 @@ func (a *App) pageKey(k key) {
 		switch {
 		case k.kind == kEnter:
 			a.goLive(a.ps.sel)
+		case isRune('i'):
+			a.mixIn(a.ps.sel)
 		case isRune('d') && a.ps.sel < len(a.setlist):
 			a.removeFromSetlist(a.ps.sel)
 			a.ps.sel = moveSel(a.ps.sel, len(a.setlist), key{})
@@ -447,20 +440,18 @@ type helpLine struct {
 
 var helpLines = []helpLine{
 	{head: true, text: "PAGES"},
-	{key: "Esc 1 … Esc 7", text: "Play, Sets, Recordings, Sounds, Settings, Help, Perform"},
-	{key: "Esc f  /  Esc b", text: "next / previous page"},
-	{key: "Esc", text: "from any page, back to Play"},
 	{key: "m", text: "the pages pop-up beside the icons: ↑↓ choose, Enter open, m or Esc close"},
 	{text: "In the editor on Play, m types the letter: press Esc m there."},
-	{text: "The number is the page's place in the pop-up. Press Esc, then the key within 1.5 s, or hold Alt."},
-	{text: "F1-F7 still open those pages when the terminal sends function keys."},
+	{key: "Esc f  /  Esc b", text: "next / previous page"},
+	{key: "Esc", text: "from any page, back to Play"},
+	{text: "For Esc keys, press Esc, then the key within 1.5 s, or hold Alt."},
 	{head: true, text: "KEYS ON EACH PAGE"},
 	{key: "Sets", text: "↑↓ select · Enter load · a add to the set list · n new · d delete (asks first)"},
 	{key: "Recordings", text: "↑↓ select · Enter show the path · d delete (asks first)"},
 	{key: "Sounds", text: "↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example"},
 	{key: "Settings", text: "↑↓ select · ←→ change · Enter edit or reload where it says so"},
 	{key: "Help", text: "↑↓ PgUp PgDn scroll"},
-	{key: "Perform", text: "Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove"},
+	{key: "Perform", text: "Enter go live · i mix in · Esc n / Esc p next / previous · [ ] reorder · d remove"},
 	{text: ""},
 	{head: true, text: "PLAYING"},
 	{key: "^E", text: "run the block under the cursor (the whole live_loop; ┊ marks it)"},
@@ -474,10 +465,15 @@ var helpLines = []helpLine{
 	{key: "Esc s  n", text: "solo track n (0 clears)"},
 	{key: "Esc l", text: "session log (errors, puts, cue) in the right pane; Alt+↑↓ scrolls"},
 	{key: "Esc - / =", text: "level of the live_loop the cursor is in"},
+	{key: "Esc , / .", text: "close / open a filter on the live_loop the cursor is in (Esc < / > in big steps)"},
+	{key: "Ctrl+↑↓", text: "nudge the number under the cursor; while playing it is heard on the next beat"},
+	{text: "Shift+Ctrl+↑↓ moves it 10×. Esc ↑ / Esc ↓ do the same where Ctrl+↑↓ is taken (macOS)."},
 	{key: "Esc r", text: "switch the right-hand pane between Tracks and the piano roll"},
 	{key: "Esc t / a", text: "next theme / next audio output"},
 	{key: "Esc x", text: "export the set as a MIDI file (runs silently in a second sandbox)"},
 	{key: "Esc n / p", text: "perform: next / previous set in the set list"},
+	{key: "Esc i", text: "mix in the next set: it starts muted on the next bar, beside what plays"},
+	{key: "Esc o", text: "fade out the old set over 2 bars, then stop it"},
 	{key: "^Q", text: "quit (asks once if there are unsaved changes)"},
 	{text: ""},
 	{head: true, text: "EDITING"},
@@ -492,7 +488,7 @@ var helpLines = []helpLine{
 	{head: true, text: "THE LANGUAGE  (Sonic Pi, running in real Ruby 3.4)"},
 	{key: "live_loop :name do", text: "a loop that runs forever; re-run it to change it on its next pass"},
 	{key: "  play :e3", text: "a note: :c4 :fs3 :eb2 or MIDI 60; chords: play chord(:e3, :minor)"},
-	{key: "  sample :bd_haus", text: "a sample (see Esc 4 Sounds); sample :mybank, 2 for your own"},
+	{key: "  sample :bd_haus", text: "a sample (see the Sounds page); sample :mybank, 2 for your own"},
 	{key: "  sleep 0.5", text: "wait, in beats; every loop must sleep"},
 	{key: "end", text: ""},
 	{key: "use_bpm 120", text: "tempo (Sonic Pi starts at 60); with_bpm 90 do … end"},
@@ -516,7 +512,7 @@ var helpLines = []helpLine{
 	{text: "Your code runs in real Ruby inside a sandbox with no network or file access."},
 	{text: "Sonic Pi's synths, samples and effects are played by susynth's own sounds, so"},
 	{text: "the names work but the timbre is susynth's. MIDI and OSC calls in code are"},
-	{text: "skipped: use Esc 5 Settings to send notes to MIDI devices or SuperDirt instead."},
+	{text: "skipped: use the Settings page to send notes to MIDI devices or SuperDirt instead."},
 	{text: ""},
 	{head: true, text: "WHEN SOMETHING GOES WRONG"},
 	{text: "A syntax error runs nothing, and a red row under the editor names the line."},

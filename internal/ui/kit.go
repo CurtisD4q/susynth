@@ -178,6 +178,10 @@ func (a *App) poll(*mint.Screen) bool {
 	default:
 	}
 	a.pollSeq()
+	if a.eng.FadeDone() {
+		a.seq.StopOld()
+		a.say("the old set has faded out and stopped", false)
+	}
 	if !a.escAt.IsZero() && time.Since(a.escAt) >= escWindow {
 		a.escAt = time.Time{}
 	}
@@ -229,8 +233,13 @@ func (a *App) badges() []mint.Badge {
 	if label := a.pendingLabel(); label != "" {
 		out = append(out, mint.Badge{Text: label, Kind: mint.BadgeWarn})
 	}
-	if a.seq != nil && a.seq.Quantise() {
-		out = append(out, mint.Badge{Text: "next bar", Kind: mint.BadgeWarn})
+	if a.seq != nil && a.seq.ChangeOn() != "beat" {
+		out = append(out, mint.Badge{Text: "changes: next " + a.seq.ChangeOn(), Kind: mint.BadgeIdle})
+	}
+	if f := a.eng.Fading(); f >= 0 {
+		out = append(out, mint.Badge{Text: fmt.Sprintf("old set fading %d%%", int(f*100)), Kind: mint.BadgeWarn})
+	} else if a.eng.HasOld() {
+		out = append(out, mint.Badge{Text: "old set playing", Kind: mint.BadgeWarn})
 	}
 	if v.Underruns > 0 {
 		out = append(out, mint.Badge{Text: fmt.Sprintf("xruns %d", v.Underruns), Kind: mint.BadgeIdle})
@@ -253,7 +262,7 @@ func (a *App) hints(p page) string {
 	case pageHelp:
 		return "↑↓ PgUp PgDn scroll   m pages   ^Q quit"
 	case pagePerform:
-		return "⏎ go live   Esc n/p next/previous   [ ] move   d remove   m pages"
+		return "⏎ go live   i mix in   Esc n/p next/previous   [ ] move   d remove   m pages"
 	}
 	return transport
 }

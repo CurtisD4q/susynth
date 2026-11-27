@@ -339,6 +339,13 @@ func (v *VM) Close() {
 // 1-based line (a whole live_loop, not a blank-line slice); 0 runs everything.
 // at is the start time in seconds.
 func (v *VM) Run(id int, cursor int, at float64, code string) ([]Msg, error) {
+	return v.RunMode(id, cursor, at, "pass", code)
+}
+
+// RunMode is Run with a choice of how a live_loop that is already playing
+// takes the new code: "swap" hears it from at, continuing the pass it is in;
+// "pass" (Sonic Pi's way) starts it on the loop's next pass.
+func (v *VM) RunMode(id int, cursor int, at float64, mode string, code string) ([]Msg, error) {
 	first, last := 0, 0
 	if cursor > 0 {
 		var ok bool
@@ -347,7 +354,7 @@ func (v *VM) Run(id int, cursor int, at float64, code string) ([]Msg, error) {
 			return []Msg{{"ran", fmt.Sprint(id), "0", "0"}}, nil
 		}
 	}
-	return v.Call(fmt.Sprintf("run\t%d\t%d\t%d\t%.6f\t%d", id, first, last, at, len(code)), code, 5*time.Second)
+	return v.Call(fmt.Sprintf("run\t%d\t%d\t%d\t%.6f\t%s\t%d", id, first, last, at, mode, len(code)), code, 5*time.Second)
 }
 
 // Kill stops one live_loop or thread by name. The others keep running.
@@ -368,6 +375,13 @@ func (v *VM) Advance(t float64) ([]Msg, error) {
 
 // StopAll ends every loop and thread.
 func (v *VM) StopAll() ([]Msg, error) { return v.Call("stop", "", 2*time.Second) }
+
+// NewDeck makes the loops that are playing the old set, so a set can be mixed
+// in beside them. An old set that is still playing stops.
+func (v *VM) NewDeck() ([]Msg, error) { return v.Call("deck", "", 2*time.Second) }
+
+// StopOld stops the old set.
+func (v *VM) StopOld() ([]Msg, error) { return v.Call("stopold", "", 2*time.Second) }
 
 // SetTables tells Ruby which synth and sample names exist, so unknown names
 // are errors with line numbers. It is safe to call at any time; the tables are

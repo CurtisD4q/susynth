@@ -85,7 +85,7 @@ func TestShiftArrowsAndAltKeys(t *testing.T) {
 		{mint.Key{Name: "left", Special: true, Shift: true}, key{kind: kLeft, shift: true}},
 		{mint.Key{Name: "home", Special: true, Shift: true}, key{kind: kHome, shift: true}},
 		{mint.Key{Name: "pgup", Special: true, Shift: true}, key{kind: kPgUp, shift: true}},
-		{mint.Key{Name: "right", Special: true, Ctrl: true}, key{kind: kRight}}, // Ctrl+Right: not a selection
+		{mint.Key{Name: "right", Special: true, Ctrl: true}, key{kind: kRight, ctrl: true}}, // Ctrl+Right: not a selection
 		{mint.Key{Name: "up", Special: true, Alt: true}, key{kind: kUp, alt: true}},
 		{mint.Key{Name: "M-m", Special: true}, key{kind: kRune, r: 'm', alt: true}},
 		{mint.Key{Name: "M-\r", Special: true}, key{kind: kEnter, alt: true}},
@@ -93,7 +93,6 @@ func TestShiftArrowsAndAltKeys(t *testing.T) {
 		{mint.Key{Name: "\x05"}, key{kind: kCtrl, r: 'e'}},
 		{mint.Key{Name: "\r"}, key{kind: kEnter}},
 		{mint.Key{Name: "\x7f"}, key{kind: kBackspace}},
-		{mint.Key{Name: "f3", Special: true}, key{kind: kFn, r: 3}},
 		{mint.Key{Name: "é"}, key{kind: kRune, r: 'é'}},
 	} {
 		got, ok := keyFrom(&c.in)

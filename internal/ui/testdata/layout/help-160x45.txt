@@ -3,26 +3,24 @@
  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
       PAGES                                                                                                                                                   █
-      Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform                                                                          █
-  ▶   Esc f  /  Esc b        next / previous page                                                                                                             █
-  ≡   Esc                    from any page, back to Play                                                                                                      █
-  ●   m                      the pages pop-up beside the icons: ↑↓ choose, Enter open, m or Esc close                                                         █
-  ♪   In the editor on Play, m types the letter: press Esc m there.                                                                                           █
-  ⚙   The number is the page's place in the pop-up. Press Esc, then the key within 1.5 s, or hold Alt.                                                        █
-  ?   F1-F7 still open those pages when the terminal sends function keys.                                                                                     █
-  ◈   KEYS ON EACH PAGE                                                                                                                                       █
-      Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (asks first)                                                   █
-      Recordings             ↑↓ select · Enter show the path · d delete (asks first)                                                                          █
+      m                      the pages pop-up beside the icons: ↑↓ choose, Enter open, m or Esc close                                                         █
+  ▶   In the editor on Play, m types the letter: press Esc m there.                                                                                           █
+  ≡   Esc f  /  Esc b        next / previous page                                                                                                             █
+  ●   Esc                    from any page, back to Play                                                                                                      █
+  ♪   For Esc keys, press Esc, then the key within 1.5 s, or hold Alt.                                                                                        █
+  ⚙   KEYS ON EACH PAGE                                                                                                                                       █
+  ?   Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (asks first)                                                   █
+  ◈   Recordings             ↑↓ select · Enter show the path · d delete (asks first)                                                                          █
       Sounds                 ↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example                                                       █
       Settings               ↑↓ select · ←→ change · Enter edit or reload where it says so                                                                    █
       Help                   ↑↓ PgUp PgDn scroll                                                                                                              █
-      Perform                Enter go live · Esc n / Esc p next / previous · [ ] reorder · d remove                                                           █
+      Perform                Enter go live · i mix in · Esc n / Esc p next / previous · [ ] reorder · d remove                                                █
                                                                                                                                                               █
       PLAYING                                                                                                                                                 █
       ^E                     run the block under the cursor (the whole live_loop; ┊ marks it)                                                                 █
       Esc Enter              run the whole buffer, like Sonic Pi's Run                                                                                        █
       ^G                     stop every live_loop and thread, like Sonic Pi's Stop                                                                            █
-      ^P                     stop, or run the whole buffer again                                                                                              │
+      ^P                     stop, or run the whole buffer again                                                                                              █
       ^R                     start / stop recording a WAV                                                                                                     │
       ^S  ^O                 save / load a set by name (sets are .rb files)                                                                                   │
       Esc u  n               mute / unmute track n — a digit alone does nothing                                                                               │
@@ -30,16 +28,18 @@
       Esc s  n               solo track n (0 clears)                                                                                                          │
       Esc l                  session log (errors, puts, cue) in the right pane; Alt+↑↓ scrolls                                                                │
       Esc - / =              level of the live_loop the cursor is in                                                                                          │
+      Esc , / .              close / open a filter on the live_loop the cursor is in (Esc < / > in big steps)                                                 │
+      Ctrl+↑↓                nudge the number under the cursor; while playing it is heard on the next beat                                                    │
+      Shift+Ctrl+↑↓ moves it 10×. Esc ↑ / Esc ↓ do the same where Ctrl+↑↓ is taken (macOS).                                                                   │
       Esc r                  switch the right-hand pane between Tracks and the piano roll                                                                     │
       Esc t / a              next theme / next audio output                                                                                                   │
       Esc x                  export the set as a MIDI file (runs silently in a second sandbox)                                                                │
       Esc n / p              perform: next / previous set in the set list                                                                                     │
+      Esc i                  mix in the next set: it starts muted on the next bar, beside what plays                                                          │
+      Esc o                  fade out the old set over 2 bars, then stop it                                                                                   │
       ^Q                     quit (asks once if there are unsaved changes)                                                                                    │
                                                                                                                                                               │
       EDITING                                                                                                                                                 │
       Shift + arrows         select text (also Shift+Home/End/PgUp/PgDn); ^A selects everything                                                               │
-      ^C  ^X  ^V             copy / cut / paste; with nothing selected, copy or cut the whole line                                                            │
-      terminal paste         Ctrl+Shift+V (Linux) or Cmd+V (macOS) pastes from other apps                                                                     │
-      Backspace  Delete      delete the selection (or one character)                                                                                          │
   ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
   ↑↓ PgUp PgDn scroll   m pages   ^Q quit

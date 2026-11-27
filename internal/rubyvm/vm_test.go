@@ -293,9 +293,9 @@ func TestBlockRunKeepsTopLevelTempo(t *testing.T) {
 			times = append(times, m.Arg(0)[:5])
 		}
 	}
-	// at 120 bpm sleep 1 is 0.5 s. The pass at 1.0 had already started with the
-	// old body, so the new one takes over on the next pass, as in Sonic Pi.
-	if strings.Join(times, " ") != "1.500 2.000 2.500" {
+	// at 120 bpm sleep 1 is 0.5 s. A run at 1.0 goes before the pass that
+	// starts at 1.0, so that pass is already the new body.
+	if strings.Join(times, " ") != "1.000 1.500 2.000 2.500" {
 		t.Errorf("redefined loop times %v (tempo lost?)", times)
 	}
 }

@@ -5,7 +5,7 @@
       ▸ Theme                                                                                    ‹ default ›
         Audio output                                                                                   ‹ — ›
   ▶     Tempo (BPM)                                                                                   ‹ 60 ›
-  ≡     Start on next bar                                                                            ‹ off ›
+  ≡     Changes heard                                                                          ‹ next beat ›
   ●     Internal synth                                                                               ‹ off ›
   ♪     OSC → SuperDirt                                                                              ‹ off ›
   ⚙     OSC address                                                                                    ‹ — ›

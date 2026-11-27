@@ -26,20 +26,31 @@ const ahead = 0.25
 
 // Note is something for the screen: an error, a puts line, or "ran".
 type Note struct {
-	Kind      string // "err", "log", "ran", "info", "cue"
-	Line      int
-	Thread    string
-	Text      string
-	First     int // ran: first and last line evaluated
-	Last      int
-	RunID     int
-	Quantised bool // ran: the run was held until the next bar
+	Kind   string // "err", "log", "ran", "info", "cue"
+	Line   int
+	Thread string
+	Text   string
+	First  int // ran: first and last line evaluated
+	Last   int
+	RunID  int
+	When   string // ran: "beat" or "bar" when the change waits for one
 }
+
+// Changes say when a run reaches music that is already playing.
+const (
+	OnBeat = "beat" // a changed loop is heard from the next beat, in place
+	OnBar  = "bar"  // the same, from the next bar
+	OnPass = "pass" // Sonic Pi's way: a changed loop starts on its next pass
+)
 
 // Seq runs code in Ruby and feeds the engine.
 type Seq struct {
 	VM  *rubyvm.VM
 	Eng *engine.Engine
+
+	// vm keeps a run and a step of the clock apart, so a change can be timed
+	// after everything Ruby has already played.
+	vm sync.Mutex
 
 	mu       sync.Mutex
 	notes    []Note
@@ -48,17 +59,18 @@ type Seq struct {
 	runID    int
 	pending  *pendingRun
 	warned   map[string]bool
-	quantise bool // start runs on the next bar while something is already playing
+	changeOn string
 }
 
 type pendingRun struct {
+	id     int
 	code   string
 	cursor int
 }
 
 // New ties a VM to an engine. Call Start to begin feeding in real time.
 func New(vm *rubyvm.VM, eng *engine.Engine) *Seq {
-	s := &Seq{VM: vm, Eng: eng, warned: map[string]bool{}}
+	s := &Seq{VM: vm, Eng: eng, warned: map[string]bool{}, changeOn: OnBeat}
 	s.RefreshTables()
 	return s
 }
@@ -119,6 +131,8 @@ func (s *Seq) Waiting() bool {
 }
 
 func (s *Seq) tick() {
+	s.vm.Lock()
+	defer s.vm.Unlock()
 	s.mu.Lock()
 	running, h := s.running, s.horizon
 	s.mu.Unlock()
@@ -133,26 +147,28 @@ func (s *Seq) tick() {
 	s.mu.Lock()
 	s.horizon = target
 	s.mu.Unlock()
-	s.dispatch(ms, false)
+	s.dispatch(ms, "")
 	if err != nil {
 		s.crashed(err)
 	}
 }
 
-// SetQuantise makes runs that happen while music is already playing wait for
-// the next bar. The first run still starts immediately: that is when the bar
-// itself begins.
-func (s *Seq) SetQuantise(on bool) {
+// SetChangeOn says when a run reaches music that is already playing: OnBeat,
+// OnBar or OnPass. The first run always starts at once.
+func (s *Seq) SetChangeOn(when string) {
+	if when != OnBar && when != OnPass {
+		when = OnBeat
+	}
 	s.mu.Lock()
-	s.quantise = on
+	s.changeOn = when
 	s.mu.Unlock()
 }
 
-// Quantise reports whether runs wait for the next bar.
-func (s *Seq) Quantise() bool {
+// ChangeOn reports when changes are heard.
+func (s *Seq) ChangeOn() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.quantise
+	return s.changeOn
 }
 
 func (s *Seq) crashed(err error) {
@@ -165,18 +181,24 @@ func (s *Seq) crashed(err error) {
 }
 
 // Run evaluates code: the block around cursor (a 1-based line), or all of it
-// when cursor is 0. If Ruby is still starting, the run waits for it.
-func (s *Seq) Run(code string, cursor int) {
+// when cursor is 0. If Ruby is still starting, the run waits for it. The id
+// it returns comes back on the "ran" note and on every note the code plays.
+func (s *Seq) Run(code string, cursor int) int {
+	s.mu.Lock()
+	s.runID++
+	id := s.runID
+	s.mu.Unlock()
 	if !s.VM.IsReady() {
 		s.mu.Lock()
-		s.pending = &pendingRun{code, cursor}
+		s.pending = &pendingRun{id, code, cursor}
 		s.mu.Unlock()
 		if err := s.VM.Err(); err != nil {
 			s.note(Note{Kind: "err", Text: err.Error()})
 		}
-		return
+		return id
 	}
-	s.run(code, cursor)
+	s.run(id, code, cursor, false)
+	return id
 }
 
 func (s *Seq) flushPending() {
@@ -188,30 +210,88 @@ func (s *Seq) flushPending() {
 	}
 	s.pending = nil
 	s.mu.Unlock()
-	s.run(p.code, p.cursor)
+	s.run(p.id, p.code, p.cursor, false)
 }
 
-func (s *Seq) run(code string, cursor int) {
-	if !s.Eng.Playing() {
-		s.Eng.Play()
+// MixIn plays code beside what is playing: the loops that are playing become
+// the old set (old/drums and so on) and the new code starts on the next bar.
+// An old set left from an earlier mix stops. With nothing playing it is an
+// ordinary run.
+func (s *Seq) MixIn(code string) (int, error) {
+	if !s.VM.IsReady() {
+		return 0, errors.New("Ruby is still starting")
 	}
 	s.mu.Lock()
 	s.runID++
 	id := s.runID
-	quantised := false
-	at := s.Eng.Now() + 0.03
-	if s.quantise && s.running {
-		if nb := s.Eng.NextBar(0.05); nb > at {
-			at = nb
-			quantised = true
-		}
+	s.mu.Unlock()
+	s.run(id, code, 0, true)
+	return id, nil
+}
+
+// StopOld stops the old set left by MixIn.
+func (s *Seq) StopOld() {
+	if !s.VM.IsReady() {
+		return
 	}
+	s.vm.Lock()
+	defer s.vm.Unlock()
+	ms, err := s.VM.StopOld()
+	s.dispatch(ms, "")
+	if err != nil {
+		s.crashed(err)
+	}
+}
+
+// when returns the time a run starts and how it treats loops already playing.
+// While music plays, a change is timed from the next beat or bar after
+// everything Ruby has already sent, so no note is played twice.
+func (s *Seq) when(mix bool) (at float64, mode, waits string) {
+	at = s.Eng.Now() + 0.03
+	mode = "swap"
+	if !s.running {
+		return at, mode, ""
+	}
+	on := s.changeOn
+	if mix {
+		on = OnBar
+	}
+	if on == OnPass {
+		return at, "pass", ""
+	}
+	step := 1.0
+	if on == OnBar {
+		step = engine.BeatsPerCycle
+	}
+	// at least 50 ms ahead, and after everything Ruby has already sent
+	return s.Eng.NextGrid(step, math.Max(s.horizon, s.Eng.Now()+0.05)), mode, on
+}
+
+func (s *Seq) run(id int, code string, cursor int, mix bool) {
+	s.vm.Lock()
+	defer s.vm.Unlock()
+	if !s.Eng.Playing() {
+		s.Eng.Play()
+	}
+	if mix && s.Running() {
+		ms, err := s.VM.NewDeck()
+		s.dispatch(ms, "")
+		if err != nil {
+			s.crashed(err)
+			return
+		}
+		s.Eng.MuteNewTracks(true)
+		defer s.Eng.MuteNewTracks(false)
+	}
+	s.mu.Lock()
+	at, mode, waits := s.when(mix)
 	if !s.running {
 		s.horizon = at
+		s.Eng.SetDownbeat(at) // the first run starts the bar
 	}
 	s.mu.Unlock()
-	ms, err := s.VM.Run(id, cursor, at, code)
-	s.dispatch(ms, quantised)
+	ms, err := s.VM.RunMode(id, cursor, at, mode, code)
+	s.dispatch(ms, waits)
 	if err != nil {
 		s.crashed(err)
 		return
@@ -219,6 +299,23 @@ func (s *Seq) run(code string, cursor int) {
 	s.mu.Lock()
 	s.running = true
 	s.mu.Unlock()
+	if mix {
+		// the new set's loops start when Ruby reaches at; step there now, so
+		// they are made (and muted) before anyone can hear them
+		s.mu.Lock()
+		h := s.horizon
+		s.mu.Unlock()
+		if at+0.001 > h {
+			ms, err = s.VM.Advance(at + 0.001)
+			s.mu.Lock()
+			s.horizon = at + 0.001
+			s.mu.Unlock()
+			s.dispatch(ms, "")
+			if err != nil {
+				s.crashed(err)
+			}
+		}
+	}
 }
 
 // Stop ends every loop and thread and silences the engine.
@@ -229,8 +326,10 @@ func (s *Seq) Stop(hush bool) {
 	s.horizon = 0
 	s.mu.Unlock()
 	if s.VM.IsReady() {
+		s.vm.Lock()
 		ms, _ := s.VM.StopAll()
-		s.dispatch(ms, false)
+		s.dispatch(ms, "")
+		s.vm.Unlock()
 	}
 	if hush {
 		s.Eng.Hush()
@@ -244,8 +343,10 @@ func (s *Seq) StopOne(name string) error {
 	if !s.VM.IsReady() {
 		return errors.New("Ruby is not running")
 	}
+	s.vm.Lock()
 	ms, err := s.VM.Kill(name)
-	s.dispatch(ms, false)
+	s.dispatch(ms, "")
+	s.vm.Unlock()
 	s.Eng.SilenceTrack(name)
 	if err != nil {
 		s.crashed(err)
@@ -273,7 +374,7 @@ func errNote(m rubyvm.Msg) Note {
 	return Note{Kind: "err", Line: line, Thread: m.Arg(1), Text: m.Arg(2)}
 }
 
-func (s *Seq) dispatch(ms []rubyvm.Msg, quantised bool) {
+func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 	var hits []engine.Hit
 	for _, m := range ms {
 		switch m.Kind() {
@@ -300,12 +401,18 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, quantised bool) {
 			hits = append(hits, h)
 		case "bpm":
 			if b, err := strconv.ParseFloat(m.Arg(0), 64); err == nil {
-				s.Eng.SetBPM(b)
+				if at, err := strconv.ParseFloat(m.Arg(1), 64); err == nil {
+					s.Eng.SetBPMAt(b, at)
+				} else {
+					s.Eng.SetBPM(b)
+				}
 			}
 		case "thr+":
 			s.Eng.ThreadStarted(m.Arg(0), m.Arg(1) == "loop")
 		case "thr-":
 			s.Eng.ThreadEnded(m.Arg(0))
+		case "ren":
+			s.Eng.RenameTrack(m.Arg(0), m.Arg(1))
 		case "err":
 			s.note(errNote(m))
 		case "log":
@@ -316,7 +423,11 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, quantised bool) {
 			id, _ := strconv.Atoi(m.Arg(0))
 			a, _ := strconv.Atoi(m.Arg(1))
 			b, _ := strconv.Atoi(m.Arg(2))
-			s.note(Note{Kind: "ran", RunID: id, First: a, Last: b, Quantised: quantised && a > 0})
+			n := Note{Kind: "ran", RunID: id, First: a, Last: b}
+			if a > 0 {
+				n.When = waits
+			}
+			s.note(n)
 		}
 	}
 	s.Eng.Schedule(hits...)
@@ -345,6 +456,7 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 	h.At = int64(math.Round(t * engine.SampleRate))
 	h.Track = m.Arg(1)
 	h.Line, _ = strconv.Atoi(m.Arg(2))
+	h.Run, _ = strconv.Atoi(m.Arg(6))
 	kind, name := m.Arg(3), m.Arg(4)
 	kv := map[string]float64{}
 	for _, f := range strings.Split(m.Arg(5), ",") {
@@ -477,13 +589,13 @@ func Render(vm *rubyvm.VM, eng *engine.Engine, code string, seconds float64, wri
 		return nil, err
 	}
 	ms, err := vm.Run(1, 0, 0, code)
-	s.dispatch(ms, false)
+	s.dispatch(ms, "")
 	if err != nil {
 		return s.Notes(), err
 	}
 	err = eng.RenderOffline(seconds, func(until float64) error {
 		ms, err := vm.Advance(until)
-		s.dispatch(ms, false)
+		s.dispatch(ms, "")
 		return err
 	}, write)
 	vm.StopAll()
