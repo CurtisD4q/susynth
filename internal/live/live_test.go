@@ -43,6 +43,10 @@ func TestTranslate(t *testing.T) {
 	if err != nil || h.Word != "tom:4" || h.Params.Speed != 2 || h.Label != 't' {
 		t.Errorf("%+v %v", h, err)
 	}
+	h, _, err = Translate(rubyvm.Msg{"ev", "2", "x", "3", "c", "beep", "id=7,n=65.0,nsl=0.5"})
+	if err != nil || h.Ctl == nil || h.Node != 7 || h.Ctl.Note != 65 || h.Ctl.NoteSlide != 0.5 || h.Ctl.Amp == h.Ctl.Amp {
+		t.Errorf("control: %+v %v", h, err)
+	}
 	if _, _, err := Translate(rubyvm.Msg{"ev", "1", "x", "2", "s", "loop_amen", ""}); err == nil {
 		t.Error("unknown sample should fail")
 	}

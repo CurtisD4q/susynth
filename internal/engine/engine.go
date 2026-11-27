@@ -39,6 +39,12 @@ type Hit struct {
 	Label  byte
 	Line   int // source line, for the editor
 	Run    int // the run that made the code, for the editor
+
+	// Node is the Ruby node the sound belongs to (0: none). A hit with Ctl
+	// set starts nothing: it changes the playing sounds of that node.
+	Node   int64
+	Ctl    *synth.Control
+	Slides *[5]float64 // note, amp, pan, cutoff, rate slide times (seconds)
 }
 
 type stamp struct {
@@ -586,6 +592,15 @@ func (e *Engine) startHits(n int) {
 	e.queue = append([]Hit(nil), e.queue[k:]...)
 	solo := e.anySolo()
 	for _, h := range due {
+		if h.Ctl != nil {
+			off := int(h.At - e.samples)
+			for _, v := range e.voices {
+				if v.ID == h.Node && h.Node != 0 {
+					v.Control(*h.Ctl, off)
+				}
+			}
+			continue
+		}
 		t := e.track(h.Track)
 		e.number(t)
 		t.hist = append(t.hist, stamp{h.At, h.Label})
@@ -618,6 +633,11 @@ func (e *Engine) startHits(n int) {
 			continue
 		}
 		v.Track = t.id
+		v.ID = h.Node
+		if h.Slides != nil {
+			sl := h.Slides
+			v.SetSlides(sl[0], sl[1], sl[2], sl[3], sl[4])
+		}
 		e.voices = append(e.voices, v)
 	}
 	if over := len(e.voices) - maxVoices; over > 0 {
