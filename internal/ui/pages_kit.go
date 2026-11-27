@@ -231,14 +231,20 @@ func (a *App) setState(i int) string {
 	return state
 }
 
-// syncSel makes a.ps.sel the row under Mint's cursor.
+// syncSel makes a.ps.sel the row under Mint's cursor. On Perform it is -1
+// when the cursor is on Now or Next, which are not sets.
 func (a *App) syncSel(s *mint.Screen) {
 	sel, ok := s.Selected()
 	if !ok {
 		return
 	}
 	switch a.page {
-	case pageSets, pageRecs, pagePerform:
+	case pageSets, pageRecs:
+		if sel.Cells != nil {
+			a.ps.sel = sel.Index
+		}
+	case pagePerform:
+		a.ps.sel = -1
 		if sel.Cells != nil {
 			a.ps.sel = sel.Index
 		}

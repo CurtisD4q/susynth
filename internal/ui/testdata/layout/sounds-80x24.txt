@@ -21,4 +21,4 @@
       voice
       Enter or ←→ opens and folds this group
   ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
-  ↑↓ select   ⏎ preview   ←→ fold   i insert   Esc m pages   ^Q quit
+  ↑↓ select   ⏎ preview   ←→ fold   i insert   m pages   ^Q quit

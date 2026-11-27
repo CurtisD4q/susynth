@@ -289,7 +289,7 @@ func TestTheTrailAndThePageIcons(t *testing.T) {
 		t.Fatalf("the hint line is still drawn:\n%s", screen)
 	}
 	// The top line is the trail; the pages are icons down the left, and
-	// Esc m opens them as Mint's pop-up.
+	// Esc m opens them as Mint's pop-up from the editor.
 	if !strings.Contains(rows[1], "susynth › ▶ Play") {
 		t.Errorf("trail %q", rows[1])
 	}
@@ -306,6 +306,9 @@ func TestTheTrailAndThePageIcons(t *testing.T) {
 	}
 
 	a.gotoPage(pageSounds)
+	if footer := strings.Join(a.drawRows(110), "\n"); !strings.Contains(footer, " m pages") || strings.Contains(footer, "Esc m pages") {
+		t.Errorf("off the editor the footer does not say m opens the pages:\n%s", footer)
+	}
 	if title := a.drawRows(110)[1]; !strings.Contains(title, "susynth › ♪ Sounds") {
 		t.Fatalf("sounds trail %q", title)
 	}

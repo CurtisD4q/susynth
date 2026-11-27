@@ -44,11 +44,11 @@ func pageByNumber(r rune) (page, bool) {
 // pageStep reports +1 or -1 for a next/previous page key, otherwise 0.
 // Esc f / Esc b (and Alt+f / Alt+b) are the pair to use: f and b are
 // unshifted on Latin keyboards, and a terminal sends Alt+letter as ESC
-// plus that letter. Esc ] / Esc [ and Esc m / Esc M are older aliases.
-// Alt+[ never arrives; ESC [ starts a cursor sequence.
+// plus that letter. Esc ] / Esc [ and Esc M are older aliases (Esc m opens
+// the pages pop-up). Alt+[ never arrives; ESC [ starts a cursor sequence.
 func pageStep(r rune) int {
 	switch r {
-	case 'f', 'F', ']', 'm':
+	case 'f', 'F', ']':
 		return 1
 	case 'b', 'B', '[', 'M':
 		return -1
@@ -411,6 +411,12 @@ func (a *App) pageKey(k key) {
 	case pageHelp:
 		a.ps.top = moveSel(a.ps.top, len(helpLines), k)
 	case pagePerform:
+		if a.ps.sel < 0 { // the cursor is on Now or Next
+			if isRune('d') || isRune('[') || isRune(']') {
+				a.say("move to a set in the list first", false)
+			}
+			return
+		}
 		a.ps.sel = moveSel(a.ps.sel, len(a.setlist), k)
 		switch {
 		case k.kind == kEnter:
@@ -444,7 +450,8 @@ var helpLines = []helpLine{
 	{key: "Esc 1 … Esc 7", text: "Play, Sets, Recordings, Sounds, Settings, Help, Perform"},
 	{key: "Esc f  /  Esc b", text: "next / previous page"},
 	{key: "Esc", text: "from any page, back to Play"},
-	{key: "Esc m", text: "the pages pop-up beside the icons: ↑↓ choose, Enter open, Esc back"},
+	{key: "m", text: "the pages pop-up beside the icons: ↑↓ choose, Enter open, m or Esc close"},
+	{text: "In the editor on Play, m types the letter: press Esc m there."},
 	{text: "The number is the page's place in the pop-up. Press Esc, then the key within 1.5 s, or hold Alt."},
 	{text: "F1-F7 still open those pages when the terminal sends function keys."},
 	{head: true, text: "KEYS ON EACH PAGE"},

@@ -16,11 +16,12 @@ import (
 // susynth as a Mint program.
 //
 // Each page is a Mint screen. Mint draws the trail along the top, the page
-// icons down the left and the pages pop-up (Esc m), each pane's title and
+// icons down the left and the pages pop-up (m), each pane's title and
 // rule, and the footer: the transport as badges, then the keys. susynth
 // draws inside the panes, and takes every key first (Screen.Grab), so
 // typing in the editor never reaches Mint's own keys; Esc then a key is its
-// way to everything else, as before.
+// way to everything else, as before. Off the editor, m is left to Mint, as
+// in any other Mint program; in the editor, where m is typed, it is Esc m.
 
 // pageIcons are the pages' icons, in page order.
 var pageIcons = []string{"▶", "≡", "●", "♪", "⚙", "?", "◈"}
@@ -117,7 +118,8 @@ func (a *App) grab(c *mint.Ctx, mk *mint.Key) bool {
 		return true // clicks do nothing: the focus stays where susynth has it
 	}
 	if a.page != pagePlay && a.prompt == nil && a.awaiting == "" && !a.escArmed() && mintMoves(k) {
-		return false // Mint moves the cursor, folds groups and runs Enter
+		a.quitAsk = false
+		return false // Mint moves the cursor, folds groups, runs Enter and opens the pages
 	}
 	a.ctx = c
 	defer func() { a.ctx = nil }()
@@ -130,15 +132,25 @@ func (a *App) grab(c *mint.Ctx, mk *mint.Key) bool {
 			return true
 		}
 	}
+	before := a.ps.sel
 	a.handleKey(k)
+	a.followMove(k, before)
 	if a.quit {
 		c.Quit()
 	}
 	return true
 }
 
-// mintMoves reports whether Mint handles k on a list page: moving, folding
-// and Enter.
+// followMove keeps Mint's cursor on a set that [ or ] moved up or down the
+// set list.
+func (a *App) followMove(k key, before int) {
+	if a.page == pagePerform && a.scr != nil && k.kind == kRune && !k.alt && (k.r == '[' || k.r == ']') && before >= 0 {
+		a.scr.MoveCursor(a.ps.sel - before)
+	}
+}
+
+// mintMoves reports whether Mint handles k on a list page: moving, folding,
+// Enter, and m for the pages pop-up.
 func mintMoves(k key) bool {
 	if k.alt {
 		return false
@@ -147,7 +159,7 @@ func mintMoves(k key) bool {
 	case kUp, kDown, kPgUp, kPgDn, kHome, kEnd, kEnter, kLeft, kRight:
 		return true
 	case kRune:
-		return k.r == ' '
+		return k.r == ' ' || k.r == 'm'
 	}
 	return false
 }
@@ -231,17 +243,17 @@ func (a *App) hints(p page) string {
 	transport := "^E run   ^G stop   ^P play   ^R rec   ^S/^O set   Esc m pages   ^Q quit"
 	switch p {
 	case pageSets:
-		return "↑↓ select   ⏎ load   a set list   n new   d delete   Esc m pages   ^Q quit"
+		return "↑↓ select   ⏎ load   a set list   n new   d delete   m pages   ^Q quit"
 	case pageRecs:
-		return "↑↓ select   ⏎ path   d delete   Esc m pages   ^Q quit"
+		return "↑↓ select   ⏎ path   d delete   m pages   ^Q quit"
 	case pageSounds:
-		return "↑↓ select   ⏎ preview   ←→ fold   i insert   Esc m pages   ^Q quit"
+		return "↑↓ select   ⏎ preview   ←→ fold   i insert   m pages   ^Q quit"
 	case pageSettings:
-		return "↑↓ select   ←→ change   ⏎ edit   Esc m pages   ^Q quit"
+		return "↑↓ select   ←→ change   ⏎ edit   m pages   ^Q quit"
 	case pageHelp:
-		return "↑↓ PgUp PgDn scroll   Esc m pages   ^Q quit"
+		return "↑↓ PgUp PgDn scroll   m pages   ^Q quit"
 	case pagePerform:
-		return "⏎ go live   Esc n/p next/previous   [ ] move   d remove   Esc m pages"
+		return "⏎ go live   Esc n/p next/previous   [ ] move   d remove   m pages"
 	}
 	return transport
 }

@@ -34,17 +34,52 @@ func (ss *screenSession) finish(cv *canvas) {
 // usePane points widget and marked at the pane being drawn.
 func (ss *screenSession) usePane(u *uiState) { ss.st = u }
 
-func (ss *screenSession) draw(h, w int) {
-	if ss.screen.Refresh != nil {
-		func() {
-			defer func() {
-				if p := recover(); p != nil {
-					ss.screen.Banner = "Error: " + Truncate(CleanLine(fmt.Sprint(p)), 70)
-				}
-			}()
-			ss.screen.Refresh(ss.screen)
-		}()
+// refresh runs the screen's Refresh. A panic in it shows as the banner.
+func (ss *screenSession) refresh() {
+	if ss.screen.Refresh == nil {
+		return
 	}
+	defer func() {
+		if p := recover(); p != nil {
+			ss.screen.Banner = "Error: " + Truncate(CleanLine(fmt.Sprint(p)), 70)
+		}
+	}()
+	ss.screen.Refresh(ss.screen)
+}
+
+// followCursor records the row under the cursor on a screen without panes
+// before it is drawn, so Selected and SelectedTableRow answer there as
+// they do on a split screen (paintSplit records it for those). When that
+// changes the selection, Refresh runs again, so what it builds from the
+// cursor is drawn in the same frame.
+func (ss *screenSession) followCursor(w int) {
+	s := ss.screen
+	if len(s.Panes) > 0 || s.Draw != nil {
+		return
+	}
+	cw := w
+	if rw := s.railWidth(w); rw > 0 {
+		cw = w - rw + 1
+	}
+	record := func() bool {
+		before, beforeRow := s.focusSig(), s.selSig()
+		st := s.uiAt(0)
+		ss.st = st
+		st.items = filterRows(st.flatten(s.Sections, cw, s.SectionSpacing), st.filter)
+		ss.clamp()
+		s.noteSelection(st)
+		s.noteFocusSelection()
+		return s.focusSig() != before || s.selSig() != beforeRow
+	}
+	if record() {
+		ss.refresh()
+		record() // Refresh may have rebuilt the rows
+	}
+}
+
+func (ss *screenSession) draw(h, w int) {
+	ss.refresh()
+	ss.followCursor(w)
 	ss.screen.cursor = ""
 	cv := begin(h, w)
 	if w < 48 || h < 12 {

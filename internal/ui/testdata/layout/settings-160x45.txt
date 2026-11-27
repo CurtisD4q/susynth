@@ -42,4 +42,4 @@
 
       default, large (projector) or contrast (washed-out projectors)
   ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
-  ↑↓ select   ←→ change   ⏎ edit   Esc m pages   ^Q quit
+  ↑↓ select   ←→ change   ⏎ edit   m pages   ^Q quit

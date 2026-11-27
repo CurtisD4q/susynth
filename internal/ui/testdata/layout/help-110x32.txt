@@ -6,11 +6,12 @@
       Esc 1 … Esc 7          Play, Sets, Recordings, Sounds, Settings, Help, Perform                        █
   ▶   Esc f  /  Esc b        next / previous page                                                           █
   ≡   Esc                    from any page, back to Play                                                    █
-  ●   Esc m                  the pages pop-up beside the icons: ↑↓ choose, Enter open, Esc back             █
-  ♪   The number is the page's place in the pop-up. Press Esc, then the key within 1.5 s, or hold Alt.      █
-  ⚙   F1-F7 still open those pages when the terminal sends function keys.                                   █
-  ?   KEYS ON EACH PAGE                                                                                     █
-  ◈   Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (asks        █
+  ●   m                      the pages pop-up beside the icons: ↑↓ choose, Enter open, m or Esc close       █
+  ♪   In the editor on Play, m types the letter: press Esc m there.                                         █
+  ⚙   The number is the page's place in the pop-up. Press Esc, then the key within 1.5 s, or hold Alt.      █
+  ?   F1-F7 still open those pages when the terminal sends function keys.                                   █
+  ◈   KEYS ON EACH PAGE                                                                                     █
+      Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (asks        │
       first)                                                                                                │
       Recordings             ↑↓ select · Enter show the path · d delete (asks first)                        │
       Sounds                 ↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example     │
@@ -27,6 +28,5 @@
       ^S  ^O                 save / load a set by name (sets are .rb files)                                 │
       Esc u  n               mute / unmute track n — a digit alone does nothing                             │
       Esc k  n               stop that track (Enter stops the loop under the cursor)                        │
-      Esc s  n               solo track n (0 clears)                                                        │
   ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
-  ↑↓ PgUp PgDn scroll   Esc m pages   ^Q quit
+  ↑↓ PgUp PgDn scroll   m pages   ^Q quit

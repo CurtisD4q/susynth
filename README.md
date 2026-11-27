@@ -30,12 +30,12 @@ end
 
 | | |
 |---|---|
-| ![Playing](screenshots/play.png) **Play (`Esc 1`):** four `live_loop`s running; the Tracks pane shows each loop's level, last sound and a one-bar step display. | ![An error in one loop](screenshots/error.png) **An error in one loop:** a typo on line 33 stops `:melody` and is marked in red; the other loops keep playing. |
+| ![Playing](screenshots/play.png) **Play (`Esc 1`):** four `live_loop`s running; the Tracks pane shows each loop's level, last sound and a one-bar step display. | ![An error in one loop](screenshots/error.png) **An error in one loop:** a typo on line 34 stops `:melody` and is marked in red; the other loops keep playing. |
 | ![First launch](screenshots/coldstart.png) **First launch:** the editor opens at once while Ruby compiles in the background; code you run now starts when Ruby is ready. | ![Sounds](screenshots/sounds.png) **Sounds (`Esc 4`):** Sonic Pi synth, sample and effect names in folding groups; `Enter` previews, `i` inserts an example. |
 | ![Piano roll](screenshots/pianoroll.png) **Piano roll (`Esc r`):** every note each loop plays, scrolling live; colours match the key at the bottom, drums have their own lanes. | ![Copy and paste](screenshots/select.png) **Selecting:** Shift+arrows select, then `^C` / `^X` / `^V`. |
 | ![Settings](screenshots/settings.png) **Settings (`Esc 5`):** audio output, OSC, MIDI, samples folder, theme. (Taken with audio off, so it shows `none`.) | ![Help](screenshots/help.png) **Help (`Esc 6`):** keys and a Sonic Pi language reference. |
 
-The pictures above were taken before susynth became a Mint program. The pages are now icons down the left; `Esc m` opens them as a pop-up, in order, so `Esc` then a page's place in it opens that page (`1` for Play, `2` for Sets, …).
+The pages are icons down the left. Press `m` to open them as a pop-up (in the editor on Play, where `m` types the letter, press `Esc` then `m`). They are in order, so `Esc` then a page's place in it opens that page (`1` for Play, `2` for Sets, …).
 
 ## How it works
 
@@ -262,7 +262,7 @@ Available effects: `reverb`, `echo`, `lpf`, `hpf`, `bitcrusher`, `distortion`, `
 
 ### 8. Find sounds
 
-Press `Esc` then `4` for the Sounds page (Esc m lists the pages in order). Groups fold open and
+Press `Esc` then `4` for the Sounds page (`m` opens the list of pages). Groups fold open and
 shut with `←` / `→`. Highlight a synth or sample and press `Enter` to hear it, or `i` to
 insert an example into your set. `Esc` returns to the editor.
 
@@ -359,8 +359,8 @@ Deleting the cache is safe; Ruby is compiled again on the next launch.
 | `Esc l` | session log in the right-hand pane (errors, `puts`, `cue`); Alt+↑↓ scrolls |
 | `Esc r` | switch the right-hand pane between Tracks and the piano roll |
 | `Esc x` | export MIDI (runs silently in a second sandbox; the music keeps playing) |
-| `Esc 1` … `Esc 7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform (Esc m lists the pages in order) |
-| `Esc m` | The pages pop-up beside the icons: ↑↓ choose, Enter open, Esc back |
+| `Esc 1` … `Esc 7` | Play, Sets, Recordings, Sounds, Settings, Help, Perform |
+| `m` | The pages pop-up beside the icons: ↑↓ choose, Enter open, `m` or `Esc` close. In the editor, press `Esc` then `m` |
 | `Esc f` / `Esc b` | next / previous page · `Esc` alone goes back to Play |
 
 **Esc shortcuts** (`Esc 4`, `Esc r`, `Esc u`, `Esc Enter`…): press `Esc`, let go, then the key within
@@ -369,8 +369,8 @@ set to act as Meta on macOS) and press the key. `Esc` alone goes back to Play an
 clear the message row or the log. Pages use that same prefix: `Esc` then `1`–`7`, or `Esc f` /
 `Esc b` to cycle. Those are plain Esc and digit/letter bytes, so they work over SSH, inside
 tmux, and on laptops where function keys need Fn or are taken by the desktop. `F1`–`F7` still
-open those pages when a terminal actually delivers them. `Esc ]` / `Esc [` and `Esc m` /
-`Esc M` still move next / previous, the same as `Esc f` / `Esc b`.
+open those pages when a terminal actually delivers them. `Esc ]` also moves to the next page,
+and `Esc [` / `Esc M` to the previous one, where the terminal delivers them.
 
 As in Sonic Pi: re-running a `live_loop` swaps its body in on its next pass; an error inside
 a loop stops that loop only. A loop that never sleeps stops with `did not sleep` and the
