@@ -81,7 +81,15 @@ type reverb struct {
 	inGain float32
 	size   float64
 	damp   float64
+
+	// idle: nothing is sending and the tail has died away, so the network
+	// is skipped. silentIn counts samples since the last non-zero input.
+	silentIn int
+	idle     bool
 }
+
+// idleFloor is the output level below which a tail counts as gone (~-180 dB).
+const idleFloor = 1e-9
 
 // preDelay is the gap before the tail starts: it keeps the dry attack clear.
 const preDelay = 0.012
@@ -142,7 +150,23 @@ func (r *reverb) set(size, damp float64) {
 
 // process adds the reverb of the stereo send in (interleaved) to out.
 func (r *reverb) process(out, in []float32) {
+	quiet := true
+	for _, v := range in {
+		if v != 0 {
+			quiet = false
+			break
+		}
+	}
+	if quiet && r.idle {
+		return
+	}
+	if quiet {
+		r.silentIn += len(in) / 2
+	} else {
+		r.silentIn, r.idle = 0, false
+	}
 	var x [fdnLines]float32
+	var loud float32
 	for s := 0; s < len(out)/2; s++ {
 		// pre-delay and diffusion, per channel
 		var inp [2]float32
@@ -189,5 +213,25 @@ func (r *reverb) process(out, in []float32) {
 		}
 		out[s*2] += oL
 		out[s*2+1] += oR
+		loud = max(loud, oL, -oL, oR, -oR)
 	}
+	// once the input has been silent longer than it takes to reach the
+	// lines, a tail this quiet can only fade further
+	if r.silentIn > r.inputSpan() && loud < idleFloor {
+		r.idle = true
+		for i := range r.lines {
+			clear(r.lines[i].buf)
+			r.lines[i].lp = 0
+		}
+	}
+}
+
+// inputSpan is how many samples input takes to pass the pre-delay and
+// diffusers into the network.
+func (r *reverb) inputSpan() int {
+	n := len(r.pre[0])
+	for _, d := range r.diff[0] {
+		n += len(d.buf)
+	}
+	return n + 64
 }

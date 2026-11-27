@@ -144,6 +144,35 @@ func TestReverbIsStableAndChangesSmoothly(t *testing.T) {
 	}
 }
 
+// A reverb nothing is sending to costs nothing once its tail has gone,
+// and wakes up at once when a sound arrives.
+func TestReverbSleepsWhenSilent(t *testing.T) {
+	rv := newReverb()
+	in, out := make([]float32, 960), make([]float32, 960)
+	in[0], in[1] = 1, 1
+	rv.process(out, in)
+	in[0], in[1] = 0, 0
+	for i := 0; i < 2000 && !rv.idle; i++ {
+		clear(out)
+		rv.process(out, in)
+	}
+	if !rv.idle {
+		t.Fatal("the reverb never went idle after its tail died")
+	}
+	in[100] = 1
+	var heard float64
+	for i := 0; i < 10; i++ { // the pre-delay and diffusers take ~37 ms
+		clear(out)
+		rv.process(out, in)
+		in[100] = 0
+		l, _ := audiotest.Split(out)
+		heard = max(heard, audiotest.Peak(l))
+	}
+	if heard == 0 {
+		t.Fatal("the reverb did not wake up for new input")
+	}
+}
+
 func BenchmarkReverb(b *testing.B) {
 	rv := newReverb()
 	in, out := make([]float32, 960), make([]float32, 960)
