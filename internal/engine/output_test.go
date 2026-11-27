@@ -83,11 +83,3 @@ func TestRecordingsAre24Bit(t *testing.T) {
 		t.Logf("recording error floor %.1f dBFS", floor)
 	}
 }
-
-func toF64(x []float32) []float64 {
-	y := make([]float64, len(x))
-	for i, v := range x {
-		y[i] = float64(v)
-	}
-	return y
-}
