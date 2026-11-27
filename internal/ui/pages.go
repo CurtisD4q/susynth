@@ -494,7 +494,7 @@ var helpLines = []helpLine{
 	{key: "use_bpm 120", text: "tempo (Sonic Pi starts at 60); with_bpm 90 do … end"},
 	{key: "use_synth :prophet", text: "the synth for play; with_synth :pluck do … end"},
 	{key: "amp: pan: release:", text: "options: attack: decay: sustain: release: cutoff: rate:"},
-	{key: "with_fx :reverb do", text: "effects: reverb echo lpf hpf bitcrusher distortion level pan"},
+	{key: "with_fx :reverb do", text: "effects: reverb echo ping_pong lpf rlpf hpf bitcrusher distortion compressor eq chorus level pan"},
 	{key: "sync :drums", text: "wait for the next pass of :drums (live_loops cue their name)"},
 	{key: "in_thread do", text: "run something alongside; at [0, 1.5] do … end schedules it"},
 	{key: "stop", text: "end the current loop or thread"},

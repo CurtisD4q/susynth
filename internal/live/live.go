@@ -395,6 +395,15 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 			if g.DelaySet {
 				s.Eng.SetDelay(g.DelayTime, g.DelayFB, g.PingPong)
 			}
+			if g.CompSet {
+				s.Eng.SetCompressor(g.Comp)
+			}
+			if g.EQSet {
+				s.Eng.SetEQ(g.EQ)
+			}
+			if g.ChorusSet {
+				s.Eng.SetChorus(g.Chorus)
+			}
 			if g.RoomSet {
 				s.Eng.SetReverb(g.RoomSize, g.RoomDamp)
 			}
@@ -438,12 +447,26 @@ type Globals struct {
 	DelaySet           bool
 	DelayTime, DelayFB float64
 	PingPong           bool
+	CompSet            bool
+	Comp               engine.CompSettings
+	EQSet              bool
+	EQ                 engine.EQSettings
+	ChorusSet          bool
+	Chorus             engine.ChorusSettings
 	RoomSet            bool
 	RoomSize           float64
 	RoomDamp           float64
 }
 
 func midiHz(n float64) float64 { return 440 * math.Pow(2, (n-69)/12) }
+
+// hzOr reads a frequency given as a MIDI note, or returns def.
+func hzOr(kv map[string]float64, k string, def float64) float64 {
+	if n, ok := kv[k]; ok {
+		return midiHz(n)
+	}
+	return def
+}
 
 var noteLetters = "ccddeffggaab"
 
@@ -557,6 +580,24 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 	}
 	// res: on the note or sample, and the resonant filter effects
 	p.Res = math.Max(get("res", defRes), get("fres", 0))
+	p.Comp, p.EQ, p.Chorus = get("comp", 0) != 0, get("eq", 0) != 0, get("cho", 0)
+	if p.Comp {
+		g.CompSet = true
+		g.Comp = engine.CompSettings{Threshold: get("cthr", engine.DefaultComp.Threshold),
+			SlopeAbove: get("cslope", engine.DefaultComp.SlopeAbove), Clamp: get("cclamp", engine.DefaultComp.Clamp),
+			Relax: get("crelax", engine.DefaultComp.Relax)}
+	}
+	if p.EQ {
+		d := engine.DefaultEQ
+		g.EQSet = true
+		g.EQ = engine.EQSettings{LowDB: get("eqlo", 0), LowHz: hzOr(kv, "eqlon", d.LowHz),
+			MidDB: get("eqmid", 0), MidHz: hzOr(kv, "eqmidn", d.MidHz), MidQ: get("eqq", d.MidQ),
+			HighDB: get("eqhi", 0), HighHz: hzOr(kv, "eqhin", d.HighHz)}
+	}
+	if p.Chorus > 0 {
+		g.ChorusSet = true
+		g.Chorus = engine.ChorusSettings{Rate: get("chrate", engine.DefaultChorus.Rate), Depth: get("chdepth", engine.DefaultChorus.Depth)}
+	}
 	p.HPRes = get("fhres", 0)
 	p.Room = get("room", 0)
 	p.Delay = get("dly", 0)

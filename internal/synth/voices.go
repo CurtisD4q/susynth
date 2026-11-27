@@ -96,6 +96,10 @@ type Params struct {
 	Shape    float64 // distortion 0..1
 	Delay    float64 // send to the delay bus 0..1
 	Room     float64 // send to the reverb bus 0..1
+	Chorus   float64 // send to the chorus bus 0..1
+
+	// Comp and EQ route the note's track through the compressor or EQ.
+	Comp, EQ bool
 	Release  float64 // tone release in seconds, 0 = default
 	Attack   float64 // tone attack in seconds, 0 = a 3 ms click guard
 	Decay    float64 // tone decay in seconds (the gate holds attack+decay+sustain)
@@ -130,6 +134,7 @@ const (
 type Voice struct {
 	Track               int
 	SendDelay, SendRoom float32 // bus send levels, read by the engine mixer
+	SendChorus          float32
 	Gain                float32 // the track gain the engine mixer last applied
 
 	k         kind
@@ -193,7 +198,7 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	v.gl = float32(g * math.Cos(ang))
 	v.gr = float32(g * math.Sin(ang))
 	v.variant = 1 + 0.06*float64(variant)
-	v.SendDelay, v.SendRoom = float32(p.Delay), float32(p.Room)
+	v.SendDelay, v.SendRoom, v.SendChorus = float32(p.Delay), float32(p.Room), float32(p.Chorus)
 	for ch := range v.fl {
 		if p.LPF > 0 {
 			v.fl[ch].lp = NewLowPass(p.LPF, p.Res, v.sr)

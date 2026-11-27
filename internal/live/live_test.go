@@ -303,3 +303,53 @@ play 40
 		t.Errorf("saw should have no filter by default: %+v", d)
 	}
 }
+
+// The compressor, EQ and chorus settings reach the engine from Ruby.
+func TestRubyPassesDynamics(t *testing.T) {
+	v := vm(t)
+	ms, err := v.Run(1, 0, 0, `
+with_fx :compressor, threshold: 0.1, slope_above: 0.3 do
+  play 60
+end
+with_fx :eq, low_shelf: 3, mid: -2, mid_note: 81 do
+  play 62
+end
+with_fx :chorus, mix: 0.4, rate: 1.2 do
+  play 64
+end
+play 65
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	more, err := v.Advance(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hs []engine.Hit
+	var gs []Globals
+	for _, m := range append(ms, more...) {
+		if m.Kind() == "ev" {
+			h, g, err := Translate(m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			hs, gs = append(hs, h), append(gs, g)
+		}
+	}
+	if len(hs) != 4 {
+		t.Fatalf("%d notes", len(hs))
+	}
+	if !hs[0].Params.Comp || !gs[0].CompSet || gs[0].Comp.Threshold != 0.1 || gs[0].Comp.SlopeAbove != 0.3 {
+		t.Errorf("compressor: %+v %+v", hs[0].Params, gs[0])
+	}
+	if !hs[1].Params.EQ || gs[1].EQ.LowDB != 3 || gs[1].EQ.MidDB != -2 || math.Abs(gs[1].EQ.MidHz-midiHz(81)) > 0.01 {
+		t.Errorf("eq: %+v", gs[1])
+	}
+	if hs[2].Params.Chorus != 0.4 || gs[2].Chorus.Rate != 1.2 {
+		t.Errorf("chorus: %+v %+v", hs[2].Params, gs[2])
+	}
+	if p := hs[3].Params; p.Comp || p.EQ || p.Chorus != 0 {
+		t.Errorf("a plain note picked up dynamics: %+v", p)
+	}
+}

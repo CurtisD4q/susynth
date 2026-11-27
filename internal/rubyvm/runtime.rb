@@ -879,7 +879,7 @@ def rand_skip(_n = 1) = nil
 # ---- sound ---------------------------------------------------------------------------
 
 FX_SUPPORTED = %i[reverb gverb echo ping_pong lpf rlpf nlpf nrlpf hpf rhpf nhpf nrhpf bitcrusher krush
-                  distortion tanh level pan compressor normaliser].freeze
+                  distortion tanh level pan compressor normaliser eq chorus].freeze
 
 def __with(key, val, &blk)
   c = __ctx
@@ -973,6 +973,20 @@ def __fx(out, bpm)
     when :krush, :distortion, :tanh
       d = (f[:distort] || f[:gain] && (f[:gain].to_f / 10) || 0.5).to_f.clamp(0, 1)
       out[:shape] = [out[:shape].to_f, d].max
+    when :compressor
+      out[:comp] = 1
+      out[:cthr] = (f[:threshold] || 0.2).to_f
+      out[:cslope] = (f[:slope_above] || 0.5).to_f
+      out[:cclamp] = (f[:clamp_time] || 0.01).to_f
+      out[:crelax] = (f[:relax_time] || 0.1).to_f
+    when :eq
+      out[:eq] = 1
+      { low_shelf: :eqlo, low_shelf_note: :eqlon, mid: :eqmid, mid_note: :eqmidn, mid_q: :eqq,
+        high_shelf: :eqhi, high_shelf_note: :eqhin }.each { |k, s| out[s] = f[k].to_f if f.key?(k) }
+    when :chorus
+      out[:cho] = [out[:cho].to_f, (f[:mix] || 0.5).to_f].max
+      out[:chrate] = (f[:rate] || 0.6).to_f
+      out[:chdepth] = (f[:depth] || 2.5).to_f
     when :level
       out[:amp] = out[:amp].to_f * (f[:amp] || 1).to_f
     when :pan

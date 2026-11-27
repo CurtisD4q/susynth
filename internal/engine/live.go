@@ -187,12 +187,12 @@ func (e *Engine) AdjustFilter(id, d int) (float64, bool) {
 }
 
 // trackFilter is a stereo low-pass (synth.Filter: 24 dB/octave, a touch of
-// resonance like a DJ mixer's) on one track's dry signal and both its effect
+// resonance like a DJ mixer's) on one track's dry signal and its effect
 // sends. The cutoff glides, so a sweep has no steps in it.
 type trackFilter struct {
-	f   [3][2]synth.Filter // bus, channel
+	f   [4][2]synth.Filter // bus (dry, echo, reverb, chorus), channel
 	hz  float64            // the cutoff aimed at
-	buf [3][]float32
+	buf [4][]float32
 }
 
 const (
@@ -212,7 +212,7 @@ func (f *trackFilter) bufs(n int) {
 
 // run filters the track's buffers towards target Hz (0 = open) and adds them
 // to the outputs.
-func (f *trackFilter) run(target float64, outs [3][]float32, n int) {
+func (f *trackFilter) run(target float64, outs [4][]float32, n int) {
 	if target <= 0 {
 		target = openHz
 	}

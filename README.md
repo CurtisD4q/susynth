@@ -71,6 +71,14 @@ susynth's filters, bit crusher, distortion, echo and reverb; effects with no equ
 skipped with a note. Put your own `.wav` files in the samples folder to use real samples
 (`sample :mybank, 2`, `sample :kick`, or `sample "~/path/to/file.wav"`).
 
+The engine works in 32-bit float to the sound card and records 24-bit WAVs. Synths have
+Sonic Pi's ADSR envelope (`attack:`, `decay:`, `sustain:`, `release:` and their `_level`s) and a
+24 dB resonant low-pass (`cutoff:`, `res:`); `:tb303` adds its filter envelope (`cutoff_min:`,
+`cutoff_attack:`, …). Effects: `:reverb` (`room:`, `damp:`), `:echo` and `:ping_pong`, the
+filters, `:bitcrusher`, `:distortion`, and three that only change tracks that use them:
+`:compressor` (`threshold:`, `slope_above:`, `clamp_time:`, `relax_time:`), `:eq` (`low_shelf:`,
+`mid:`, `high_shelf:` in dB, with `_note:` frequencies) and `:chorus` (`mix:`, `rate:`, `depth:` in ms).
+
 ## Prerequisites
 
 To **run** a prebuilt binary:
