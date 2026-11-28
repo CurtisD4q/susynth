@@ -205,3 +205,62 @@ func bellEnv(t, a, d, s, r, al, sl float64) float64 {
 	}
 	return 0
 }
+
+// newAmbience is dark_ambience: quiet noise ringing three resonators (the
+// note, +detune1 and +detune2 semitones), run through GVerb (room 70,
+// reverb_time 100 by default, spread 15), soft-clipped, band-limited by an
+// RLPF and balanced.
+func newAmbience(v *Voice, o func(string, float64) float64) *native {
+	cut := &cutoffHolder{o("cutoff", 110)}
+	rq := 1 - o("res", 0.7)
+	ring := o("ring", 0.2)
+	var src func() float64
+	switch int(o("noise", 0)) {
+	case 1:
+		b := brownSrc(v)
+		src = func() float64 { return 0.002 * b() }
+	case 2:
+		w := whiteSrc(v)
+		src = func() float64 { return 0.002 * w() }
+	case 3:
+		c := clipSrc(v)
+		src = func() float64 { return 0.001 * c() }
+	case 4:
+		g := graySrc(v)
+		src = func() float64 { return 0.001 * g() }
+	default:
+		p := pinkSrc(v)
+		src = func() float64 { return 0.005 * p() }
+	}
+	d1, d2 := o("detune1", 12), o("detune2", 24)
+	f := v.freq
+	zs := [3]*ringz{
+		newRingz(f, ring, v.sr),
+		newRingz(f*math.Pow(2, d1/12), ring, v.sr),
+		newRingz(f*math.Pow(2, d2/12), ring, v.sr),
+	}
+	room := clamp(o("room", 70), 0.1, 300)
+	gv := newGverbCore(v.sr, room, o("reverb_time", 100), 0.5)
+	gv.bw = 0.5
+	var lpl, lpr scRLPF
+	return &native{
+		own: true,
+		lr: func() (float64, float64) {
+			env := v.envNow
+			n := src()
+			x := (2*zs[0].run(n) + zs[1].run(n) + zs[2].run(n)) * 0.25
+			// GVerb takes the enveloped sound; its dry level of 1 adds it back
+			in := env * x
+			l, r := gv.step(in, 0.7, 0.5, true)
+			l, r = l+in, r+in
+			c := cut.hz()
+			l = lpl.run(env*math.Tanh(l), c, rq, v.sr)
+			r = lpr.run(env*math.Tanh(r), c, rq, v.sr)
+			return l * 0.8, r * 0.8 // Balance2 at the centre (0.707), trimmed to the level measured against scsynth
+		},
+		cut: func(m float64) { cut.midi = m },
+		cur: func() float64 { return cut.midi },
+	}
+}
+
+func init() { natives["ambience"] = newAmbience }

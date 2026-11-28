@@ -19,6 +19,7 @@ type gverbCore struct {
 	ew    int
 	etaps []int
 	esign []float64
+	esgn2 []float64 // the right channel's signs, for a spread above 0
 	bw    float64
 	lpIn  float64
 	gain  [8]float64
@@ -46,6 +47,7 @@ func newGverbCore(sr, room, release, damp float64) *gverbCore {
 	g.early = make([]float64, last+1)
 	g.etaps = make([]int, len(gverbEarlyPos))
 	g.esign = make([]float64, len(gverbEarlyPos))
+	g.esgn2 = make([]float64, len(gverbEarlyPos))
 	seed := uint32(2463534242)
 	for i, p := range gverbEarlyPos {
 		g.etaps[i] = int(float64(p)*rs + 0.5)
@@ -53,8 +55,12 @@ func newGverbCore(sr, room, release, damp float64) *gverbCore {
 		seed ^= seed >> 17
 		seed ^= seed << 5
 		g.esign[i] = gverbEarlyAmp
+		g.esgn2[i] = gverbEarlyAmp
 		if seed&0x10000 != 0 {
 			g.esign[i] = -gverbEarlyAmp
+		}
+		if seed&0x100 != 0 {
+			g.esgn2[i] = -gverbEarlyAmp
 		}
 	}
 	g.damp = clamp(1-gvDA*math.Pow((1-clamp(damp, 0, 1))/0.5, gvDB), 0, 0.99)
@@ -67,10 +73,17 @@ func gverbRT(release float64) float64 { return math.Max(0.2, release) }
 // run feeds one sample through the reverb: the early reflections and the
 // tail, as one mono signal (Sonic Pi runs GVerb with spread 0).
 func (g *gverbCore) run(x float64, ref, tail float64) float64 {
+	l, _ := g.step(x, ref, tail, false)
+	return l
+}
+
+// step is run for both outputs: with stereo, the right one is its own
+// decorrelated mix (what GVerb's spread does); without, it is not worked out.
+func (g *gverbCore) step(x float64, ref, tail float64, stereo bool) (float64, float64) {
 	g.lpIn += g.bw * (x - g.lpIn)
 	x = g.lpIn
 	g.early[g.ew] = x
-	var e float64
+	var e, e2 float64
 	n := len(g.early)
 	for i, t := range g.etaps {
 		k := g.ew - t
@@ -78,6 +91,9 @@ func (g *gverbCore) run(x float64, ref, tail float64) float64 {
 			k += n
 		}
 		e += g.esign[i] * g.early[k]
+		if stereo {
+			e2 += g.esgn2[i] * g.early[k]
+		}
 	}
 	if g.ew++; g.ew == n {
 		g.ew = 0
@@ -98,11 +114,15 @@ func (g *gverbCore) run(x float64, ref, tail float64) float64 {
 			g.pos[i] = 0
 		}
 	}
-	var tl float64
+	var tl, tr float64
 	for i := 0; i < len(out); i += 2 {
 		tl += out[i]
+		tr += out[i+1]
 	}
-	return ref*e + tail*gverbTail*tl
+	if !stereo {
+		return ref*e + tail*gverbTail*tl, 0
+	}
+	return ref*e + tail*gverbTail*tl, ref*e2 + tail*gverbTail*tr
 }
 
 const gverbTail = 1.889
