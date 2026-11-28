@@ -5,7 +5,7 @@ github.com/CurtisD4q/pmin-base/selfinstall
 github.com/CurtisD4q/pmin-base/text
 github.com/CurtisD4q/pmin-base/util
 github.com/CurtisD4q/pmin-base/values
-# github.com/CurtisD4q/pmin-kit v0.0.0-20261127102647-3805c00bc070
+# github.com/CurtisD4q/pmin-kit v0.0.0-20261128112516-1e576e1d5140
 ## explicit; go 1.21
 github.com/CurtisD4q/pmin-kit
 github.com/CurtisD4q/pmin-kit/theme

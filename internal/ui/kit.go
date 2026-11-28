@@ -62,6 +62,8 @@ func (a *App) screen(p page) *mint.Screen {
 		Grab:  a.grab,
 		Poll:  a.poll,
 		Hints: a.hints(p),
+
+		CanLeave: a.canLeave,
 	}
 	switch p {
 	case pagePlay:
@@ -81,6 +83,19 @@ func (a *App) screen(p page) *mint.Screen {
 	}
 	a.scr = s
 	return s
+}
+
+// canLeave is asked before Mint closes a screen. Only quitting loses the
+// editor: moving between pages keeps the code, so that is not asked about.
+func (a *App) canLeave(c *mint.Ctx) bool {
+	if !a.quit || !a.dirty {
+		return true
+	}
+	if c.Confirm("Quit without saving?", "The code in the editor has changes that are not saved. ^S saves them.") {
+		return true
+	}
+	a.quit = false
+	return false
 }
 
 // setPage makes p the page shown, with its lists read afresh.
@@ -118,7 +133,6 @@ func (a *App) grab(c *mint.Ctx, mk *mint.Key) bool {
 		return true // clicks do nothing: the focus stays where susynth has it
 	}
 	if a.page != pagePlay && a.prompt == nil && a.awaiting == "" && !a.escArmed() && mintMoves(k) {
-		a.quitAsk = false
 		return false // Mint moves the cursor, folds groups, runs Enter and opens the pages
 	}
 	a.ctx = c

@@ -16,12 +16,8 @@ func TestMOpensThePagesExceptWhereItIsTyped(t *testing.T) {
 		}
 		a := testApp()
 		a.gotoPage(p)
-		a.quitAsk = true
 		if a.grab(nil, press()) {
 			t.Errorf("%s: susynth took m, so the pages do not open", pageNames[p])
-		}
-		if a.quitAsk {
-			t.Errorf("%s: opening the pages left the quit question armed", pageNames[p])
 		}
 	}
 
@@ -43,5 +39,23 @@ func TestMOpensThePagesExceptWhereItIsTyped(t *testing.T) {
 	}
 	if got := string(a.prompt.buf); got != "m" {
 		t.Fatalf("the question reads %q", got)
+	}
+}
+
+// Quitting with code that is not saved asks first (Mint's CanLeave); moving
+// between pages does not, as the code is kept.
+func TestQuitAsksWhenUnsaved(t *testing.T) {
+	a := testApp()
+	if !a.canLeave(nil) {
+		t.Error("nothing to lose, yet leaving was refused")
+	}
+	a.dirty = true
+	if !a.canLeave(nil) {
+		t.Error("changing page asks, but the editor keeps its code")
+	}
+	a.quit = true
+	a.dirty = false
+	if !a.canLeave(nil) {
+		t.Error("saved code, yet quitting was refused")
 	}
 }
