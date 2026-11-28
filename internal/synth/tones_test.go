@@ -36,12 +36,9 @@ func pitchOf(t *testing.T, wave string) (float64, float64) {
 
 func TestSonicPiVoices(t *testing.T) {
 	want := 440 * math.Pow(2, (52.0-69)/12) // 164.8 Hz
-	for _, w := range []string{"dsaw", "prophet", "blade", "bell", "piano", "hollow", "ambience", "rhodey", "horn"} {
+	for _, w := range []string{"dsaw", "prophet", "blade", "bell", "piano", "hollow", "ambience", "rhodey"} {
 		f, rms := pitchOf(t, w)
 		semis := math.Abs(12 * math.Log2(f/want))
-		if w == "horn" { // its sub-octave can set the period
-			semis = math.Min(semis, math.Abs(semis-12))
-		}
 		if semis > 0.5 || rms < 0.02 || rms > 0.6 || math.IsNaN(rms) {
 			t.Errorf("%s: %.1f Hz (want %.1f), level %.3f", w, f, want, rms)
 		}

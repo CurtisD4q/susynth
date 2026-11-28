@@ -93,7 +93,6 @@ var SonicSynths = []SonicSynth{
 	// Stand-ins for Sonic Pi synths susynth has no voice of its own for yet,
 	// so code that uses them still plays.
 	{"rhodey", "rhodey", "", "FM electric piano"},
-	{"dark_sea_horn", "horn", "", "dark horn drone"},
 	{"gabberkick", "gabber", "", "hard distorted kick"},
 	{"sc808_claves", "", "clave", "808 claves"},
 	{"sc808_congalo", "", "conga", "808 low conga"},
