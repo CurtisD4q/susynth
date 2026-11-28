@@ -13,11 +13,9 @@ type ctlWave struct {
 	sr        float64
 	phase     float64 // cycles, 0..1 for pulse/sine; the saw and triangle use their own scale
 	tick      int
-	val       float64
 	started   bool
 	rng       uint64
 	coin      bool
-	coinSet   bool
 	lastCycle int
 }
 
@@ -145,15 +143,13 @@ func (l *lagUD) run(x, up, down, sr float64) float64 {
 	return l.y
 }
 
-func lagOf(smooth float64) (float64, float64) { return smooth, smooth }
-
 func init() {
 	type slicer struct {
-		w        *ctlWave
-		up, down lagUD
-		sm       lagUD
-		amp      float64
-		n        int
+		w   *ctlWave
+		up  lagUD
+		sm  lagUD
+		amp float64
+		n   int
 	}
 	slicerDefaults := map[string]float64{"phase": 0.25, "amp_min": 0, "amp_max": 1, "pulse_width": 0.5,
 		"smooth": 0, "smooth_up": 0, "smooth_down": 0, "probability": 0, "prob_pos": 0, "phase_offset": 0,
@@ -178,13 +174,13 @@ func init() {
 		})
 
 	type wobble struct {
-		w        *ctlWave
-		up, down lagUD
-		sm       lagUD
-		hz       float64
-		n        int
-		lp       [2]scRLPF
-		hp       [2]scRHPF
+		w  *ctlWave
+		up lagUD
+		sm lagUD
+		hz float64
+		n  int
+		lp [2]scRLPF
+		hp [2]scRHPF
 	}
 	wobbleDefaults := map[string]float64{"phase": 0.5, "cutoff_min": 60, "cutoff_max": 120, "res": 0.8,
 		"pulse_width": 0.5, "filter": 0, "smooth": 0, "smooth_up": 0, "smooth_down": 0, "phase_offset": 0,
@@ -214,11 +210,11 @@ func init() {
 		})
 
 	type panslicer struct {
-		w        *ctlWave
-		up, down lagUD
-		sm       lagUD
-		pan      float64
-		n        int
+		w   *ctlWave
+		up  lagUD
+		sm  lagUD
+		pan float64
+		n   int
 	}
 	panDefaults := map[string]float64{"phase": 0.25, "pan_min": -1, "pan_max": 1, "pulse_width": 0.5,
 		"smooth": 0, "smooth_up": 0, "smooth_down": 0, "probability": 0, "prob_pos": 0, "phase_offset": 0,
