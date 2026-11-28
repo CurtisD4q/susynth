@@ -1250,7 +1250,8 @@ def play(n = :__none, *rest, **opts, &_blk)
     return nil if nodes.empty?
     return SusynthNode.new(:synth, nodes.first.name, nodes.map(&:t_end).compact.max, nodes.flat_map(&:ids))
   end
-  n = 52 if n == :__none
+  none = n == :__none
+  n = 52 if none
   c = __ctx
   o = c[:sdef].merge(opts)
   return nil if o.key?(:on) && !o[:on]
@@ -1266,6 +1267,7 @@ def play(n = :__none, *rest, **opts, &_blk)
     __warn_once("sndin", "synth #{s.inspect} needs a live audio input, which susynth hasn't got; it is skipped")
     return nil
   end
+  n = NATIVE_NOTES[s.to_s] if none && NATIVE_NOTES.key?(s.to_s)
   nn = note(o.key?(:note) ? o.delete(:note) : n)
   return nil if nn.nil?
   nn += c[:transpose] + c[:octave] * 12
@@ -1298,7 +1300,7 @@ end
 def synth(name, *rest, **opts, &blk)
   opts = rest.first.merge(opts) if rest.first.is_a?(Hash)
   return play(**opts, &blk) if name.nil?
-  play(opts.key?(:note) ? opts[:note] : 52, synth: name, **opts.except(:note))
+  play(opts.key?(:note) ? opts[:note] : :__none, synth: name, **opts.except(:note))
 end
 
 # SYNTH_OPTS are the synth-specific options the voices read, as the event
@@ -1310,8 +1312,13 @@ SYNTH_OPTS = { detune: :det, divisor: :div, depth: :dep, vel: :vel, vibrato_rate
 # (internal/synth/native.go): they take their options by Sonic Pi's names.
 # NATIVE_BEATS are the options that are lengths of time in beats, and
 # NATIVE_DEFAULTS what a synth's attack is when it is not the usual 0.
-NATIVE_SYNTHS = %w[bass_foundation bass_highend winwood_lead zawa supersaw subpulse chiplead chipbass tb303 hoover tech_saws growl noise pnoise bnoise gnoise cnoise chipnoise kalimba gabberkick rhodey rodeo organ_tonewheel piano].freeze
+NATIVE_SYNTHS = %w[bass_foundation bass_highend winwood_lead zawa supersaw subpulse chiplead chipbass tb303 hoover tech_saws growl noise pnoise bnoise gnoise cnoise chipnoise kalimba gabberkick rhodey rodeo organ_tonewheel piano sc808_bassdrum sc808_snare sc808_clap sc808_closed_hihat sc808_open_hihat sc808_rimshot sc808_tomlo sc808_tommid sc808_tomhi sc808_cowbell sc808_claves sc808_congalo sc808_congamid sc808_congahi sc808_cymbal sc808_maracas].freeze
 NATIVE_BEATS = %i[attack decay sustain release cutoff_attack cutoff_decay cutoff_sustain cutoff_release phase].freeze
+# NATIVE_NOTES is the note a synth plays when the code names none, as in its
+# own design (the 808 drums are tuned to theirs).
+NATIVE_NOTES = { "sc808_bassdrum" => 34, "sc808_snare" => 65, "sc808_claves" => 99, "sc808_cowbell" => 79.5898,
+                 "sc808_rimshot" => 92, "sc808_tomlo" => 40, "sc808_tommid" => 44, "sc808_tomhi" => 52,
+                 "sc808_congalo" => 52, "sc808_congamid" => 57, "sc808_congahi" => 65 }.freeze
 NATIVE_DEFAULTS = { "tb303" => { attack: 0.01 }.freeze, "hoover" => { attack: 0.05 }.freeze,
                     "growl" => { attack: 0.1 }.freeze,
                     "kalimba" => { sustain: 4 }.freeze,

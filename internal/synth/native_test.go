@@ -165,3 +165,32 @@ func TestNativeNoiseKinds(t *testing.T) {
 		bright(n)
 	}
 }
+
+// TestSC808Drums plays every 808 drum: each makes sound, rings out by itself
+// and ends, at the pitch of its design where it has one.
+func TestSC808Drums(t *testing.T) {
+	for _, name := range []string{"sc808_bassdrum", "sc808_snare", "sc808_clap", "sc808_claves", "sc808_closed_hihat",
+		"sc808_open_hihat", "sc808_cowbell", "sc808_cymbal", "sc808_maracas", "sc808_rimshot", "sc808_tomlo",
+		"sc808_tommid", "sc808_tomhi", "sc808_congalo", "sc808_congamid", "sc808_congahi"} {
+		note, _ := DefaultNote(name)
+		if note == 0 {
+			note = 52
+		}
+		v, err := New("52", 48000, 0, 24000, Params{Gain: 1, Speed: 1, Wave: name, Note: note, Release: 0.1, EnvShape: 1}, 7)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		var peak float64
+		n := 0
+		for ; n < 48000*8 && !v.Done(); n++ {
+			l, r := v.Next()
+			peak = math.Max(peak, math.Max(math.Abs(float64(l)), math.Abs(float64(r))))
+		}
+		if peak < 0.01 {
+			t.Errorf("%s is silent (peak %g)", name, peak)
+		}
+		if !v.Done() {
+			t.Errorf("%s never ended", name)
+		}
+	}
+}
