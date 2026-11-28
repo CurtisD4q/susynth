@@ -5,21 +5,6 @@ import (
 	"testing"
 )
 
-// rmsWindows plays a voice and returns its RMS level in windows of w frames.
-func rmsWindows(v *Voice, n, w int) []float64 {
-	var out []float64
-	var sum float64
-	for i := 1; i <= n; i++ {
-		l, r := v.Next()
-		sum += float64(l*l + r*r)
-		if i%w == 0 {
-			out = append(out, math.Sqrt(sum/float64(w)))
-			sum = 0
-		}
-	}
-	return out
-}
-
 func TestPitchShiftMod(t *testing.T) {
 	const sr = 48000
 	for _, c := range []struct{ semis, want float64 }{{12, 880}, {-12, 220}, {7, 440 * math.Pow(2, 7.0/12)}} {
