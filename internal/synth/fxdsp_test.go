@@ -65,3 +65,25 @@ func TestPingPongAlternatesSides(t *testing.T) {
 		t.Errorf("echoes: %v %v / %v %v / %v %v", at(1, 0), at(1, 1), at(2, 0), at(2, 1), at(3, 0), at(3, 1))
 	}
 }
+
+func TestRecordFillsABufferThatSamplePlays(t *testing.T) {
+	f := NewFX("record", 48000, map[string]float64{"buffer": 77, "seconds": 1})
+	in := make([]float32, 2*100)
+	for i := range in {
+		in[i] = float32(i%7) / 10
+	}
+	out := make([]float32, len(in))
+	f.Process(out, in)
+	for i := range in {
+		if out[i] != in[i] {
+			t.Fatalf("record changed the sound at %d", i)
+		}
+	}
+	s := lookupSample("@rec77", 0)
+	if s == nil || len(s.Data) != 48000 {
+		t.Fatalf("no buffer: %+v", s)
+	}
+	if s.Data[3] != in[6] || s.Right[3] != in[7] {
+		t.Errorf("recorded %v %v, want %v %v", s.Data[3], s.Right[3], in[6], in[7])
+	}
+}
