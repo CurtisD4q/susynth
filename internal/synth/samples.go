@@ -191,6 +191,9 @@ func LoadSamples(dir string) (banks, files int, err error) {
 	fileCache.Lock()
 	fileCache.keys = nil
 	fileCache.Unlock()
+	builtin.Lock()
+	builtin.loaded = nil
+	builtin.Unlock()
 	return len(next), files, firstErr
 }
 

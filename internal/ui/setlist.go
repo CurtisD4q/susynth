@@ -153,7 +153,7 @@ func (a *App) exportMIDI(seconds int) {
 	go func() {
 		vm := rubyvm.Start(paths.CacheDir())
 		defer vm.Close()
-		vm.SetTables(synth.SynthNames(), synth.SampleNames())
+		vm.SetTables(synth.SynthNames(), synth.SampleTable())
 		<-vm.Ready()
 		msg, isErr := func() (string, bool) {
 			if err := vm.Err(); err != nil {

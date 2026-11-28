@@ -78,7 +78,7 @@ func New(vm *rubyvm.VM, eng *engine.Engine) *Seq {
 // RefreshTables sends the synth and sample names to Ruby (after the samples
 // folder is reloaded, for example).
 func (s *Seq) RefreshTables() {
-	s.VM.SetTables(synth.SynthNames(), synth.SampleNames())
+	s.VM.SetTables(synth.SynthNames(), synth.SampleTable())
 }
 
 // Start keeps Ruby ahead of the audio until ctx ends.
@@ -591,12 +591,21 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 			}
 			h.Label = base[0]
 		}
-		p.Speed = math.Abs(get("rate", 1))
+		rate := get("rate", 1)
+		p.Speed, p.Reverse = math.Abs(rate), rate < 0
 		if p.Speed == 0 {
 			p.Speed = 1
 		}
 		if c, ok := kv["cutoff"]; ok {
 			p.LPF = midiHz(c)
+		}
+		if c, ok := kv["hpf"]; ok {
+			p.HPF = midiHz(c)
+		}
+		p.Start, p.Finish = get("st", 0), get("fi", 1)
+		p.Attack, p.Release = get("a", 0), get("r", 0)
+		if sus, ok := kv["s"]; ok {
+			p.Held = math.Max(get("a", 0)+get("d", 0)+sus, 1e-9)
 		}
 	default:
 		return h, g, fmt.Errorf("unknown event kind %q", kind)

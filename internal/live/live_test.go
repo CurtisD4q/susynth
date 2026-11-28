@@ -40,14 +40,14 @@ func TestTranslate(t *testing.T) {
 		t.Errorf("%+v %+v", h, g)
 	}
 	h, _, err = Translate(rubyvm.Msg{"ev", "1", "drums", "2", "s", "drum_tom_mid_hard", "amp=1,rate=-2"})
-	if err != nil || h.Word != "tom:4" || h.Params.Speed != 2 || h.Label != 't' {
+	if err != nil || !strings.HasSuffix(h.Word, "drum_tom_mid_hard") || h.Params.Speed != 2 || !h.Params.Reverse || h.Label != 'd' {
 		t.Errorf("%+v %v", h, err)
 	}
 	h, _, err = Translate(rubyvm.Msg{"ev", "2", "x", "3", "c", "beep", "id=7,n=65.0,nsl=0.5"})
 	if err != nil || h.Ctl == nil || h.Node != 7 || h.Ctl.Note != 65 || h.Ctl.NoteSlide != 0.5 || h.Ctl.Amp == h.Ctl.Amp {
 		t.Errorf("control: %+v %v", h, err)
 	}
-	if _, _, err := Translate(rubyvm.Msg{"ev", "1", "x", "2", "s", "loop_amen", ""}); err == nil {
+	if _, _, err := Translate(rubyvm.Msg{"ev", "1", "x", "2", "s", "loop_no_such_sample", ""}); err == nil {
 		t.Error("unknown sample should fail")
 	}
 }
@@ -187,7 +187,7 @@ func TestRealtimeRedefine(t *testing.T) {
 		t.Fatal("not running")
 	}
 	tv := e.Snapshot().Tracks
-	if len(tv) != 1 || tv[0].Name != "a" || tv[0].Src != "sn" {
+	if len(tv) != 1 || tv[0].Name != "a" || !strings.HasSuffix(tv[0].Src, "drum_snare_hard") {
 		t.Errorf("tracks after redefine: %+v", tv)
 	}
 	for _, n := range s.Notes() {

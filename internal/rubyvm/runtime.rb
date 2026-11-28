@@ -34,6 +34,7 @@ $stdout.binmode
 $__out = +""
 $__synths = []
 $__samples = []
+$__sdur = {}
 $__warned = {}
 $__store = {}
 
@@ -1175,14 +1176,22 @@ def sample(name = nil, *rest, **opts, &_blk)
   else raise ArgumentError, "sample needs a name like :bd_haus or a path to a .wav file"
   end
   bpm = c[:bpm]
-  ev = { amp: (o[:amp] || 1).to_f, pan: (o[:pan] || 0).to_f, rate: (o[:rate] || 1).to_f }
+  st, fi = __sample_region(o)
+  ev = { amp: (o[:amp] || 1).to_f, pan: (o[:pan] || 0).to_f, rate: __sample_rate(n, o, bpm) }
+  ev[:st] = st.round(6) if st != 0
+  ev[:fi] = fi.round(6) if fi != 1
   ev[:i] = idx if idx
-  ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
+  cut = o[:cutoff] || o[:lpf]
+  ev[:cutoff] = cut.to_f if cut.is_a?(Numeric)
+  ev[:hpf] = o[:hpf].to_f if o[:hpf].is_a?(Numeric)
   ev[:res] = o[:res].to_f if o[:res]
-  %i[attack release].each { |k| (v = __beats(o, k, bpm)) && ev[k.to_s[0].to_sym] = v }
-  if o[:beat_stretch] || o[:start] || o[:finish] || o[:pitch]
-    __warn_once("smpopt", "sample options beat_stretch/start/finish/pitch are ignored in susynth")
+  %i[attack decay sustain release].each { |k| (v = __beats(o, k, bpm)) && ev[k.to_s[0].to_sym] = v }
+  ev.delete(:s) if ev[:s] && ev[:s] < 0 # sustain: -1 is Sonic Pi's "to the end"
+  if o[:pitch] && o[:pitch] != 0
+    __warn_once("smppitch", "sample pitch: (shifting pitch but not speed) isn't in susynth; use rpitch: or rate:")
   end
+  __warn_once("smpps", "sample pitch_stretch: changes the pitch too in susynth") if o[:pitch_stretch]
+  __warn_once("smpon", "sample onset: isn't in susynth; the whole sample plays") if o[:onset]
   __fx(ev, bpm)
   id = __node_id
   ev[:id] = id
@@ -1191,7 +1200,57 @@ def sample(name = nil, *rest, **opts, &_blk)
   SusynthNode.new(:sample, n, nil, [id])
 end
 
-def sample_duration(*_a, **_o) = 1.0 * 60.0 / current_bpm
+# __sample_region is the part of a sample to play, as fractions: start:,
+# finish:, and slice: of num_slices: (16 by default).
+def __sample_region(o)
+  st = (o[:start] || 0).to_f
+  fi = (o[:finish] || 1).to_f
+  if o.key?(:slice) && !o[:slice].nil?
+    n = (o[:num_slices] || 16).to_i
+    n = 16 if n <= 0
+    sl = o[:slice]
+    sl = __ctx[:rng].rand(n) if sl == :rand
+    sl = sl.to_i % n
+    a, w = sl.to_f / n, 1.0 / n
+    st, fi = a + st * w, a + fi * w
+  end
+  [st.clamp(0.0, 1.0), fi.clamp(0.0, 1.0)]
+end
+
+# __sample_rate is the speed to play at: rate:, rpitch: (semitones), and
+# beat_stretch: (fit the whole sample to that many beats).
+def __sample_rate(n, o, bpm)
+  r = (o[:rate] || 1).to_f
+  r *= 2**(o[:rpitch].to_f / 12) if o[:rpitch]
+  bs = o[:beat_stretch] || o[:pitch_stretch]
+  if bs && bs.to_f > 0 && (d = __sample_seconds(n))
+    r *= d / (bs.to_f * 60.0 / bpm)
+  end
+  r
+end
+
+def __sample_seconds(name)
+  name = name.to_s.sub(/\A:/, "")
+  $__sdur[name]
+end
+
+# sample_duration is how many beats a sample plays for at the current bpm,
+# with the same options sample takes.
+def sample_duration(name = nil, *rest, **opts)
+  opts = rest.first.merge(opts) if rest.first.is_a?(Hash)
+  n = name.is_a?(String) && !__sample_path?(name) ? __sample_filter([name] + rest) : name
+  d = __sample_seconds(n.to_s) or return 1.0
+  bpm = current_bpm
+  o = __ctx[:smpdef].merge(opts)
+  st, fi = __sample_region(o)
+  r = __sample_rate(n, o, bpm).abs
+  r = 1.0 if r.zero?
+  secs = d * (fi - st).abs / r
+  if o.key?(:sustain) && o[:sustain].to_f >= 0
+    secs = [secs, (o[:attack].to_f + o[:decay].to_f + o[:sustain].to_f + o[:release].to_f) * 60.0 / bpm].min
+  end
+  secs * bpm / 60.0
+end
 def load_sample(*_a) = nil
 def load_samples(*_a) = nil
 def sample_free(*_a) = nil
@@ -1418,8 +1477,9 @@ end
 
 def use_bpm_mul(m) = use_bpm(__ctx[:bpm] * m.to_f)
 def with_bpm_mul(m, &blk) = with_bpm(__ctx[:bpm] * m.to_f, &blk)
-def use_sample_bpm(name, num_beats: 1, **_o) = use_bpm(num_beats.to_f * 60.0 / sample_duration(name))
-def with_sample_bpm(name, num_beats: 1, **_o, &blk) = with_bpm(num_beats.to_f * 60.0 / sample_duration(name), &blk)
+def __sample_bpm(name, beats) = (d = __sample_seconds(name)) ? beats.to_f * 60.0 / d : current_bpm
+def use_sample_bpm(name, num_beats: 1, **_o) = use_bpm(__sample_bpm(name, num_beats))
+def with_sample_bpm(name, num_beats: 1, **_o, &blk) = with_bpm(__sample_bpm(name, num_beats), &blk)
 def with_merged_sample_defaults(**o, &blk) = __with(:smpdef, __ctx[:smpdef].merge(o), &blk)
 def current_octave = __ctx[:octave]
 def current_synth_defaults = __ctx[:sdef]
@@ -1500,7 +1560,7 @@ def spark_graph(*a) = puts(a.flatten.inspect)
 def sample_paths(*a) = Ring.new(a.flatten.map(&:to_s))
 def sample_groups = Ring.new($__samples.map { |n| n.split("_").first }.uniq.map(&:to_sym))
 def sample_loaded?(*_a) = true
-def sample_info(*a) = { name: a.first, duration: sample_duration(*a) }
+def sample_info(*a) = { name: a.first, duration: __sample_seconds(a.first) }
 def sample_buffer(*a) = a.first
 def buffer(*a, **_o) = a.first
 
@@ -1643,7 +1703,13 @@ def __main
     when "syn"
       $__synths = args[0].to_s.split(",")
     when "smp"
-      $__samples = args[0].to_s.split(",")
+      # name or name=seconds (its length at rate 1)
+      $__sdur = {}
+      $__samples = args[0].to_s.split(",").map do |e|
+        n, d = e.split("=", 2)
+        $__sdur[n] = d.to_f if d
+        n
+      end
     when "ping"
       __send("pong", RUBY_VERSION)
     end

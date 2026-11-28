@@ -381,3 +381,33 @@ kill s
 		}
 	}
 }
+
+func TestSampleOptionsEvents(t *testing.T) {
+	v := vm(t)
+	v.SetTables([]string{"beep", "saw", "prophet"}, []string{"bd_haus", "drum_snare_hard", "loop_amen=1.75"})
+	defer v.SetTables([]string{"beep", "saw", "prophet"}, []string{"bd_haus", "drum_snare_hard"})
+	evs, other := run(t, v, `
+use_bpm 120
+sample :loop_amen, beat_stretch: 4
+sample :loop_amen, slice: 2, num_slices: 4, rate: -1
+sample :loop_amen, start: 0.1, finish: 0.3, sustain: 0.5, release: 0.25, lpf: 80
+puts "dur #{sample_duration(:loop_amen).round(3)} #{sample_duration(:loop_amen, beat_stretch: 4).round(3)}"
+use_sample_bpm :loop_amen
+puts "bpm #{current_bpm.round(3)}"
+`, 2)
+	logs := strings.Join(flat(other), " | ")
+	t.Log(logs)
+	var kv []string
+	for _, e := range evs {
+		kv = append(kv, e.Arg(5))
+	}
+	t.Log(kv)
+	if len(kv) != 3 || !strings.Contains(kv[0], "rate=0.875") || !strings.Contains(kv[1], "st=0.5,fi=0.75") ||
+		!strings.Contains(kv[1], "rate=-1.0") || !strings.Contains(kv[2], "st=0.1,fi=0.3") ||
+		!strings.Contains(kv[2], "cutoff=80.0") || !strings.Contains(kv[2], "s=0.25") || !strings.Contains(kv[2], "r=0.125") {
+		t.Errorf("events: %v", kv)
+	}
+	if !strings.Contains(logs, "dur 3.5 4.0") || !strings.Contains(logs, "bpm 34.286") {
+		t.Errorf("durations: %s", logs)
+	}
+}

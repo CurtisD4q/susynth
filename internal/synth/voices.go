@@ -113,6 +113,15 @@ type Params struct {
 	CutoffMin float64
 	CutoffEnv EnvTimes
 	Note      float64 // exact MIDI note for tones (fractions allowed), 0 = from the word
+
+	// Samples: Start and Finish pick the part to play (fractions of the
+	// sample; Finish 0 means the end, Finish before Start plays backwards),
+	// and Reverse plays it backwards (a negative rate:).
+	Start, Finish float64
+	Reverse       bool
+	// Held is how long (seconds) a sample plays before its release, when
+	// sustain: was given; 0 plays to the end.
+	Held float64
 }
 
 type kind int
@@ -174,6 +183,12 @@ type Voice struct {
 	stereo    bool
 	right     float32 // the right channel of the current stereo frame
 	pos, step float64
+	begin     int     // the first frame of the part being played
+	end       int     // one past its last frame
+	sAtk      float64 // sample envelope (frames): attack, release, held length (0: to the end)
+	sRel      float64
+	sGate     float64
+	sEnv      bool
 
 	// control (control.go): nil until a control touches the voice
 	amp0, pan0, lpf0, res0 float64
@@ -232,6 +247,29 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 			v.step = float64(o.rate) / float64(sr) * v.speed
 		}
 		v.stereo = v.chR != nil
+		n := len(v.chL)
+		st, fi := p.Start, p.Finish
+		if fi <= 0 {
+			fi = 1
+		}
+		rev := p.Reverse
+		if fi < st {
+			st, fi, rev = fi, st, !rev
+		}
+		st, fi = math.Max(0, math.Min(1, st)), math.Max(0, math.Min(1, fi))
+		v.begin, v.end = int(st*float64(n)), int(math.Ceil(fi*float64(n)))
+		if v.end > n {
+			v.end = n
+		}
+		v.pos = float64(v.begin)
+		if rev {
+			v.step = -v.step
+			v.pos = float64(v.end - 2)
+		}
+		if p.Attack > 0 || p.Release > 0 || p.Held > 0 {
+			v.sEnv = true
+			v.sAtk, v.sRel, v.sGate = p.Attack*v.sr, p.Release*v.sr, p.Held*v.sr
+		}
 		return v, nil
 	}
 
@@ -429,7 +467,7 @@ func (v *Voice) sample() float32 {
 	}
 	if v.k == kSample {
 		i := int(v.pos)
-		if i+1 >= len(v.chL) {
+		if i+1 >= v.end || i < v.begin || v.pos < 0 {
 			v.done = true
 			return 0
 		}
@@ -447,10 +485,41 @@ func (v *Voice) sample() float32 {
 			}
 		}
 		v.pos += v.step
+		if v.sEnv {
+			e := v.sampleEnv()
+			if e <= 0 && float64(v.t) > v.sAtk {
+				v.done = true
+			}
+			l, r = l*e, r*e
+		}
 		v.right = r * 0.9
 		return l * 0.9
 	}
 	return v.tone()
+}
+
+// sampleEnv is the sample's own envelope at this frame: a linear attack, then
+// a linear release either after the held length or ending with the sample.
+func (v *Voice) sampleEnv() float32 {
+	t := float64(v.t)
+	e := 1.0
+	if v.sAtk > 0 && t < v.sAtk {
+		e = t / v.sAtk
+	}
+	if v.sGate > 0 {
+		if t > v.sGate {
+			if v.sRel <= 0 {
+				return 0
+			}
+			e *= 1 - (t-v.sGate)/v.sRel
+		}
+	} else if v.sRel > 0 {
+		left := float64(v.end-v.begin) / math.Abs(v.step)
+		if rem := left - t; rem < v.sRel {
+			e *= math.Max(0, rem/v.sRel)
+		}
+	}
+	return float32(math.Max(0, e))
 }
 
 // polyBLEP smooths the jump of a ramp that wraps at phase 0, spreading it
