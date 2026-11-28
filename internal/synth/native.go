@@ -1234,3 +1234,70 @@ func newOrgan(v *Voice, o func(string, float64) float64) *native {
 		},
 	}
 }
+
+func init() { natives["piano"] = newPiano }
+
+// newPiano plays Sonic Pi's piano (an MdaPiano) from measurements of it: the
+// first sixteen partials, each with its own level and decay, stretched the way
+// a string's are, for the note and velocity (pianodata.go).
+func newPiano(v *Voice, o func(string, float64) float64) *native {
+	vel := clamp(o("vel", 0.2), 0, 1)
+	note := clamp(69+12*math.Log2(v.freq/440), pianoNotes[0], pianoNotes[9])
+	// where the note falls among the measured ones
+	ni := 0
+	for ni < 8 && note > pianoNotes[ni+1] {
+		ni++
+	}
+	nf := (note - pianoNotes[ni]) / (pianoNotes[ni+1] - pianoNotes[ni])
+	vi := 0
+	if vel > pianoVels[1] {
+		vi = 1
+	}
+	vf := (vel - pianoVels[vi]) / (pianoVels[vi+1] - pianoVels[vi])
+	vf = clamp(vf, -0.5, 1)
+	mixLog := func(a, b, f float64) float64 {
+		if a <= 0 || b <= 0 {
+			return (1-f)*a + f*b
+		}
+		return math.Exp((1-f)*math.Log(a) + f*math.Log(b))
+	}
+	var a1, t1, a2, t2, frq [16]float64
+	var ph [16]float64
+	for k := 0; k < 16; k++ {
+		var a, b, c, d, bb [2]float64
+		for j := 0; j < 2; j++ {
+			e0, e1 := &pianoFit[vi+j][ni], &pianoFit[vi+j][ni+1]
+			a[j] = mixLog(e0.A1[k], e1.A1[k], nf)
+			b[j] = (1-nf)*e0.T1[k] + nf*e1.T1[k]
+			c[j] = mixLog(e0.A2[k], e1.A2[k], nf)
+			d[j] = (1-nf)*e0.T2[k] + nf*e1.T2[k]
+			bb[j] = (1-nf)*e0.B + nf*e1.B
+		}
+		a1[k] = mixLog(a[0], a[1], vf)
+		t1[k] = math.Max((1-vf)*b[0]+vf*b[1], 0.02)
+		a2[k] = mixLog(c[0], c[1], vf)
+		t2[k] = math.Max((1-vf)*d[0]+vf*d[1], 0.02)
+		frq[k] = float64(k+1) * math.Sqrt(1+((1-vf)*bb[0]+vf*bb[1])*float64((k+1)*(k+1)))
+	}
+	n := 0
+	return &native{
+		next: func() float64 {
+			t := float64(n) / v.sr
+			n++
+			var x float64
+			for k := 0; k < 16; k++ {
+				if a1[k] <= 0 && a2[k] <= 0 {
+					continue
+				}
+				f := v.freq * frq[k]
+				if f > v.sr*0.45 {
+					continue
+				}
+				ph[k] += f / v.sr
+				ph[k] -= math.Floor(ph[k])
+				x += (a1[k]*math.Exp(-t/t1[k]) + a2[k]*math.Exp(-t/t2[k])) * math.Sin(2*math.Pi*ph[k])
+			}
+			return x
+		},
+	}
+}
