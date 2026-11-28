@@ -19,11 +19,11 @@ func optInScene() uint64 {
 		at := int64(b) * SampleRate / 2
 		hs = append(hs,
 			Hit{At: at, Track: "kick", Word: "bd", Params: synth.Params{Gain: 1}},
-			Hit{At: at + SampleRate/4, Track: "hat", Word: "hh", Params: synth.Params{Gain: 0.6, Room: 0.3}},
+			Hit{At: at + SampleRate/4, Track: "hat", Word: "hh", Params: synth.Params{Gain: 0.6}},
 			Hit{At: at, Track: "bass", Word: "40", Gate: SampleRate / 8, Params: synth.Params{Wave: "saw", Note: 40, Gain: 1,
 				LPF: 3000, Res: 0.7, CutoffMin: 60, Release: 0.3, CutoffEnv: synth.EnvTimes{Release: 0.3}}},
 			Hit{At: at, Track: "pad", Word: "60", Gate: SampleRate, Params: synth.Params{Wave: "organ", Note: 60 + float64(b%3), Gain: 0.5,
-				Room: 0.6, Delay: 0.3, Attack: 0.2, Release: 1}})
+				Attack: 0.2, Release: 1}})
 	}
 	e.Schedule(hs...)
 	e.ThreadStarted("pad", true)
@@ -46,8 +46,8 @@ func optInScene() uint64 {
 // The compressor, EQ and chorus are opt-in: a set that does not use them
 // sounds bit-for-bit as it did before they existed.
 func TestDynamicsAreOptIn(t *testing.T) {
-	const before uint64 = 0xd4f0890917dbd830 // re-recorded when voices were raised to Sonic Pi's level (ToneGain); the set is otherwise unchanged
+	const before uint64 = 0x2e4bb9e926ea1111 // re-recorded when the old shared effects were removed (effects are units now)
 	if got := optInScene(); got != before {
-		t.Fatalf("a set without compressor/EQ/chorus changed: hash %#x, was %#x", got, before)
+		t.Fatalf("a set without effects changed: hash %#x, was %#x", got, before)
 	}
 }

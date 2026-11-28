@@ -78,11 +78,7 @@ your own with a built-in's name plays instead of it.
 The engine works in 32-bit float to the sound card and records 24-bit WAVs. Synths have
 Sonic Pi's ADSR envelope (`attack:`, `decay:`, `sustain:`, `release:` and their `_level`s) and a
 24 dB resonant low-pass (`cutoff:`, `res:`); `:tb303` adds its filter envelope (`cutoff_min:`,
-`cutoff_attack:`, …). Effects: `:reverb` (`room:`, `damp:`), `:echo` and `:ping_pong`, the
-filters, `:bitcrusher`, `:distortion`, the moving effects (below), and three that only change
-tracks that use them:
-`:compressor` (`threshold:`, `slope_above:`, `clamp_time:`, `relax_time:`), `:eq` (`low_shelf:`,
-`mid:`, `high_shelf:` in dB, with `_note:` frequencies) and `:chorus` (`mix:`, `rate:`, `depth:` in ms).
+`cutoff_attack:`, …). Every `with_fx` effect is an effect unit as in Sonic Pi (see "Effects" below).
 
 ## Playing Sonic Pi code
 
@@ -186,7 +182,7 @@ changes it for the sounds that start after.
 
 Also new: `:bpf`, `:rbpf`, `:nbpf`, `:nrbpf`, `:band_eq`, `:ring_mod`, `:octaver`, `:vowel`,
 `:mono`, and `:pitch_shift` and `:whammy` (a real pitch shifter on samples, so the speed stays). `:record`,
-`:sound_out` and `:autotuner` play the block as it is.
+`:sound_out` and `:scope_out` pass the sound on as it is.
 
 ### The synths
 
@@ -210,11 +206,21 @@ checked only for pitch and level: `:prophet` (pulse-width-modulated pulses), `:h
 `:dark_ambience`, `:blade`, `:pretty_bell` and `:dull_bell` and `:dsaw`.
 `:sound_in` (live audio input) is skipped.
 
-`with_fx :reverb`, `:echo` and `:ping_pong` run the way Sonic Pi's effects do: the block's notes
-and samples play into an effect of their own, effects nest, the tail rings on after the block
-until the effect's `kill_delay`, and `control fx, mix: 0.2` and `kill fx` work on the effect
-you get from `with_fx ... do |fx|`. The other effects still colour each note as it starts and
-are being moved over one by one.
+### Effects
+
+Every `with_fx` runs the way Sonic Pi's does: the block's notes and samples play into an effect
+unit of their own with its own stereo bus, effects nest, the tail rings on after the block until
+the effect's `kill_delay`, and `control fx, mix: 0.2` and `kill fx` work on the unit you get from
+`with_fx ... do |fx|`. Stopping a track or live loop stops every unit under it. `:record` with
+`buffer(:name, 8)` records into a buffer that `sample` can play back. The mixer (`Esc`, `m` for the
+pages pop-up) shows the units and the master level. Loudness matches Sonic Pi.
+
+Compatibility: reverb, echo, ping_pong, the filters, distortion, krush, tanh, level, pan, mono,
+normaliser, ring_mod, the moving effects, compressor, octaver, flanger, whammy, band_eq, eq,
+ixi_techno and vowel were checked against scsynth running Sonic Pi's own synthdefs, within a
+fraction of a dB. `gverb`, `pitch_shift` and `bitcrusher` are close but approximate. `:autotuner`
+is not implemented (the block plays as it is). `:chorus` is not a Sonic Pi effect and was removed.
+`out_bus`/`in_bus` and `:sound_out` give a one-time warning; live audio input is not supported.
 
 ## Prerequisites
 
@@ -417,12 +423,12 @@ end
 ```
 
 Available effects: `reverb`, `gverb`, `echo`, `ping_pong`, the `lpf`/`hpf` family, `bitcrusher`,
-`krush`, `distortion`, `tanh`, `compressor`, `normaliser`, `eq`, `chorus`, `level`, `pan`, and
+`krush`, `distortion`, `tanh`, `compressor`, `normaliser`, `eq`, `level`, `pan`, and
 the moving ones, synced to the beat: `slicer`, `panslicer`, `tremolo`, `wobble`, `ixi_techno`
 and `flanger`. There are also `bpf`, `rbpf`, `nbpf`, `nrbpf`, `band_eq`, `ring_mod`,
 `octaver`, `vowel`, `mono`, `pitch_shift` and `whammy`. `control` on an effect (`with_fx
 :slicer do |s| … control s, phase: 1`) changes it for the sounds that start after it.
-`record`, `sound_out` and `autotuner` play the block as it is. The Sounds page lists them all.
+`autotuner` plays the block as it is. The Sounds page lists them all.
 
 ### 8. Find sounds
 

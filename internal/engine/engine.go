@@ -68,7 +68,6 @@ type track struct {
 	ended      int64
 	src        string
 	fstep      int // low-pass filter step, 0 = open
-	route      int // insert buses its sound goes through: routeEQ | routeComp
 	filter     trackFilter
 	gain       float32 // gain applied at the end of the last block
 	gainSet    bool    // gain has been applied at least once
@@ -109,23 +108,9 @@ type Engine struct {
 	rec *WavWriter
 
 	// effects
-	fx           *fxBus
-	units        []*fxUnit // with_fx effects, oldest first (fxunit.go)
-	unitIdx      map[int64]*fxUnit
-	mixer        mixerState
-	delaySeconds float64
-	delayFB      float64
-	pingPong     bool
-	roomSize     float64
-	roomDamp     float64
-	dsend, rsend []float32
-	csend        []float32
-
-	// opt-in dynamics (dynamics.go): insert buses, filled only when a
-	// track is routed there
-	comp                   compressor
-	eqA, eqB               eq // eqB feeds the compressor
-	eqBus, compBus, eqComp []float32
+	units   []*fxUnit // with_fx effects, oldest first (fxunit.go)
+	unitIdx map[int64]*fxUnit
+	mixer   mixerState
 
 	// outputs
 	outputs        []Output
@@ -150,30 +135,7 @@ type Voice = synth.Voice
 // New returns a stopped engine at 60 BPM, Sonic Pi's default.
 func New() *Engine {
 	return &Engine{bpm: 60, tracks: map[string]*track{}, internal: true,
-		fx: newFXBus(), mixer: newMixerState(), delaySeconds: 0.25, delayFB: 0.45, roomSize: 0.6, roomDamp: 0.5, lastClock: -1,
-		comp: compressor{set: DefaultComp}, eqA: eq{set: DefaultEQ}, eqB: eq{set: DefaultEQ}}
-}
-
-// SetCompressor sets the compressor that tracks inside with_fx :compressor
-// go through.
-func (e *Engine) SetCompressor(c CompSettings) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.comp.set = c
-}
-
-// SetEQ sets the EQ that tracks inside with_fx :eq go through.
-func (e *Engine) SetEQ(q EQSettings) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.eqA.set, e.eqB.set = q, q
-}
-
-// SetChorus sets the chorus that with_fx :chorus sends to.
-func (e *Engine) SetChorus(c ChorusSettings) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.fx.cho.set = c
+		mixer: newMixerState(), lastClock: -1}
 }
 
 // beatAt is the number of beats since play started at sample s.
@@ -310,25 +272,6 @@ func (e *Engine) BPM() float64 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.bpm
-}
-
-// SetDelay sets the echo bus time, feedback and mode (from with_fx :echo or
-// :ping_pong). A new time glides in, so changing it never clicks.
-func (e *Engine) SetDelay(seconds, feedback float64, pingPong bool) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.delaySeconds = math.Max(0.001, math.Min(seconds, 3.9))
-	e.delayFB = math.Max(0, math.Min(feedback, 0.95))
-	e.pingPong = pingPong
-}
-
-// SetReverb sets the reverb's room size and damping, both 0..1 (from
-// with_fx :reverb, room: and damp:).
-func (e *Engine) SetReverb(size, damp float64) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.roomSize = math.Max(0, math.Min(size, 1))
-	e.roomDamp = math.Max(0, math.Min(damp, 1))
 }
 
 // Schedule queues hits. Hits already in the past play at once.
@@ -553,15 +496,10 @@ func (e *Engine) Render(n int) []float32 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	mix := make([]float32, n*2)
-	e.dsend, e.rsend, e.csend = make([]float32, n*2), make([]float32, n*2), make([]float32, n*2)
 	e.startHits(n)
 	e.clock(n)
-	used := e.mixVoices(mix, n)
+	e.mixVoices(mix, n)
 	e.runUnits(mix, n)
-	e.inserts(mix, used)
-	e.fx.rev.set(e.roomSize, e.roomDamp)
-	e.fx.echo.set(e.delaySeconds, e.delayFB, e.pingPong)
-	e.fx.process(mix, e.dsend, e.rsend, e.csend)
 	e.mixer.process(mix)
 	out := mix
 	for i, v := range mix {
@@ -633,7 +571,6 @@ func (e *Engine) startHits(n int) {
 		t.hist = append(t.hist, stamp{h.At, h.Label})
 		t.lastHit = h.At
 		t.src = h.Word
-		t.route = routeOf(h.Params)
 		e.roll = append(e.roll, rollNote(h, t))
 		if !audible(t, solo) {
 			continue
@@ -695,11 +632,9 @@ func (e *Engine) clock(n int) {
 	}
 }
 
-// mixVoices mixes every voice into mix (or its track's insert bus) and the
-// sends, and reports which insert buses got sound.
-func (e *Engine) mixVoices(mix []float32, n int) (used [4]bool) {
+// mixVoices mixes every voice into mix (or the unit bus it plays into).
+func (e *Engine) mixVoices(mix []float32, n int) {
 	solo := e.anySolo()
-	dests := map[int][]float32{}
 	type gainRamp struct{ from, to float32 }
 	gains := map[int]gainRamp{auditionTrack: {1, 1}}
 	filtered := map[int]*track{}
@@ -719,10 +654,6 @@ func (e *Engine) mixVoices(mix []float32, n int) (used [4]bool) {
 		}
 		gains[t.id] = gainRamp{t.gain, to}
 		t.gain = ramp(t.gain, to, n-1)
-		if t.route != 0 {
-			dests[t.id] = e.bus(t.route, n)
-			used[t.route] = true
-		}
 		if t.filter.active(t.fstep) {
 			t.filter.bufs(n)
 			filtered[t.id] = t
@@ -734,12 +665,9 @@ func (e *Engine) mixVoices(mix []float32, n int) (used [4]bool) {
 		if !ok { // its track is gone (Stop): hold the gain while Kill fades it
 			gr = gainRamp{v.Gain, v.Gain}
 		}
-		dry, dl, rv, ch := mix, e.dsend, e.rsend, e.csend
-		if d, ok := dests[v.Track]; ok {
-			dry = d
-		}
+		dry := mix
 		if t := filtered[v.Track]; t != nil {
-			dry, dl, rv, ch = t.filter.buf[0], t.filter.buf[1], t.filter.buf[2], t.filter.buf[3]
+			dry = t.filter.buf
 		}
 		if u := e.unitFor(v.Bus); u != nil { // inside with_fx: the unit's bus
 			dry = u.buf(n)
@@ -753,18 +681,6 @@ func (e *Engine) mixVoices(mix []float32, n int) (used [4]bool) {
 			l, r = l*g*0.8, r*g*0.8
 			dry[i*2] += l
 			dry[i*2+1] += r
-			if v.SendDelay > 0 {
-				dl[i*2] += l * v.SendDelay
-				dl[i*2+1] += r * v.SendDelay
-			}
-			if v.SendRoom > 0 {
-				rv[i*2] += l * v.SendRoom
-				rv[i*2+1] += r * v.SendRoom
-			}
-			if v.SendChorus > 0 {
-				ch[i*2] += l * v.SendChorus
-				ch[i*2+1] += r * v.SendChorus
-			}
 		}
 		v.Gain = ramp(gr.from, gr.to, n-1)
 		if !v.Done() {
@@ -773,70 +689,7 @@ func (e *Engine) mixVoices(mix []float32, n int) (used [4]bool) {
 	}
 	e.voices = live
 	for _, t := range filtered {
-		dry := mix
-		if d, ok := dests[t.id]; ok {
-			dry = d
-		}
-		t.filter.run(FilterHz(t.fstep), [4][]float32{dry, e.dsend, e.rsend, e.csend}, n)
-	}
-	return used
-}
-
-// Insert routes: a track's dry sound goes through the EQ, the compressor,
-// or the EQ and then the compressor.
-const (
-	routeEQ   = 1
-	routeComp = 2
-)
-
-func routeOf(p synth.Params) int {
-	r := 0
-	if p.EQ {
-		r |= routeEQ
-	}
-	if p.Comp {
-		r |= routeComp
-	}
-	return r
-}
-
-// bus returns the insert bus for a route, cleared for this block.
-func (e *Engine) bus(route, n int) []float32 {
-	b := map[int]*[]float32{routeEQ: &e.eqBus, routeComp: &e.compBus, routeEQ | routeComp: &e.eqComp}[route]
-	if len(*b) != n*2 {
-		*b = make([]float32, n*2)
-	}
-	return *b
-}
-
-// inserts runs the insert buses that got sound and mixes them into mix,
-// then clears them for the next block.
-func (e *Engine) inserts(mix []float32, used [4]bool) {
-	if used[routeEQ] {
-		e.eqA.process(e.eqBus)
-		addInto(mix, e.eqBus)
-	}
-	if used[routeEQ|routeComp] {
-		e.eqB.process(e.eqComp)
-		if !used[routeComp] {
-			e.bus(routeComp, len(mix)/2)
-			clear(e.compBus)
-		}
-		addInto(e.compBus, e.eqComp)
-		used[routeComp] = true
-	}
-	if used[routeComp] {
-		e.comp.process(e.compBus)
-		addInto(mix, e.compBus)
-	}
-	for _, b := range []*[]float32{&e.eqBus, &e.compBus, &e.eqComp} {
-		clear(*b)
-	}
-}
-
-func addInto(dst, src []float32) {
-	for i, v := range src {
-		dst[i] += v
+		t.filter.run(FilterHz(t.fstep), mix, n)
 	}
 }
 

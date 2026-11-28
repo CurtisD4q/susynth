@@ -187,12 +187,12 @@ func (e *Engine) AdjustFilter(id, d int) (float64, bool) {
 }
 
 // trackFilter is a stereo low-pass (synth.Filter: 24 dB/octave, a touch of
-// resonance like a DJ mixer's) on one track's dry signal and its effect
-// sends. The cutoff glides, so a sweep has no steps in it.
+// resonance like a DJ mixer's) on one track's sound. The cutoff glides, so a
+// sweep has no steps in it.
 type trackFilter struct {
-	f   [4][2]synth.Filter // bus (dry, echo, reverb, chorus), channel
-	hz  float64            // the cutoff aimed at
-	buf [4][]float32
+	f   [2]synth.Filter // channel
+	hz  float64         // the cutoff aimed at
+	buf []float32
 }
 
 const (
@@ -201,42 +201,33 @@ const (
 )
 
 func (f *trackFilter) bufs(n int) {
-	for b := range f.buf {
-		if cap(f.buf[b]) < n*2 {
-			f.buf[b] = make([]float32, n*2)
-		}
-		f.buf[b] = f.buf[b][:n*2]
-		clear(f.buf[b])
+	if cap(f.buf) < n*2 {
+		f.buf = make([]float32, n*2)
 	}
+	f.buf = f.buf[:n*2]
+	clear(f.buf)
 }
 
-// run filters the track's buffers towards target Hz (0 = open) and adds them
-// to the outputs.
-func (f *trackFilter) run(target float64, outs [4][]float32, n int) {
+// run filters the track's buffer towards target Hz (0 = open) and adds it to out.
+func (f *trackFilter) run(target float64, out []float32, n int) {
 	if target <= 0 {
 		target = openHz
 	}
-	if !f.f[0][0].Active() { // first use: start open and close from there
-		for b := range f.f {
-			for ch := range f.f[b] {
-				f.f[b][ch] = synth.NewLowPass(openHz, trackRes, SampleRate)
-			}
+	if !f.f[0].Active() { // first use: start open and close from there
+		for ch := range f.f {
+			f.f[ch] = synth.NewLowPass(openHz, trackRes, SampleRate)
 		}
 		f.hz = openHz
 	}
 	if target != f.hz {
 		f.hz = target
-		for b := range f.f {
-			for ch := range f.f[b] {
-				f.f[b][ch].Set(target, trackRes, SampleRate)
-			}
+		for ch := range f.f {
+			f.f[ch].Set(target, trackRes, SampleRate)
 		}
 	}
-	for b := range f.f {
-		for i := 0; i < n; i++ {
-			for ch := 0; ch < 2; ch++ {
-				outs[b][i*2+ch] += f.f[b][ch].Process(f.buf[b][i*2+ch])
-			}
+	for i := 0; i < n; i++ {
+		for ch := 0; ch < 2; ch++ {
+			out[i*2+ch] += f.f[ch].Process(f.buf[i*2+ch])
 		}
 	}
 }
@@ -244,7 +235,7 @@ func (f *trackFilter) run(target float64, outs [4][]float32, n int) {
 // active reports whether the filter is doing anything: closed, or still
 // gliding open.
 func (f *trackFilter) active(step int) bool {
-	return step > 0 || (f.f[0][0].Active() && !f.f[0][0].Settled())
+	return step > 0 || (f.f[0].Active() && !f.f[0].Settled())
 }
 
 // LitLine is a source line whose sound has just started.

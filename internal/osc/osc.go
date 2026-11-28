@@ -113,18 +113,6 @@ func PlayMessage(ev engine.Event, cps float64) []byte {
 	if ev.Params.HPF > 0 {
 		add("hcutoff", float32(ev.Params.HPF))
 	}
-	if ev.Params.Crush > 0 {
-		add("crush", float32(ev.Params.Crush))
-	}
-	if ev.Params.Shape > 0 {
-		add("shape", float32(ev.Params.Shape))
-	}
-	if ev.Params.Delay > 0 {
-		add("delay", float32(ev.Params.Delay))
-	}
-	if ev.Params.Room > 0 {
-		add("room", float32(ev.Params.Room))
-	}
 	return Message("/dirt/play", args...)
 }
 
