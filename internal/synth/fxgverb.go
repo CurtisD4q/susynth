@@ -13,7 +13,6 @@ type gverbCore struct {
 	lp    [8]float64
 	early []float64
 	ew    int
-	preLP float64
 	taps  [8]int
 	gain  [8]float64
 	damp  float64
