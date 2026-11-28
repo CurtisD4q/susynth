@@ -87,7 +87,7 @@ var SonicSynths = []SonicSynth{
 	{"pretty_bell", "bell", "", "sine-partial bell"},
 	{"dull_bell", "dullbell", "", "dull sine-partial bell"},
 	{"pluck", "pluck", "", "plucked string"},
-	{"piano", "piano", "", "struck-string piano (a stand-in for Sonic Pi's)"},
+	{"piano", "piano", "", "piano fitted to Sonic Pi's (MdaPiano) partials"},
 	{"kalimba", "kalimba", "", "kalimba (Sonic Pi's design)"},
 	{"hollow", "hollow", "", "breathy noise through narrow band-passes"},
 	{"organ_tonewheel", "organ_tonewheel", "", "tonewheel organ with drawbars and rotary speaker (Sonic Pi's design)"},

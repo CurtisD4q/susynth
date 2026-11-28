@@ -1310,7 +1310,7 @@ SYNTH_OPTS = { detune: :det, divisor: :div, depth: :dep, vel: :vel, vibrato_rate
 # (internal/synth/native.go): they take their options by Sonic Pi's names.
 # NATIVE_BEATS are the options that are lengths of time in beats, and
 # NATIVE_DEFAULTS what a synth's attack is when it is not the usual 0.
-NATIVE_SYNTHS = %w[bass_foundation bass_highend winwood_lead zawa supersaw subpulse chiplead chipbass tb303 hoover tech_saws growl noise pnoise bnoise gnoise cnoise chipnoise kalimba gabberkick rhodey rodeo organ_tonewheel].freeze
+NATIVE_SYNTHS = %w[bass_foundation bass_highend winwood_lead zawa supersaw subpulse chiplead chipbass tb303 hoover tech_saws growl noise pnoise bnoise gnoise cnoise chipnoise kalimba gabberkick rhodey rodeo organ_tonewheel piano].freeze
 NATIVE_BEATS = %i[attack decay sustain release cutoff_attack cutoff_decay cutoff_sustain cutoff_release phase].freeze
 NATIVE_DEFAULTS = { "tb303" => { attack: 0.01 }.freeze, "hoover" => { attack: 0.05 }.freeze,
                     "growl" => { attack: 0.1 }.freeze,
