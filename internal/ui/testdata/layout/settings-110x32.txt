@@ -11,7 +11,7 @@
   ⚙     OSC address                                                                                    ‹ — ›
   ?     MIDI output                                                                                  ‹ off ›
   ◈     MIDI clock                                                                                   ‹ off ›
-        Samples                                                                         ‹ 0 banks, 0 files ›
+  ▮     Samples                                                                         ‹ 0 banks, 0 files ›
         Reopen last set                                                                              ‹ off ›
         Screen refresh                                                                              ‹ 0 Hz ›
 

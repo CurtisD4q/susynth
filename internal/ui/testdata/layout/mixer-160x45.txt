@@ -1,0 +1,45 @@
+
+ ◇ susynth › ▮ Mixer · night-drive • · no audio                                                                                              ←→ changes Volume
+ ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+      ▸ Volume                                                                                                                                        ‹ 100% ›
+        Drive                                                                                                                                          ‹ 50% ›
+  ▶     High-pass                                                                                                                                      ‹ off ›
+  ≡     Low-pass                                                                                                                                       ‹ off ›
+  ●     Mono                                                                                                                                           ‹ off ›
+  ♪     Swap channels                                                                                                                                  ‹ off ›
+  ⚙     Limiter                                                                                                                                         ‹ on ›
+  ?     Reset                                                                                                                                        ‹ Enter ›
+  ◈
+  ▮
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+      level ········································ -60 dB
+      the fader after the limiter, 0–100%: changes how loud, not how it sounds (set_volume!)
+  ● play   ● 60 bpm · bar 1 · ●○○○   ○ rec off
+  ↑↓ select   ←→ change   ⏎ reset   m pages   ^Q quit

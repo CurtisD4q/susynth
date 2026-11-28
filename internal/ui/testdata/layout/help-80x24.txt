@@ -4,14 +4,14 @@
 
       PAGES                                                                   █
       m                      the pages pop-up beside the icons: ↑↓            █
-  ▶   choose, Enter open, m or Esc close                                      █
+  ▶   choose, Enter open, m or Esc close                                      │
   ≡   In the editor on Play, m types the letter: press Esc m there.           │
   ●   Esc f  /  Esc b        next / previous page                             │
   ♪   Esc                    from any page, back to Play                      │
   ⚙   For Esc keys, press Esc, then the key within 1.5 s, or hold Alt.        │
   ?   KEYS ON EACH PAGE                                                       │
   ◈   Sets                   ↑↓ select · Enter load · a add to the set        │
-      list · n new · d delete (asks first)                                    │
+  ▮   list · n new · d delete (asks first)                                    │
       Recordings             ↑↓ select · Enter show the path · d delete       │
       (asks first)                                                            │
       Sounds                 ↑↓ select · ←→ fold a group · Enter preview      │

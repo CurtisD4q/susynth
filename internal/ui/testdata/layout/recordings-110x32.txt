@@ -11,7 +11,7 @@
   ⚙                                                            WAV audio, 16-bit stereo at 48000 Hz
   ?
   ◈                                                            /tmp/susynth-layout/data/recordings/set-20261…
-
+  ▮
 
 
 

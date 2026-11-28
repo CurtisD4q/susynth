@@ -11,7 +11,7 @@
   ⚙        a-very-long-set-name-that-will-…       2      8
   ?                                                            use_bpm 96
   ◈                                                            live_loop :drums do
-                                                                 sample :bd_haus
+  ▮                                                              sample :bd_haus
                                                                  sleep 1
                                                                end
                                                                live_loop :hats do

@@ -24,7 +24,7 @@ import (
 // in any other Mint program; in the editor, where m is typed, it is Esc m.
 
 // pageIcons are the pages' icons, in page order.
-var pageIcons = []string{"▶", "≡", "●", "♪", "⚙", "?", "◈"}
+var pageIcons = []string{"▶", "≡", "●", "♪", "⚙", "?", "◈", "▮"}
 
 // app is the Mint program: one page per item, no launch menu.
 func (a *App) app() *mint.App {
@@ -78,6 +78,8 @@ func (a *App) screen(p page) *mint.Screen {
 		side.Info = func() string { _, info := a.sideLabel(a.eng.Snapshot()); return info }
 		s.Panes = []*mint.Pane{side}
 		s.Refresh = func(*mint.Screen) { side.Title, _ = a.sideLabel(a.eng.Snapshot()) }
+	case pageMixer:
+		a.mixerScreen(s)
 	default:
 		a.listScreen(s, p)
 	}
@@ -273,6 +275,8 @@ func (a *App) hints(p page) string {
 		return "↑↓ select   ⏎ preview   ←→ fold   i insert   m pages   ^Q quit"
 	case pageSettings:
 		return "↑↓ select   ←→ change   ⏎ edit   m pages   ^Q quit"
+	case pageMixer:
+		return "↑↓ select   ←→ change   ⏎ reset   m pages   ^Q quit"
 	case pageHelp:
 		return "↑↓ PgUp PgDn scroll   m pages   ^Q quit"
 	case pagePerform:

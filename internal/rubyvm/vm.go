@@ -15,6 +15,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"github.com/susynth/susynth/internal/synth"
 	"io"
 	"strings"
 	"sync"
@@ -407,5 +408,6 @@ func (v *VM) sendTables() {
 	syn, smp := v.synths, v.samples
 	v.mu.Unlock()
 	v.exchange("syn\t"+strings.Join(syn, ",")+"\n", 2*time.Second)
+	v.exchange("cat\t"+synth.Catalogue()+"\n", 2*time.Second)
 	v.exchange("smp\t"+strings.Join(smp, ",")+"\n", 2*time.Second)
 }

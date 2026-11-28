@@ -11,7 +11,7 @@
   ⚙     mod_saw              saw                                                                                                                     ▶ preview█
   ?     tb303                Roland TB-303 style bass (Sonic Pi's design)                                                                            ▶ preview█
   ◈     zawa                 sync saw wobble (Sonic Pi's design)                                                                                     ▶ preview│
-        growl                growling saw and sine (Sonic Pi's design)                                                                               ▶ preview│
+  ▮     growl                growling saw and sine (Sonic Pi's design)                                                                               ▶ preview│
         winwood_lead         Winwood lead (Sonic Pi's design)                                                                                        ▶ preview│
         bass_foundation      saw bass (Sonic Pi's design)                                                                                            ▶ preview│
         bass_highend         driven saw bass (Sonic Pi's design)                                                                                     ▶ preview│

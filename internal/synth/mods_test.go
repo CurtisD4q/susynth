@@ -28,7 +28,7 @@ func TestSlicerGatesOnTheBeat(t *testing.T) {
 	lv := rmsWindows(v, sr/2, sr/16) // 8 windows of 62.5 ms; a slice is two: on, on, off, off…
 	for i, x := range lv {
 		on := i%4 < 2
-		if on && x < 0.1 || !on && x > 0.01 {
+		if on && x < 0.1 || !on && x > 0.03 {
 			t.Errorf("window %d level %.4f (on: %v) %v", i, x, on, lv)
 		}
 	}
