@@ -5,7 +5,7 @@ import "math"
 // Voices modelled on Sonic Pi's own synth designs (etc/synthdefs in Sonic
 // Pi), for the synths code uses most that used to share a plain wave:
 // hollow, dark_ambience, prophet, blade, the bells, dsaw, piano, rhodey,
-// dark_sea_horn and gabberkick. tone() sends these waves here.
+// and gabberkick. tone() sends these waves here.
 
 type toneState struct {
 	bq    [6]biquad
@@ -22,7 +22,7 @@ type toneState struct {
 
 var extWaves = map[string]bool{
 	"hollow": true, "ambience": true, "prophet": true, "blade": true, "bell": true, "dullbell": true,
-	"dsaw": true, "dpulse": true, "dtri": true, "piano": true, "rhodey": true, "horn": true, "gabber": true,
+	"dsaw": true, "dpulse": true, "dtri": true, "piano": true, "rhodey": true, "gabber": true,
 }
 
 func (v *Voice) initExt() {
@@ -207,17 +207,6 @@ func (v *Voice) toneExt() float32 {
 		tine := x.pamp[1] * math.Sin(2*math.Pi*v.phase2)
 		x.pamp[1] *= x.pdec[1]
 		s = body*0.9 + tine*0.3
-	case "horn": // a dark drone: a saw on the note and one an octave below, a slowly breathing filter
-		dt1, dt2 := f/sr, f/2*math.Pow(2, 0.07/12)/sr
-		v.phase += dt1
-		v.phase -= math.Floor(v.phase)
-		v.phase2 += dt2
-		v.phase2 -= math.Floor(v.phase2)
-		raw := (2*v.phase - 1 - polyBLEP(v.phase, dt1)) + 0.6*(2*v.phase2-1-polyBLEP(v.phase2, dt2))
-		a := float32(0.03 + 0.03*math.Sin(2*math.Pi*0.2*t))
-		x.lp[0] += a * (float32(raw)*0.5 - x.lp[0])
-		x.lp[1] += a * (x.lp[0] - x.lp[1])
-		s = float64(x.lp[1]) * 1.35
 	case "gabber": // a hard, distorted kick that falls to the note
 		fk := f * (1 + 6*math.Exp(-t*25))
 		v.phase += fk / sr
