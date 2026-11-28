@@ -455,3 +455,24 @@ end
 		t.Error("no note about :record")
 	}
 }
+
+// Every chord and scale name Sonic Pi has works, with Sonic Pi's notes
+// (checked in full against chord.rb and scale.rb when the tables were made).
+func TestSonicPiChordsAndScales(t *testing.T) {
+	v := vm(t)
+	_, other := run(t, v, `
+puts chord(:e3, :minor9).to_a.inspect
+puts chord(:c4, :'9+5').to_a.inspect
+puts chord(:c4, :maj7).to_a.inspect
+puts "#{chord_names.size} #{scale_names.size}"
+puts scale(:c4, :messiaen1).to_a.inspect
+puts scale(:c4, :rast).to_a.map { |x| x.round(3) }.inspect
+`, 1)
+	logs := strings.Join(flat(other), " | ")
+	for _, want := range []string{"[52, 55, 59, 62, 66]", "[60, 64, 68, 70, 74]", "[60, 64, 67, 71]", "88 160",
+		"[60, 62, 64, 66, 68, 70, 72]", "[60, 62.038, 63.849, 64.981, 67.019, 69.057, 70.868, 72.0]"} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("missing %s in %s", want, logs)
+		}
+	}
+}
