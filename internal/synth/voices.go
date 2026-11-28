@@ -111,6 +111,10 @@ type Params struct {
 	// AttackLevel, DecayLevel and SustainLevel are the envelope's levels;
 	// 0 means the default (see EnvTimes).
 	AttackLevel, DecayLevel, SustainLevel float64
+	// EnvShape and EnvCurve are the envelope's SuperCollider shape (see
+	// EnvFor); 0 keeps the older mixed shape.
+	EnvShape int
+	EnvCurve float64
 
 	// CutoffMin turns on the filter envelope (tb303): the low-pass cutoff
 	// moves between CutoffMin and LPF (Hz) as CutoffEnv goes from 0 to 1.
@@ -213,6 +217,7 @@ type Voice struct {
 	mods                   []*modState
 	ext                    *toneState // tones.go
 	so                     synthOpts  // synthopts.go
+	nat                    *native    // native.go: a Sonic Pi design ported as it is
 }
 
 type filterState struct{ lp, hp Filter }
@@ -311,6 +316,15 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	}
 	v.freq = 440 * math.Pow(2, (note-69)/12) * v.speed
 	v.initOpts(p.Opt)
+	if mk, ok := natives[v.wave]; ok {
+		v.nat = mk(v, func(k string, d float64) float64 {
+			if x, ok := p.Opt[k]; ok {
+				return x
+			}
+			return d
+		})
+		v.stereo = v.nat.lr != nil
+	}
 	if v.wave == "" {
 		v.wave = "saw"
 	}
@@ -321,7 +335,8 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	// the gate holds attack + decay + sustain; sustain is what is left
 	sus := math.Max(0, float64(v.gate)/v.sr-math.Max(p.Attack, minAttack)-p.Decay)
 	v.env = NewEnvelope(v.sr, EnvTimes{Attack: p.Attack, Decay: p.Decay, Sustain: sus, Release: rel,
-		AttackLevel: p.AttackLevel, DecayLevel: p.DecayLevel, SustainLevel: p.SustainLevel})
+		AttackLevel: p.AttackLevel, DecayLevel: p.DecayLevel, SustainLevel: p.SustainLevel,
+		Shape: p.EnvShape, Curve: p.EnvCurve})
 	if p.CutoffMin > 0 && p.LPF > p.CutoffMin {
 		v.fenv = NewEnvelope(v.sr, p.CutoffEnv)
 		v.cutoffMin, v.cutoffMax, v.res = p.CutoffMin, p.LPF, p.Res
@@ -647,6 +662,14 @@ func (v *Voice) toneBody() float32 {
 	if v.cutoffMin > 0 && v.t%sweepEvery == 0 && v.t > 0 {
 		v.sweep()
 	}
+	if v.nat != nil {
+		if v.nat.lr != nil {
+			l, r := v.nat.lr()
+			v.right = float32(r) * env * 0.35
+			return float32(l) * env * 0.35
+		}
+		return float32(v.nat.next()) * env * 0.35
+	}
 	var s float32
 	if extWaves[v.wave] {
 		return v.toneExt() * env * 0.35 * float32(v.so.velGain(v.wave))
@@ -677,15 +700,6 @@ func (v *Voice) toneBody() float32 {
 		v.phase2 += v.freq / v.so.divisor * 2 * math.Pi / v.sr
 		v.phase += v.freq * 2 * math.Pi / v.sr
 		s = float32(math.Sin(v.phase+idx*math.Sin(v.phase2))) * 0.8
-	case "supersaw":
-		var acc float32
-		for k, d := range [5]float64{-0.012, -0.006, 0, 0.006, 0.012} {
-			v.ph[k] += v.freq * (1 + d) / v.sr
-			v.ph[k] -= math.Floor(v.ph[k])
-			acc += float32(2*v.ph[k] - 1)
-		}
-		v.lp += 0.3 * (acc/5 - v.lp)
-		s = v.lp * 1.4
 	case "organ":
 		v.phase += v.freq * 2 * math.Pi / v.sr
 		for k, w := range [5]float64{1, 0.6, 0.4, 0.3, 0.2} {

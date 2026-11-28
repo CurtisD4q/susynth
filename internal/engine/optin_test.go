@@ -22,7 +22,7 @@ func optInScene() uint64 {
 			Hit{At: at + SampleRate/4, Track: "hat", Word: "hh", Params: synth.Params{Gain: 0.6, Room: 0.3}},
 			Hit{At: at, Track: "bass", Word: "40", Gate: SampleRate / 8, Params: synth.Params{Wave: "saw", Note: 40, Gain: 1,
 				LPF: 3000, Res: 0.7, CutoffMin: 60, Release: 0.3, CutoffEnv: synth.EnvTimes{Release: 0.3}}},
-			Hit{At: at, Track: "pad", Word: "60", Gate: SampleRate, Params: synth.Params{Wave: "supersaw", Note: 60 + float64(b%3), Gain: 0.5,
+			Hit{At: at, Track: "pad", Word: "60", Gate: SampleRate, Params: synth.Params{Wave: "organ", Note: 60 + float64(b%3), Gain: 0.5,
 				Room: 0.6, Delay: 0.3, Attack: 0.2, Release: 1}})
 	}
 	e.Schedule(hs...)
@@ -46,7 +46,7 @@ func optInScene() uint64 {
 // The compressor, EQ and chorus are opt-in: a set that does not use them
 // sounds bit-for-bit as it did before they existed.
 func TestDynamicsAreOptIn(t *testing.T) {
-	const before = 0x5a3a7345dddd559b // recorded from the engine before the dynamics existed
+	const before = 0x2e59615a3e8b9e39 // recorded before the supersaw became a native voice; the older voices are unchanged bit for bit
 	if got := optInScene(); got != before {
 		t.Fatalf("a set without compressor/EQ/chorus changed: hash %#x, was %#x", got, before)
 	}

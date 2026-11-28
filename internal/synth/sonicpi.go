@@ -25,8 +25,27 @@ type SonicSynth struct {
 // Sonic Pi gives them. Only :tb303 has a filter envelope in Sonic Pi.
 type FilterDefaults struct{ Cutoff, CutoffMin, Res float64 }
 
-var filterDefaults = map[string]FilterDefaults{
-	"tb303": {Cutoff: 120, CutoffMin: 30, Res: 0.9},
+var filterDefaults = map[string]FilterDefaults{}
+
+// EnvFor is the amplitude envelope shape (SuperCollider's: 1 linear, 2
+// exponential, 3 sine, 4 welch, 5 custom with a curve, 6 squared, 7 cubed)
+// a Sonic Pi synth uses for an env_curve: option (has says it was given).
+func EnvFor(name string, ec float64, has bool) (int, float64) {
+	switch name {
+	case "tb303", "tech_saws", "piano":
+		if !has {
+			ec = map[string]float64{"tb303": 2, "tech_saws": 1, "piano": 1}[name]
+		}
+		return 5, ec
+	case "organ_tonewheel":
+		return 3, 0
+	case "bass_foundation", "bass_highend", "winwood_lead", "gabberkick", "kalimba", "rhodey", "rodeo":
+		return 1, 0
+	}
+	if sh := int(ec); has && sh >= 1 && sh <= 7 && sh != 5 {
+		return sh, 0
+	}
+	return 1, 0
 }
 
 // Filter returns the synth's filter defaults.
@@ -40,26 +59,26 @@ var SonicSynths = []SonicSynth{
 	{"mod_beep", "sine", "", "sine"},
 	{"saw", "saw", "", "saw, gently low-passed"},
 	{"mod_saw", "saw", "", "saw"},
-	{"tb303", "saw", "", "acid bass: resonant filter sweep"},
-	{"zawa", "saw", "", "saw"},
-	{"growl", "saw", "", "saw"},
-	{"winwood_lead", "saw", "", "saw lead"},
-	{"bass_foundation", "saw", "", "saw bass"},
-	{"bass_highend", "saw", "", "saw bass"},
+	{"tb303", "tb303", "", "Roland TB-303 style bass (Sonic Pi's design)"},
+	{"zawa", "zawa", "", "sync saw wobble (Sonic Pi's design)"},
+	{"growl", "growl", "", "growling saw and sine (Sonic Pi's design)"},
+	{"winwood_lead", "winwood_lead", "", "Winwood lead (Sonic Pi's design)"},
+	{"bass_foundation", "bass_foundation", "", "saw bass (Sonic Pi's design)"},
+	{"bass_highend", "bass_highend", "", "driven saw bass (Sonic Pi's design)"},
 	{"dsaw", "dsaw", "", "two saws a tenth of a semitone apart"},
 	{"mod_dsaw", "dsaw", "", "two detuned saws"},
-	{"supersaw", "supersaw", "", "five detuned saws"},
+	{"supersaw", "supersaw", "", "supersaw (Sonic Pi's design)"},
 	{"prophet", "prophet", "", "pulse-width-modulated pulses, Prophet-style"},
 	{"blade", "blade", "", "saw with vibrato through violin formants"},
-	{"hoover", "supersaw", "", "detuned saws"},
-	{"tech_saws", "supersaw", "", "detuned saws"},
+	{"hoover", "hoover", "", "the rave hoover (Sonic Pi's design)"},
+	{"tech_saws", "tech_saws", "", "stereo detuned saws through a reverb (Sonic Pi's design)"},
 	{"square", "square", "", "square, low-passed"},
 	{"pulse", "square", "", "square"},
-	{"subpulse", "square", "", "square"},
+	{"subpulse", "subpulse", "", "pulse with a sub sine (Sonic Pi's design)"},
 	{"dpulse", "dpulse", "", "two pulses a tenth of a semitone apart"},
 	{"mod_pulse", "square", "", "square"},
-	{"chipbass", "square", "", "chiptune square bass"},
-	{"chiplead", "square", "", "chiptune square lead"},
+	{"chipbass", "chipbass", "", "chiptune triangle bass (Sonic Pi's design)"},
+	{"chiplead", "chiplead", "", "chiptune pulse lead (Sonic Pi's design)"},
 	{"tri", "tri", "", "triangle"},
 	{"dtri", "dtri", "", "two triangles a tenth of a semitone apart"},
 	{"mod_tri", "tri", "", "triangle"},

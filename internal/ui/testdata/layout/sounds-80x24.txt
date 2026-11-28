@@ -9,12 +9,12 @@
   ●     mod_beep             sine                                    ▶ preview│
   ♪     saw                  saw, gently low-passed                  ▶ preview│
   ⚙     mod_saw              saw                                     ▶ preview│
-  ?     tb303                acid bass: resonant filter sweep        ▶ preview│
-  ◈     zawa                 saw                                     ▶ preview│
-        growl                saw                                     ▶ preview│
-        winwood_lead         saw lead                                ▶ preview│
-        bass_foundation      saw bass                                ▶ preview│
-        bass_highend         saw bass                                ▶ preview│
+  ?     tb303                Roland TB-303 style bass (Sonic Pi's …  ▶ preview│
+  ◈     zawa                 sync saw wobble (Sonic Pi's design)     ▶ preview│
+        growl                growling saw and sine (Sonic Pi's des…  ▶ preview│
+        winwood_lead         Winwood lead (Sonic Pi's design)        ▶ preview│
+        bass_foundation      saw bass (Sonic Pi's design)            ▶ preview│
+        bass_highend         driven saw bass (Sonic Pi's design)     ▶ preview│
      ─────────────────────────────────────────────────────────────────────────
 
       use_synth :name, then play notes; each plays the nearest susynth

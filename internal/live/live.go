@@ -570,6 +570,17 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		// past what can be heard here: it is held at the edge, not an error
 		n = math.Max(0, math.Min(135, n))
 		p.Wave, p.Note = sy.Wave, n
+		_, hasEC := kv["ec"]
+		p.EnvShape, p.EnvCurve = synth.EnvFor(sy.Name, get("ec", 1), hasEC)
+		for k, v := range kv { // a native voice's options by their Sonic Pi names
+			if strings.HasPrefix(k, "o_") {
+				if p.Opt == nil {
+					p.Opt = map[string]float64{}
+				}
+				p.Opt[k[2:]] = v
+			}
+		}
+		native := synth.IsNative(sy.Wave)
 		for _, k := range synthOptKeys {
 			if v, ok := kv[k]; ok {
 				if p.Opt == nil {
@@ -588,10 +599,10 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		fd := sy.Filter()
 		defRes = fd.Res
 		cut := get("cutoff", fd.Cutoff)
-		if cut > 0 {
+		if cut > 0 && !native {
 			p.LPF = midiHz(cut)
 		}
-		if cmin := get("cmin", fd.CutoffMin); cmin > 0 && cut > cmin {
+		if cmin := get("cmin", fd.CutoffMin); !native && cmin > 0 && cut > cmin {
 			p.CutoffMin = midiHz(cmin)
 			p.CutoffEnv = synth.EnvTimes{
 				Attack: get("ca", a), Decay: get("cd", d), Sustain: get("cs", sus), Release: get("cr", r),

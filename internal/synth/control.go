@@ -52,6 +52,7 @@ type controlled struct {
 	slide                        [5]float64 // note, amp, pan, cutoff, rate (seconds)
 	step0                        float64    // the sample step at rate 1
 	hasFilter                    bool
+	natCut                       bool // the cutoff is a native voice's own
 }
 
 type pendingCtl struct {
@@ -85,7 +86,9 @@ func (v *Voice) initCtl() {
 	c.pan.cur = v.pan0
 	c.rate.cur = 1
 	c.step0 = v.step
-	if v.fl[0].lp.Active() {
+	if v.nat != nil && v.nat.cur != nil {
+		c.cutoff.cur = v.nat.cur()
+	} else if v.fl[0].lp.Active() {
 		c.hasFilter = true
 		c.cutoff.cur = 69 + 12*math.Log2(v.lpf0/440)
 	} else {
@@ -120,7 +123,12 @@ func (v *Voice) applyCtl(c Control) {
 	if !math.IsNaN(c.Pan) {
 		k.pan.set(math.Max(-1, math.Min(1, c.Pan)), frames(c.PanSlide, 2))
 	}
-	if !math.IsNaN(c.Cutoff) {
+	if !math.IsNaN(c.Cutoff) && v.nat != nil {
+		if v.nat.cut != nil {
+			k.natCut = true
+			k.cutoff.set(math.Max(0, math.Min(c.Cutoff, 130)), frames(c.CutoffSlide, 3))
+		}
+	} else if !math.IsNaN(c.Cutoff) {
 		if !k.hasFilter {
 			for ch := range v.fl {
 				v.fl[ch].lp = NewLowPass(440*math.Pow(2, (k.cutoff.cur-69)/12), v.res0, v.sr)
@@ -156,6 +164,9 @@ func (v *Voice) ctlUpdate(force bool) {
 		for ch := range v.fl {
 			v.fl[ch].lp.Set(math.Min(hz, v.sr*0.45), v.res0, v.sr)
 		}
+	}
+	if k.natCut && (force || k.cutoff.moving()) {
+		v.nat.cut(k.cutoff.next())
 	}
 	if v.k == kSample && (force || k.rate.moving()) {
 		r := k.rate.next()
