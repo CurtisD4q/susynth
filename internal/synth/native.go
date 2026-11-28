@@ -227,6 +227,16 @@ func init() {
 	natives["hoover"] = newHoover
 	natives["tech_saws"] = newTechSaws
 	natives["growl"] = newGrowl
+	for name, gen := range map[string]struct {
+		mk   func(v *Voice) func() float64
+		gain float64
+	}{
+		"sp_noise": {whiteSrc, 0.9}, "sp_pnoise": {pinkSrc, 3}, "sp_bnoise": {brownSrc, 1.2},
+		"sp_gnoise": {graySrc, 1}, "sp_cnoise": {clipSrc, 0.6},
+	} {
+		natives[name] = noiseSynth(gen.mk, gen.gain)
+	}
+	natives["chipnoise"] = newChipnoise
 }
 
 // sinKr is a sine of rate hz and a phase offset, read at time t.
@@ -781,4 +791,87 @@ func pitchShiftSwell(t, w float64) float64 {
 		g += 1 - math.Abs(2*x-1)
 	}
 	return g * 0.5
+}
+
+// The noise synths filter one kind of noise with an RLPF and a fixed gain.
+func noiseSynth(src func(v *Voice) func() float64, gain float64) nativeMaker {
+	return func(v *Voice, o func(string, float64) float64) *native {
+		cut := &cutoffHolder{o("cutoff", 110)}
+		rq := rqOf(o("res", 0))
+		gen := src(v)
+		var f scRLPF
+		return &native{
+			next: func() float64 { return gain * f.run(gen(), cut.hz(), rq, v.sr) },
+			cut:  func(m float64) { cut.midi = m },
+			cur:  func() float64 { return cut.midi },
+		}
+	}
+}
+
+func whiteSrc(v *Voice) func() float64 { return func() float64 { return white(v) } }
+
+func clipSrc(v *Voice) func() float64 {
+	return func() float64 {
+		if white(v) < 0 {
+			return -1
+		}
+		return 1
+	}
+}
+
+// brownSrc is SuperCollider's BrownNoise: a random walk bounced off +-1.
+func brownSrc(v *Voice) func() float64 {
+	z := 0.0
+	return func() float64 {
+		z += white(v) * 0.125
+		if z > 1 {
+			z = 2 - z
+		} else if z < -1 {
+			z = -2 - z
+		}
+		return z
+	}
+}
+
+// graySrc is SuperCollider's GrayNoise: one random bit of a 32-bit number
+// flips each sample.
+func graySrc(v *Voice) func() float64 {
+	var b int32
+	return func() float64 {
+		v.noise() // steps the generator
+		b ^= int32(1) << ((v.rng >> 5) & 31)
+		return float64(b) * 4.65661287308e-10
+	}
+}
+
+// pinkSrc is pink noise at SuperCollider's level (measured against scsynth).
+func pinkSrc(v *Voice) func() float64 {
+	var p pinkKellet
+	return func() float64 { return pinkScale * p.next(white(v)) }
+}
+
+const pinkScale = 0.385
+
+func newChipnoise(v *Voice, o func(string, float64) float64) *native {
+	bands := [16]float64{1, 2, 4, 5.34, 8, 10.68, 16, 19.03, 25.4, 32, 42.71, 64, 128, 256, 512, 1024}
+	var ph float64
+	val := 1.0
+	return &native{
+		next: func() float64 {
+			f := 220 * bands[int(clamp(math.Floor(o("freq_band", 0)), 0, 15))]
+			ph += f / v.sr
+			if ph >= 1 {
+				ph -= math.Floor(ph)
+				val = 1
+				if white(v) < 0 {
+					val = -1
+				}
+			}
+			x := val
+			if a := math.Abs(x); a > 0.5 {
+				x = (a - 0.25) / x
+			}
+			return x * 0.8
+		},
+	}
 }
