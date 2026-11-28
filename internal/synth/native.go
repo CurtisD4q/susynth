@@ -1,6 +1,9 @@
 package synth
 
-import "math"
+import (
+	"math"
+	"sync"
+)
 
 // Native voices are Sonic Pi's own synth designs ported unit generator by
 // unit generator from the compiled SynthDefs (etc/synthdefs in Sonic Pi),
@@ -1303,6 +1306,38 @@ func newOrgan(v *Voice, o func(string, float64) float64) *native {
 
 func init() { natives["piano"] = newPiano }
 
+var pianoGains sync.Map
+
+// pianoNoiseGain scales band b's filter so white noise through it has an rms
+// of one, as the measurements of the hammer were taken.
+func pianoNoiseGain(b int, sr float64) float64 {
+	key := [2]float64{float64(b), sr}
+	if g, ok := pianoGains.Load(key); ok {
+		return g.(float64)
+	}
+	lo, hi := pianoNoiseEdges[b], math.Min(pianoNoiseEdges[b+1], sr*0.45)
+	fc := math.Sqrt(lo * hi)
+	w := 2 * math.Pi * fc / sr
+	al := math.Sin(w) * (hi - lo) / (2 * fc)
+	var f biq
+	f.set(al, 0, -al, 1+al, -2*math.Cos(w), 1-al)
+	rng := uint32(12345)
+	var sum float64
+	const n = 100000
+	for i := 0; i < n+2000; i++ {
+		rng ^= rng << 13
+		rng ^= rng >> 17
+		rng ^= rng << 5
+		y := f.run(float64(rng)/float64(math.MaxUint32)*2 - 1)
+		if i >= 2000 {
+			sum += y * y
+		}
+	}
+	g := 1 / math.Sqrt(sum/n)
+	pianoGains.Store(key, g)
+	return g
+}
+
 // newPiano plays Sonic Pi's piano (an MdaPiano) from measurements of it: the
 // first sixteen partials, each with its own level and decay, stretched the way
 // a string's are, for the note and velocity (pianodata.go).
@@ -1345,12 +1380,50 @@ func newPiano(v *Voice, o func(string, float64) float64) *native {
 		t2[k] = math.Max((1-vf)*d[0]+vf*d[1], 0.02)
 		frq[k] = float64(k+1) * math.Sqrt(1+((1-vf)*bb[0]+vf*bb[1])*float64((k+1)*(k+1)))
 	}
+	// the hammer: noise in half-octave bands, each dying away on its own,
+	// measured from the piano like the partials
+	var na, nt [16]float64
+	var nfl [16]biq
+	var nz [16]float64
+	for b := 0; b < 16; b++ {
+		var a, t [2]float64
+		for j := 0; j < 2; j++ {
+			e0, e1 := pianoNoiseA[vi+j][ni][b], pianoNoiseA[vi+j][ni+1][b]
+			a[j] = mixLog(e0, e1, nf)
+			t[j] = (1-nf)*pianoNoiseT[vi+j][ni][b] + nf*pianoNoiseT[vi+j][ni+1][b]
+		}
+		na[b] = mixLog(a[0], a[1], vf)
+		nt[b] = math.Max((1-vf)*t[0]+vf*t[1], 0.005)
+		lo, hi := pianoNoiseEdges[b], math.Min(pianoNoiseEdges[b+1], v.sr*0.45)
+		if lo >= v.sr*0.45 || na[b] <= 0 {
+			na[b] = 0
+			continue
+		}
+		fc := math.Sqrt(lo * hi)
+		w := 2 * math.Pi * fc / v.sr
+		al := math.Sin(w) * (hi - lo) / (2 * fc)
+		nfl[b].set(al, 0, -al, 1+al, -2*math.Cos(w), 1-al)
+		nz[b] = pianoNoiseGain(b, v.sr)
+	}
+	rng := v.rng*2654435761 + 977
 	n := 0
 	return &native{
 		next: func() float64 {
 			t := float64(n) / v.sr
 			n++
 			var x float64
+			rng ^= rng << 13
+			rng ^= rng >> 17
+			rng ^= rng << 5
+			w := float64(rng)/float64(math.MaxUint32)*2 - 1
+			if t < 1 {
+				for b := range na {
+					if na[b] == 0 {
+						continue
+					}
+					x += nfl[b].run(w) * nz[b] * na[b] * math.Exp(-t/nt[b])
+				}
+			}
 			for k := 0; k < 16; k++ {
 				if a1[k] <= 0 && a2[k] <= 0 {
 					continue
