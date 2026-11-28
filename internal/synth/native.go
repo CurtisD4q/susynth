@@ -1094,10 +1094,28 @@ func newRodeo(v *Voice, o func(string, float64) float64) *native {
 	cut := &cutoffHolder{o("cutoff", 95)}
 	rq := o("rq", 0.5)
 	var p1, p2 osc
-	var s [4][2]float64 // four biquads' two delays (x1, x2) and (y1, y2) kept below
 	var x1, x2, y1, y2 [4]float64
-	_ = s
 	n := 0
+	// Sonic Pi starts rodeo with its chorus and compressor on (use_chorus: 1,
+	// use_compressor: 1); the synthdef's own defaults are off.
+	useChorus, useComp := o("use_chorus", 1) != 0, o("use_compressor", 1) != 0
+	var dl [4]*delayC
+	// the chorus delays were picked with rrand(0.005, 0.02) when Sonic Pi's
+	// rodeo synthdef was compiled, so they are the same every time
+	maxd := [4]float64{0.00525897, 0.0170652, 0.0195377, 0.00738289}
+	var lfn [4]lfNoise1
+	for i := range dl {
+		dl[i] = newDelayC(maxd[i], v.sr)
+		lfn[i] = newLFNoise1(0.1+0.5*rand01(v), v)
+	}
+	// Splay.ar: four sources panned from left to right with equal power
+	// pans, at 1/sqrt(4) each
+	var gl, gr [4]float64
+	for i := range gl {
+		pos := -1 + 2*float64(i)/3
+		a := (pos + 1) * math.Pi / 4
+		gl[i], gr[i] = 0.5*math.Cos(a), 0.5*math.Sin(a)
+	}
 	run := func(k int, x, a0, a1, b1, b2 float64) float64 {
 		y := a0*x + a1*x1[k] + a0*x2[k] + b1*y1[k] + b2*y2[k]
 		x2[k], x1[k] = x1[k], x
@@ -1124,11 +1142,50 @@ func newRodeo(v *Voice, o func(string, float64) float64) *native {
 			lo := 0.7 * pulseBL(p1.step(v.freq/v.sr), v.freq/v.sr, 0.2)
 			a := run(1, run(0, lo, a0, a1, b1, b2), a0, a1, b1, b2)
 			b := run(3, run(2, hi, a0, a1, b1, b2), a0, a1, b1, b2)
-			return a + b
+			if !useComp {
+				return a + b
+			}
+			// chorus: four delays of the low pulse, spread over the stereo
+			// field (or the dry pair when the chorus is off); then
+			// 2*(snd+chorus), which the Compander leaves alone (its control
+			// is amp_scale*snd, always below the 0.4 threshold, with slope 1
+			// there), and Mix adds the two channels
+			cl, cr := a, b
+			if useChorus {
+				cl, cr = 0, 0
+				for i := range dl {
+					dl[i].write(a)
+					y := dl[i].read((0.75 + 0.25*lfn[i].next()) * maxd[i] * v.sr)
+					cl += y * gl[i]
+					cr += y * gr[i]
+				}
+			}
+			return 2 * (a + b + cl + cr)
 		},
 		cut: func(m float64) { cut.midi = m },
 		cur: func() float64 { return cut.midi },
 	}
+}
+
+// lfNoise1 is SuperCollider's LFNoise1: random values at freq per second with
+// straight lines between them.
+type lfNoise1 struct {
+	v         *Voice
+	step, pos float64
+	from, to  float64
+}
+
+func newLFNoise1(freq float64, v *Voice) lfNoise1 {
+	return lfNoise1{v: v, step: freq / v.sr, from: 2*rand01(v) - 1, to: 2*rand01(v) - 1}
+}
+
+func (l *lfNoise1) next() float64 {
+	l.pos += l.step
+	for l.pos >= 1 {
+		l.pos--
+		l.from, l.to = l.to, 2*rand01(l.v)-1
+	}
+	return l.from + (l.to-l.from)*l.pos
 }
 
 // shapedAdsr is a Sonic Pi envelope with every move on one SuperCollider
