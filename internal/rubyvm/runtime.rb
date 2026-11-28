@@ -52,7 +52,7 @@ end
 def __warn_once(key, msg)
   return if $__warned[key]
   $__warned[key] = true
-  __send("log", msg)
+  __send("log", msg, "warn")
 end
 
 # ---- threads and the scheduler ------------------------------------------------
@@ -1200,12 +1200,12 @@ def __mod(out, i, kind, name, f, origin, bpm)
   x.each { |k, v| out[:"x#{i}#{k}"] = v }
 end
 
-def __emit(kind, name, o)
+def __emit(kind, name, o, delay = 0.0)
   th = __need_thread(kind == "s" ? "sample" : "play")
   line = __buffer_line(caller_locations(2, 12))
   kv = o.map { |k, v| "#{k}=#{v.is_a?(Float) ? v.round(5) : v}" }.join(",")
   return if __silent?(th)
-  __send("ev", format("%.6f", th.time), __tname(th), line, kind, name, kv, th.run_id.to_i)
+  __send("ev", format("%.6f", th.time + delay), __tname(th), line, kind, name, kv, th.run_id.to_i)
 end
 
 # A node stands for a sound that has started (a note, a sample or an effect),
@@ -1504,7 +1504,70 @@ def control(node = nil, *rest, **opts)
   nil
 end
 
-%i[midi midi_note_on midi_note_off midi_cc midi_pitch_bend osc osc_send].each do |m|
+# ---- MIDI -------------------------------------------------------------------
+# These go to the MIDI output in Settings, on time. With none set (and when
+# rendering to a file) they make no sound and say nothing.
+
+# __midi sends one message to each channel the call names: channel: may be
+# a number, a list of them, or "*" for all sixteen (nil o: no channel).
+def __midi(delay, o, status, d1 = nil, d2 = nil)
+  chans = o.nil? ? [nil] : __midi_chs(o)
+  chans.each do |ch|
+    ev = { st: ch ? status | ch : status }
+    ev[:d1] = d1 if d1
+    ev[:d2] = d2 if d2
+    __emit("m", "midi", ev, delay)
+  end
+  nil
+end
+
+def __midi_chs(o)
+  c = o[:channel] || 1
+  return (0..15).to_a if c == "*" || c == :* || c == :all
+  Array(c.respond_to?(:to_a) ? c.to_a : c).map { |x| x.to_i.clamp(1, 16) - 1 }.uniq
+end
+def __midi7(v, d) = (v.nil? ? d : v).to_f.round.clamp(0, 127)
+
+def midi_note_on(n, vel = 127, **o)
+  nn = note(n) or return nil
+  __midi(0, o, 0x90, nn.round.clamp(0, 127), __midi7(o[:velocity] || vel, 127))
+end
+
+def midi_note_off(n, vel = 64, **o)
+  nn = note(n) or return nil
+  __midi(0, o, 0x80, nn.round.clamp(0, 127), __midi7(vel, 64))
+end
+
+# midi plays a note on, then off after sustain: beats.
+def midi(n, vel = nil, **o)
+  nn = note(n) or return nil
+  th = __need_thread("midi")
+  nn = nn.round.clamp(0, 127)
+  __midi(0, o, 0x90, nn, __midi7(o[:vel] || vel || o[:velocity], 127))
+  __midi((o[:sustain] || 1).to_f * 60.0 / th.ctx[:bpm], o, 0x80, nn, 64)
+end
+
+def midi_cc(control, value = 0, **o) = __midi(0, o, 0xB0, __midi7(control, 0), __midi7(value, 0))
+def midi_program_change(program, **o) = __midi(0, o, 0xC0, __midi7(program, 0))
+def midi_channel_pressure(val, **o) = __midi(0, o, 0xD0, __midi7(val, 0))
+def midi_poly_pressure(n, val = 0, **o) = (nn = note(n)) && __midi(0, o, 0xA0, nn.round.clamp(0, 127), __midi7(val, 0))
+
+# midi_pitch_bend takes -1..1 (0 is centre) or a 14-bit number
+def midi_pitch_bend(val = 0, **o)
+  v = val.is_a?(Integer) && val.abs > 1 ? val : ((val.to_f.clamp(-1, 1) + 1) * 8191.5).round
+  v = v.clamp(0, 16383)
+  __midi(0, o, 0xE0, v & 0x7F, v >> 7)
+end
+
+def midi_all_notes_off(**o) = __midi(0, o, 0xB0, 123, 0)
+def midi_sound_off(**o) = __midi(0, o, 0xB0, 120, 0)
+def midi_clock_tick(**_o) = __midi(0, nil, 0xF8)
+def midi_start(**_o) = __midi(0, nil, 0xFA)
+def midi_continue(**_o) = __midi(0, nil, 0xFB)
+def midi_stop(**_o) = __midi(0, nil, 0xFC)
+%i[midi_raw midi_clock_beat midi_reset midi_devices midi_ports].each { |m| define_method(m) { |*_a, **_o| nil } }
+
+%i[osc osc_send].each do |m|
   define_method(m) do |*_a, **_o|
     __warn_once("io#{m}", "#{m} isn't available inside the Ruby sandbox; use Settings > MIDI output or OSC instead")
     nil
@@ -1773,9 +1836,9 @@ def buffer(*a, **_o) = a.first
 
 # MIDI, recording, Ableton Link, live audio and tracks need Sonic Pi's own
 # app and devices; here they quietly do nothing.
-%i[midi_all_notes_off midi_channel_pressure midi_clock_beat midi_clock_tick midi_continue
-   midi_local_control_off midi_local_control_on midi_mode midi_pc midi_poly_pressure midi_raw
-   midi_reset midi_sound_off midi_start midi_stop midi_sysex
+def midi_pc(program, **o) = midi_program_change(program, **o)
+
+%i[midi_local_control_off midi_local_control_on midi_mode midi_sysex
    recording_start recording_stop recording_save recording_delete
    link link_audio link_sync set_link_bpm! live_audio live_track use_track
    track_control track_midi track_midi_all_notes_off track_midi_cc track_midi_note_off

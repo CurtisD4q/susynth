@@ -143,7 +143,11 @@ func printNotes(path string, ns []live.Note) (errs int) {
 				fmt.Fprintf(os.Stderr, "%s: %s\n", path, n.Text)
 			}
 		case "log":
-			fmt.Fprintln(os.Stderr, n.Text)
+			if n.Warn { // the render scripts count these: what susynth could not play
+				fmt.Fprintln(os.Stderr, "warning: "+n.Text)
+			} else {
+				fmt.Fprintln(os.Stderr, n.Text)
+			}
 		}
 	}
 	return

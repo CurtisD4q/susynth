@@ -341,3 +341,30 @@ func TestRollKeepsNotesWithPitchAndLength(t *testing.T) {
 		t.Errorf("hush should clear the roll, %d left", n)
 	}
 }
+
+// A raw MIDI message reaches the outputs on time and makes no sound.
+func TestRawMIDIReachesOutputs(t *testing.T) {
+	e := New()
+	e.SetBPM(120)
+	rec := &recorder{}
+	e.SetOutputs([]Output{rec})
+	e.mu.Lock()
+	e.wallBegin, e.samplesAtBegin = time.Now(), 0
+	e.mu.Unlock()
+	e.Play()
+	e.Schedule(Hit{At: 4800, Raw: []byte{0x90, 60, 100}})
+	for i := 0; i < 50; i++ {
+		e.Render(480)
+	}
+	if n := rec.kinds(KindRaw); n != 1 {
+		t.Fatalf("want 1 raw message, got %d", n)
+	}
+	for _, ev := range rec.evs {
+		if ev.Kind == KindRaw && (len(ev.Data) != 3 || ev.Data[0] != 0x90 || ev.Data[2] != 100) {
+			t.Errorf("data %v", ev.Data)
+		}
+	}
+	if n := rec.kinds(KindNote); n != 0 {
+		t.Errorf("a MIDI message was heard as %d notes", n)
+	}
+}

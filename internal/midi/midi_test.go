@@ -123,3 +123,22 @@ func TestLiveOutSendsNotesAndClock(t *testing.T) {
 		t.Errorf("should end with all-notes-off on close: % x", got[len(got)-6:])
 	}
 }
+
+// A raw message from midi_note_on or midi_cc goes to the device as it is.
+func TestLiveOutSendsRawMessages(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "port")
+	os.WriteFile(path, nil, 0o644)
+	o, err := Open(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	o.Emit(engine.Event{Kind: engine.KindRaw, At: now.Add(5 * time.Millisecond), Data: []byte{0xB0, 7, 90}})
+	o.Emit(engine.Event{Kind: engine.KindRaw, At: now.Add(10 * time.Millisecond), Data: []byte{0xC0, 5}})
+	time.Sleep(100 * time.Millisecond)
+	o.Close()
+	got, _ := os.ReadFile(path)
+	if !bytes.HasPrefix(got, []byte{0xB0, 7, 90, 0xC0, 5}) {
+		t.Errorf("got % x", got)
+	}
+}

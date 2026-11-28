@@ -148,6 +148,10 @@ func (o *Out) loop() {
 				}
 			case engine.KindPanic:
 				panic()
+			case engine.KindRaw:
+				if len(ev.Data) > 0 {
+					add(ev.At, ev.Data...)
+				}
 			}
 		}
 	}

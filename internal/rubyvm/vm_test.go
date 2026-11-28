@@ -513,3 +513,37 @@ on false do puts "on-no" end
 		t.Errorf("on: %s", logs)
 	}
 }
+
+// midi_* calls become raw MIDI events at the right time, with no warning.
+func TestMIDICalls(t *testing.T) {
+	v := vm(t)
+	evs, other := run(t, v, `
+use_bpm 120
+midi_note_on :c4, 100, channel: 2
+midi :e4, sustain: 2
+midi_cc 7, 90
+midi_pitch_bend 0
+midi_pc 5
+`, 2)
+	var got []string
+	for _, e := range evs {
+		got = append(got, e.Arg(0)[:5]+" "+e.Arg(4)+" "+e.Arg(5))
+	}
+	want := []string{"0.000 midi st=145,d1=60,d2=100", "0.000 midi st=144,d1=64,d2=127", "1.000 midi st=128,d1=64,d2=64",
+		"0.000 midi st=176,d1=7,d2=90", "0.000 midi st=224,d1=0,d2=64", "0.000 midi st=192,d1=5"}
+	if len(got) != len(want) {
+		t.Fatalf("events: %v other: %v", got, flat(other))
+	}
+	for _, w := range want {
+		found := false
+		for _, g := range got {
+			found = found || g == w
+		}
+		if !found {
+			t.Errorf("missing %q in %v", w, got)
+		}
+	}
+	if l := strings.Join(flat(other), " "); strings.Contains(l, "isn't available") || strings.Contains(l, "does nothing") {
+		t.Errorf("warned: %s", l)
+	}
+}
