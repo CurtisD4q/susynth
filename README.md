@@ -186,24 +186,24 @@ Also new: `:bpf`, `:rbpf`, `:nbpf`, `:nrbpf`, `:band_eq`, `:ring_mod`, `:octaver
 
 ### The synths
 
-All 66 of Sonic Pi's synth names work. Forty are ported straight from Sonic Pi's compiled
+All 66 of Sonic Pi's synth names work. Forty-seven are ported straight from Sonic Pi's compiled
 designs, unit generator by unit generator, and were measured against the real synth rendered
 with SuperCollider (pitch, envelope and tone agree to about 1 dB, and they are as loud as the real ones): `:tb303`, `:supersaw`, `:hoover`, `:tech_saws`, `:growl`, `:zawa`,
 `:bass_foundation`, `:bass_highend`, `:winwood_lead`, `:subpulse`, `:chiplead`, `:chipbass`, and the
 noise synths `:noise`, `:pnoise` (pink), `:bnoise` (brown), `:gnoise` (gray), `:cnoise` (clip) and
 `:chipnoise`, `:kalimba`, `:gabberkick`, `:rhodey`, `:rodeo` and `:organ_tonewheel` (drawbars and
-rotary speaker) and the sixteen `:sc808_` drums (kick, snare, clap, claves, hats, cowbell,
-cymbal, maracas, rim, toms, congas). `:rodeo` plays without its optional chorus and compressor. `:piano` plays the
+rotary speaker), `:prophet`, `:hollow`, `:dark_ambience` (with GVerb), `:blade`, `:dsaw`, `:pretty_bell`, `:dull_bell` and the sixteen `:sc808_` drums (kick, snare, clap, claves, hats, cowbell,
+cymbal, maracas, rim, toms, congas). `:rodeo` has its chorus and compressor (on by default, as in Sonic Pi). `:piano` plays the
 real piano's partials (stretch, level and decay for each note and velocity, measured from the
-real synth), without its hammer noise.
+real synth) and its hammer noise (measured band by band).
 They read their options by Sonic Pi's names (`cutoff:`, `res:`, `drive:`, `wave:`, `phase:`...)
 and `control` moves their cutoff. `:tech_saws` picks random detunes for each note, as Sonic Pi
 does, so two notes differ slightly. Every synth's volume envelope is straight lines unless
 `env_curve:` says otherwise, as in Sonic Pi.
 
-The rest are being ported the same way. Until then they are modelled on Sonic Pi's designs but
-checked only for pitch and level: `:prophet` (pulse-width-modulated pulses), `:hollow`,
-`:dark_ambience`, `:blade`, `:pretty_bell` and `:dull_bell` and `:dsaw`.
+The rest (`:beep`, `:saw`, `:pulse`, `:fm`, `:pluck` and their relatives) are modelled on Sonic Pi's
+designs and checked for pitch and level. `:prophet` is within about 8% of the real level;
+the noise in `:hollow` and `:dark_ambience` is random, so two runs differ by a few dB.
 `:sound_in` (live audio input) is skipped.
 
 ### Effects
@@ -218,8 +218,9 @@ pages pop-up) shows the units and the master level. Loudness matches Sonic Pi.
 Compatibility: reverb, echo, ping_pong, the filters, distortion, krush, tanh, level, pan, mono,
 normaliser, ring_mod, the moving effects, compressor, octaver, flanger, whammy, band_eq, eq,
 ixi_techno and vowel were checked against scsynth running Sonic Pi's own synthdefs, within a
-fraction of a dB. `gverb`, `pitch_shift` and `bitcrusher` are close but approximate. `:autotuner`
-is not implemented (the block plays as it is). `:chorus` is not a Sonic Pi effect and was removed.
+fraction of a dB, and so were `pitch_shift` and `bitcrusher` (sample for sample, with `time_dis:` 0)
+and `gverb` (its decay and level by band, within a few dB; the reflections' exact pattern is not
+GVerb's). `:autotuner` is our own design (pitch tracking and granular retuning). `:chorus` is not a Sonic Pi effect and was removed.
 `out_bus`/`in_bus` and `:sound_out` give a one-time warning; live audio input is not supported.
 
 ## Prerequisites
@@ -428,7 +429,7 @@ the moving ones, synced to the beat: `slicer`, `panslicer`, `tremolo`, `wobble`,
 and `flanger`. There are also `bpf`, `rbpf`, `nbpf`, `nrbpf`, `band_eq`, `ring_mod`,
 `octaver`, `vowel`, `mono`, `pitch_shift` and `whammy`. `control` on an effect (`with_fx
 :slicer do |s| … control s, phase: 1`) changes it for the sounds that start after it.
-`autotuner` plays the block as it is. The Sounds page lists them all.
+`autotuner` retunes what is played in it. The Sounds page lists them all.
 
 ### 8. Find sounds
 
@@ -663,7 +664,7 @@ original (it won't sound the same).
 
 * `control` on an effect only changes sounds that start after it; sounds already playing keep
   the old settings.
-* No sample `onset:` and no `:autotuner`; `.mp3` and `.ogg` sample files can't be loaded
+* No sample `onset:`; `.mp3` and `.ogg` sample files can't be loaded
   (`.wav` and `.flac` can). OSC calls in code are skipped; `midi_*` calls go to the MIDI
   device in Settings.
 * Ruby's own `Thread` isn't available; Sonic Pi's `in_thread` and `live_loop` are.
