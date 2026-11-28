@@ -1010,9 +1010,8 @@ MOD_FX = { slicer: 1, panslicer: 2, tremolo: 3, wobble: 4, ixi_techno: 4, flange
            nbpf: 6, nrbpf: 6, band_eq: 7, ring_mod: 8, octaver: 9, vowel: 10, mono: 11, pitch_shift: 12, whammy: 12 }.freeze
 FX_SUPPORTED = (%i[reverb gverb echo ping_pong lpf rlpf nlpf nrlpf hpf rhpf nhpf nrhpf bitcrusher krush
                    distortion tanh level pan compressor normaliser eq chorus pitch_shift whammy] + MOD_FX.keys).freeze
-# These play the block as it is: recording and audio routing belong to Sonic
-# Pi's app, and the autotuner's design is GPL.
-FX_DRY = %i[record sound_out sound_out_stereo autotuner].freeze
+# These play the block as it is: the autotuner's design is GPL.
+FX_DRY = %i[autotuner].freeze
 
 def __with(key, val, &blk)
   c = __ctx
@@ -1097,6 +1096,17 @@ def __with_fx_unit(name, reps, opts, &blk)
   outer = c[:bus]
   num = opts.select { |_, v| v.is_a?(Numeric) || v == true || v == false }
   num = num.transform_values { |v| v == true ? 1 : (v == false ? 0 : v.to_f) }
+  if name.to_s == "record"
+    b = __buffer_of(opts[:buffer])
+    unless b
+      __warn_once("fxrecord", "with_fx :record does nothing in susynth without a buffer: (buffer(:name, seconds)); the block plays without it")
+      r = nil
+      reps.to_i.times { r = blk.call(SusynthNode.new(:fx, name, nil, [], opts)) }
+      return r
+    end
+    num[:buffer] = b.id.to_f
+    num[:seconds] = b.seconds
+  end
   th = $__cur
   bpm = c[:bpm].to_f
   __fx_emit("f", name, { id: id, parent: outer.to_i, bpm: bpm }.merge(num)) if th
@@ -1294,6 +1304,7 @@ def play(n = :__none, *rest, **opts, &_blk)
   o = c[:sdef].merge(opts)
   return nil if o.key?(:on) && !o[:on]
   sn = o.delete(:synth) || c[:synth]
+  __warn_once("outbus", "out_bus: / in_bus: aren't in susynth; the sound goes to the main mix") if o.key?(:out_bus) || o.key?(:in_bus)
   if SAMPLE_PLAYERS.include?(sn.to_s)
     # mono_player and stereo_player play a sample file through synth
     return nil unless (path = o[:path])
@@ -1428,6 +1439,8 @@ def sample(name = nil, *rest, **opts, &_blk)
   return nil if o.key?(:on) && !o[:on]
   name = name.first if name.is_a?(Array) && name.size == 1
   case name
+  when SusynthBuffer
+    n = name.sample_name
   when Symbol
     n = name.to_s
     if !$__samples.empty? && !$__samples.include?(n)
@@ -1450,6 +1463,7 @@ def sample(name = nil, *rest, **opts, &_blk)
     return nil
   else raise ArgumentError, "sample needs a name like :bd_haus or a path to a .wav file"
   end
+  __warn_once("outbus", "out_bus: / in_bus: aren't in susynth; the sound goes to the main mix") if o.key?(:out_bus) || o.key?(:in_bus)
   bpm = c[:bpm]
   st, fi = __sample_region(o)
   ev = { amp: (o[:amp] || 1).to_f * (o[:pre_amp] || 1).to_f, pan: (o[:pan] || 0).to_f, rate: __sample_rate(n, o, bpm) }
@@ -1504,6 +1518,9 @@ end
 
 def __sample_seconds(name)
   name = name.to_s.sub(/\A:/, "")
+  if name.start_with?("@rec") && (b = $__buffers.values.find { |x| x.sample_name == name })
+    return b.seconds
+  end
   $__sdur[name]
 end
 
@@ -1906,7 +1923,36 @@ def sample_groups = Ring.new($__samples.map { |n| n.split("_").first }.uniq.map(
 def sample_loaded?(*_a) = true
 def sample_info(*a) = { name: a.first, duration: __sample_seconds(a.first) }
 def sample_buffer(*a) = a.first
-def buffer(*a, **_o) = a.first
+# A buffer is a stereo recording a with_fx :record fills and sample plays.
+class SusynthBuffer
+  attr_reader :name, :id, :seconds
+  def initialize(name, id, seconds)
+    @name, @id, @seconds = name, id, seconds
+  end
+  def sample_name = "@rec#{@id}"
+  def duration = @seconds
+  def to_s = "(buffer #{@name} #{@seconds}s)"
+  alias inspect to_s
+end
+
+$__buffers = {}
+def buffer(name = nil, duration = 8, **_o)
+  return name if name.is_a?(SusynthBuffer)
+  secs = (duration || 8).to_f
+  key = name.to_s
+  b = $__buffers[key]
+  return b if b && b.seconds == secs
+  $__buffers[key] = SusynthBuffer.new(key, $__buffers.size + 1, secs)
+end
+
+def __buffer_of(v)
+  case v
+  when SusynthBuffer then v
+  when Array, Ring then buffer(*v.to_a)
+  when Symbol, String then buffer(v)
+  when Numeric then $__buffers.values.find { |b| b.id == v.to_i }
+  end
+end
 
 # MIDI, recording, Ableton Link, live audio and tracks need Sonic Pi's own
 # app and devices; here they quietly do nothing.

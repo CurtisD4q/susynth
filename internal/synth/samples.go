@@ -457,3 +457,22 @@ func ParseWAV(b []byte) (*Sample, error) {
 	}
 	return &Sample{Rate: rate, Data: out}, nil
 }
+
+// RegisterBuffer makes the stereo sample bank "@rec<id>" that a record
+// effect writes into and sample can play, and returns it. A buffer that is
+// already there is kept, with its sound.
+func RegisterBuffer(id int, seconds float64) *Sample {
+	name := fmt.Sprintf("@rec%d", id)
+	reg.Lock()
+	defer reg.Unlock()
+	if reg.banks == nil {
+		reg.banks = map[string]*Bank{}
+	}
+	if b := reg.banks[name]; b != nil && len(b.Samples) > 0 {
+		return b.Samples[0]
+	}
+	n := int(math.Max(1, math.Min(seconds, 600)) * PlayRate)
+	s := &Sample{Name: name, Rate: PlayRate, Data: make([]float32, n), Right: make([]float32, n)}
+	reg.banks[name] = &Bank{Name: name, Samples: []*Sample{s}}
+	return s
+}
