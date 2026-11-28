@@ -43,9 +43,13 @@ func TestNativeVoicesPitchAndLevel(t *testing.T) {
 	e3 := 440 * math.Pow(2, (52.0-69)/12)
 	for name, want := range map[string]float64{
 		"bass_foundation": e3, "winwood_lead": e3, "supersaw": e3, "chiplead": e3, "chipbass": e3, "tb303": e3,
-		"growl": e3, "subpulse": e3 / 2, "bass_highend": e3 / 4,
+		"growl": e3, "rhodey": e3, "rodeo": e3, "kalimba": e3, "organ_tonewheel": e3 / 2, "subpulse": e3 / 2, "bass_highend": e3 / 4,
 	} {
-		x := renderNative(t, name, nil, 0.9)
+		var opt map[string]float64
+		if name == "kalimba" {
+			opt = map[string]float64{"clickiness": 1} // the tone alone is quiet
+		}
+		x := renderNative(t, name, opt, 0.9)
 		f := periodOf(x, 48000)
 		semis := 12 * math.Log2(f/want)
 		var rms float64
@@ -61,7 +65,7 @@ func TestNativeVoicesPitchAndLevel(t *testing.T) {
 
 // The stereo and wobbling voices make sound in both channels without blowing up.
 func TestNativeStereoAndModulatedVoices(t *testing.T) {
-	for _, name := range []string{"tech_saws", "hoover", "zawa"} {
+	for _, name := range []string{"tech_saws", "hoover", "zawa", "gabberkick", "organ_tonewheel"} {
 		v, err := New("52", 48000, 0, 24000, Params{Gain: 1, Speed: 1, Wave: name, Note: 52, Release: 0.3, EnvShape: 1}, 3)
 		if err != nil {
 			t.Fatal(err)

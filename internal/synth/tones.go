@@ -4,8 +4,7 @@ import "math"
 
 // Voices modelled on Sonic Pi's own synth designs (etc/synthdefs in Sonic
 // Pi), for the synths code uses most that used to share a plain wave:
-// hollow, dark_ambience, prophet, blade, the bells, dsaw, piano, rhodey,
-// and gabberkick. tone() sends these waves here.
+// hollow, dark_ambience, prophet, blade, the bells, dsaw and piano. tone() sends these waves here.
 
 type toneState struct {
 	bq    [6]biquad
@@ -22,7 +21,7 @@ type toneState struct {
 
 var extWaves = map[string]bool{
 	"hollow": true, "ambience": true, "prophet": true, "blade": true, "bell": true, "dullbell": true,
-	"dsaw": true, "dpulse": true, "dtri": true, "piano": true, "rhodey": true, "gabber": true,
+	"dsaw": true, "dpulse": true, "dtri": true, "piano": true,
 }
 
 func (v *Voice) initExt() {
@@ -71,12 +70,6 @@ func (v *Voice) initExt() {
 				x.pamp[k] = 0
 			}
 		}
-	case "rhodey": // FM electric piano: a bell-like tine over a warm body
-		x.pdec[0] = math.Exp(-1 / (0.4 * v.sr))  // body modulation index
-		x.pdec[1] = math.Exp(-1 / (0.05 * v.sr)) // tine
-		x.pamp[0], x.pamp[1] = 1.4, 1
-	case "gabber":
-		x.pamp[0] = 1
 	}
 }
 
@@ -196,22 +189,6 @@ func (v *Voice) toneExt() float32 {
 			s += float64(v.noise()) * 0.3 * (1 - t/0.004)
 		}
 		s *= 0.8
-	case "rhodey":
-		v.phase += f / sr
-		v.phase -= math.Floor(v.phase)
-		v.phase2 += 14 * f / sr
-		v.phase2 -= math.Floor(v.phase2)
-		idx := x.pamp[0]
-		x.pamp[0] = 0.25 + (x.pamp[0]-0.25)*x.pdec[0]
-		body := math.Sin(2*math.Pi*v.phase + idx*math.Sin(2*math.Pi*v.phase))
-		tine := x.pamp[1] * math.Sin(2*math.Pi*v.phase2)
-		x.pamp[1] *= x.pdec[1]
-		s = body*0.9 + tine*0.3
-	case "gabber": // a hard, distorted kick that falls to the note
-		fk := f * (1 + 6*math.Exp(-t*25))
-		v.phase += fk / sr
-		v.phase -= math.Floor(v.phase)
-		s = math.Tanh(4*math.Sin(2*math.Pi*v.phase)) * math.Exp(-t*3) * 1.6
 	}
 	return float32(s)
 }

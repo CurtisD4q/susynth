@@ -663,6 +663,9 @@ func (v *Voice) toneBody() float32 {
 		v.sweep()
 	}
 	if v.nat != nil {
+		if v.nat.own {
+			env = 1
+		}
 		if v.nat.lr != nil {
 			l, r := v.nat.lr()
 			v.right = float32(r) * env * 0.35
