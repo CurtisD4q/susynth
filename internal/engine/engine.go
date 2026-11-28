@@ -47,6 +47,8 @@ type Hit struct {
 	Raw    []byte      // a raw MIDI message for the outputs; it makes no sound
 	Slides *[5]float64 // note, amp, pan, cutoff, rate slide times (seconds)
 	Mix    MixerSet    // a change to the master mixer; it makes no sound
+	Bus    int64       // the effect unit the sound is written to (0: its track)
+	Unit   *UnitOp     // a change to the effect units; it makes no sound
 }
 
 type stamp struct {
@@ -108,6 +110,8 @@ type Engine struct {
 
 	// effects
 	fx           *fxBus
+	units        []*fxUnit // with_fx effects, oldest first (fxunit.go)
+	unitIdx      map[int64]*fxUnit
 	mixer        mixerState
 	delaySeconds float64
 	delayFB      float64
@@ -272,6 +276,7 @@ func (e *Engine) stopLocked() {
 	e.roll = nil
 	e.lit = nil
 	e.fadeLen = 0
+	e.killUnits("")
 	for _, v := range e.voices {
 		v.Kill()
 	}
@@ -466,6 +471,7 @@ func (e *Engine) SilenceTrack(name string) bool {
 		}
 	}
 	e.queue = q
+	e.killUnits(name)
 	if t.id > 0 {
 		for _, v := range e.voices {
 			if v.Track == t.id {
@@ -551,6 +557,7 @@ func (e *Engine) Render(n int) []float32 {
 	e.startHits(n)
 	e.clock(n)
 	used := e.mixVoices(mix, n)
+	e.runUnits(mix, n)
 	e.inserts(mix, used)
 	e.fx.rev.set(e.roomSize, e.roomDamp)
 	e.fx.echo.set(e.delaySeconds, e.delayFB, e.pingPong)
@@ -604,6 +611,10 @@ func (e *Engine) startHits(n int) {
 			}
 			continue
 		}
+		if h.Unit != nil {
+			e.unitOp(h)
+			continue
+		}
 		if h.Mix != nil {
 			e.mixer.set = e.mixer.set.Apply(h.Mix)
 			continue
@@ -650,6 +661,7 @@ func (e *Engine) startHits(n int) {
 		}
 		v.Track = t.id
 		v.ID = h.Node
+		v.Bus = h.Bus
 		if h.Slides != nil {
 			sl := h.Slides
 			v.SetSlides(sl[0], sl[1], sl[2], sl[3], sl[4])
@@ -728,6 +740,9 @@ func (e *Engine) mixVoices(mix []float32, n int) (used [4]bool) {
 		}
 		if t := filtered[v.Track]; t != nil {
 			dry, dl, rv, ch = t.filter.buf[0], t.filter.buf[1], t.filter.buf[2], t.filter.buf[3]
+		}
+		if u := e.unitFor(v.Bus); u != nil { // inside with_fx: the unit's bus
+			dry = u.buf(n)
 		}
 		for i := 0; i < n && !v.Done(); i++ {
 			g := gr.to

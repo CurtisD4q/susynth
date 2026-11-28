@@ -1068,6 +1068,7 @@ def with_octave(n, &blk) = __with(:octave, n, &blk)
 def with_fx(name, reps: 1, **opts, &blk)
   name = name.to_s.sub(/\A:/, "").sub(/\Afx_/, "").to_sym
   opts = opts.dup
+  return __with_fx_unit(name, reps, opts, &blk) if $__fxunits.include?(name.to_s)
   node = SusynthNode.new(:fx, name, nil, [], opts)
   unless FX_SUPPORTED.include?(name)
     msg = FX_DRY.include?(name) ? "does nothing in susynth" : "isn't available in susynth"
@@ -1082,7 +1083,42 @@ def with_fx(name, reps: 1, **opts, &blk)
   reps.to_i.times { r = blk.call(node) }
   r
 ensure
-  c[:fx] = c[:fx][0...-1] if c && FX_SUPPORTED.include?(name)
+  c[:fx] = c[:fx][0...-1] if c && FX_SUPPORTED.include?(name) && !$__fxunits.include?(name.to_s)
+end
+
+# $__fxunits are the effects that run as units on a bus of their own (the
+# list comes from Go with the catalogue). The block's notes and samples go
+# to the unit's bus; units inside units feed the one around them.
+$__fxunits = []
+
+def __with_fx_unit(name, reps, opts, &blk)
+  c = __ctx
+  id = __node_id
+  outer = c[:bus]
+  num = opts.select { |_, v| v.is_a?(Numeric) || v == true || v == false }
+  num = num.transform_values { |v| v == true ? 1 : (v == false ? 0 : v.to_f) }
+  th = $__cur
+  bpm = c[:bpm].to_f
+  __fx_emit("f", name, { id: id, parent: outer.to_i, bpm: bpm }.merge(num)) if th
+  node = SusynthNode.new(:fx, name, nil, [id], opts)
+  node.unit!
+  c[:bus] = id
+  r = nil
+  begin
+    reps.to_i.times { r = blk.call(node) }
+  ensure
+    c[:bus] = outer
+    __fx_emit("fc", name, { id: id }) if $__cur
+  end
+  r
+end
+
+def __fx_emit(kind, name, kv)
+  th = __need_thread("play")
+  return if __silent?(th)
+  line = __buffer_line(caller_locations(2, 12))
+  s = kv.map { |k, v| "#{k}=#{v.is_a?(Float) ? v.round(5) : v}" }.join(",")
+  __send("ev", format("%.6f", th.time), __tname(th), line, kind, name, s, th.run_id.to_i)
 end
 
 def __beats(o, k, bpm) = o.key?(k) ? o[k].to_f * 60.0 / bpm : nil
@@ -1226,6 +1262,8 @@ class SusynthNode
   def initialize(kind, name, t_end, ids = [], opts = nil)
     @kind, @name, @t_end, @ids, @opts = kind, name, t_end, ids, opts
   end
+  def unit! = (@unit = true)
+  def unit? = !!@unit
   def control(**o) = Object.send(:control, self, **o)
   def kill(**_o) = Object.send(:kill, self)
   def pause(**_o) = nil
@@ -1286,6 +1324,7 @@ def play(n = :__none, *rest, **opts, &_blk)
   ev[:ec] = o[:env_curve].to_f if o[:env_curve].is_a?(Numeric)
   ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
   ev[:res] = o[:res].to_f if o[:res]
+  ev[:bus] = c[:bus] if c[:bus]
   __synth_opts(ev, s.to_s, o, bpm)
   __fx(ev, bpm)
   ev[:n] += ev.delete(:pshift).to_f if ev.key?(:pshift)
@@ -1425,6 +1464,7 @@ def sample(name = nil, *rest, **opts, &_blk)
   ev.delete(:s) if ev[:s] && ev[:s] < 0 # sustain: -1 is Sonic Pi's "to the end"
   __warn_once("smpps", "sample pitch_stretch: changes the pitch too in susynth") if o[:pitch_stretch]
   __warn_once("smpon", "sample onset: isn't in susynth; the whole sample plays") if o[:onset]
+  ev[:bus] = __ctx[:bus] if __ctx[:bus]
   __fx(ev, bpm, sample: true, pitch: o[:pitch])
   id = __node_id
   ev[:id] = id
@@ -1510,6 +1550,13 @@ def control(node = nil, *rest, **opts)
   return nil if node.nil?
   return node.to_a.each { |x| control(x, **opts) } && nil if node.is_a?(Array) || node.is_a?(Ring)
   return nil unless node.is_a?(SusynthNode)
+  if node.kind == :fx && node.unit?
+    num = opts.select { |k, v| (v.is_a?(Numeric) || v == true || v == false) && !k.to_s.end_with?("_slide") }
+    num = num.transform_values { |v| v == true ? 1 : (v == false ? 0 : v.to_f) }
+    node.opts&.merge!(opts)
+    node.ids.each { |id| __emit("c", node.name, num.merge(id: id, fx: 1, bpm: __ctx[:bpm].to_f)) }
+    return nil
+  end
   if node.kind == :fx
     # the effect's new settings apply to the sounds that start from now on
     node.opts&.merge!(opts.reject { |k, _| k.to_s.end_with?("_slide") })
@@ -1826,7 +1873,7 @@ def with_random_source(_s, &blk) = blk&.call
 def kill(node = nil, **_o)
   return __kill_named(node) if node.is_a?(Symbol) || node.is_a?(String)
   return nil unless node.is_a?(SusynthNode) && $__cur
-  node.ids.each { |id| __emit("c", node.name, { id: id, kill: 1 }) }
+  node.ids.each { |id| __emit("c", node.name, { id: id, kill: 1 }.merge(node.respond_to?(:unit?) && node.unit? ? { fx: 1 } : {})) }
   nil
 end
 
@@ -2087,7 +2134,7 @@ def __main
     when "syn"
       $__synths = args[0].to_s.split(",")
     when "cat"
-      ents, beats = args[0].to_s.split("\t", 2)
+      ents, beats, units = args[0].to_s.split("~", 3)
       $__nat = {}
       $__nnote = {}
       $__ndef = {}
@@ -2099,6 +2146,7 @@ def __main
         $__ndef[n] = kv.split(";").to_h { |p| k, v = p.split("=", 2); [k.to_sym, v.to_f] }
       end
       $__beats = beats.to_s.split(",").map(&:to_sym)
+      $__fxunits = units.to_s.split(",")
     when "smp"
       # name or name=seconds (its length at rate 1)
       $__sdur = {}

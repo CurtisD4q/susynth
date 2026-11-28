@@ -232,14 +232,18 @@ end
 	}
 	ms = append(ms, more...)
 	var hs []engine.Hit
-	var gs []Globals
+	var units []engine.Hit
 	for _, m := range ms {
 		if m.Kind() == "ev" {
-			h, g, err := Translate(m)
+			h, _, err := Translate(m)
 			if err != nil {
 				t.Fatal(err)
 			}
-			hs, gs = append(hs, h), append(gs, g)
+			if h.Unit != nil {
+				units = append(units, h)
+			} else {
+				hs = append(hs, h)
+			}
 		}
 	}
 	if len(hs) != 6 {
@@ -248,12 +252,44 @@ end
 	if hs[0].Params.Res != 0.7 || hs[1].Params.Res != 0.4 || hs[2].Params.HPRes != 0.6 || hs[2].Params.HPF == 0 {
 		t.Errorf("filters: %+v / %+v / %+v", hs[0].Params, hs[1].Params, hs[2].Params)
 	}
-	if !gs[3].RoomSet || gs[3].RoomDamp != 0.8 {
-		t.Errorf("reverb damp: %+v", gs[3])
+	// reverb, ping_pong and echo run as units: open, the note on its bus, close
+	if len(units) != 6 {
+		t.Fatalf("%d unit events, want 6 (three opens, three closes)", len(units))
 	}
-	if !gs[4].DelaySet || !gs[4].PingPong || !gs[5].DelaySet || gs[5].PingPong {
-		t.Errorf("ping-pong: %+v, echo: %+v", gs[4], gs[5])
+	if u := units[0].Unit; u.Op != "open" || u.Name != "reverb" || u.Opts["damp"] != 0.8 || hs[3].Bus != u.ID {
+		t.Errorf("reverb unit: %+v on bus %d", u, hs[3].Bus)
 	}
+	if u := units[2].Unit; u.Op != "open" || u.Name != "ping_pong" || u.Opts["phase"] != 0.5 || hs[4].Bus != u.ID {
+		t.Errorf("ping_pong unit: %+v on bus %d", u, hs[4].Bus)
+	}
+	if u := units[4].Unit; u.Op != "open" || u.Name != "echo" || hs[5].Bus != u.ID || units[5].Unit.Op != "close" || units[5].Unit.ID != u.ID {
+		t.Errorf("echo unit: %+v on bus %d", u, hs[5].Bus)
+	}
+	if hs[0].Bus != 0 || hs[1].Bus != 0 {
+		t.Errorf("notes outside with_fx unit are on bus %d, %d", hs[0].Bus, hs[1].Bus)
+	}
+}
+
+// A ported synth's options in beats follow the tempo (the catalogue says which).
+func TestRubyScalesPortedSynthTimeByTempo(t *testing.T) {
+	v := vm(t)
+	ms, err := v.Run(1, 0, 0, "use_bpm 120\nuse_synth :tb303\nplay 50, release: 2, attack: 1\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	more, _ := v.Advance(1)
+	ms = append(ms, more...)
+	for _, m := range ms {
+		if m.Kind() == "ev" {
+			if h, _, err := Translate(m); err == nil && h.Word != "" && h.Unit == nil {
+				if h.Params.Opt["release"] != 1 || h.Params.Opt["attack"] != 0.5 {
+					t.Fatalf("release 2 beats at 120 bpm should be 1 s, attack 0.5 s: %+v", h.Params.Opt)
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("no note")
 }
 
 // Envelope levels and tb303's filter defaults reach the engine from Ruby.

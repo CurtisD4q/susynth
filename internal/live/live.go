@@ -520,6 +520,7 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 	defRes := 0.0 // the synth's own resonance
 	p := synth.Params{Gain: get("amp", 1), Pan: get("pan", 0), Speed: 1}
 	h.Node = int64(get("id", 0))
+	h.Bus = int64(get("bus", 0))
 	slideKeys := [5]string{"nsl", "asl", "psl", "cusl", "rsl"}
 	for i, k := range slideKeys {
 		if v, ok := kv[k]; ok {
@@ -542,7 +543,35 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 	case "x": // the master mixer
 		h.Mix = engine.MixerSet(kv)
 		return h, g, nil
+	case "f", "fc": // with_fx starts (f) or its block ends (fc)
+		op := "open"
+		if kind == "fc" {
+			op = "close"
+		}
+		opts := map[string]float64{}
+		for k, v := range kv {
+			if k != "id" && k != "parent" && k != "bpm" {
+				opts[k] = v
+			}
+		}
+		h.Unit = &engine.UnitOp{Op: op, ID: int64(get("id", 0)), Parent: int64(get("parent", 0)), Name: name,
+			Opts: opts, BPM: get("bpm", 0)}
+		return h, g, nil
 	case "c": // control a playing node
+		if get("fx", 0) != 0 { // an effect unit: new options, or kill
+			op := "ctl"
+			if get("kill", 0) != 0 {
+				op = "kill"
+			}
+			opts := map[string]float64{}
+			for k, v := range kv {
+				if k != "id" && k != "fx" && k != "kill" {
+					opts[k] = v
+				}
+			}
+			h.Unit = &engine.UnitOp{Op: op, ID: int64(get("id", 0)), Name: name, Opts: opts, BPM: get("bpm", 0)}
+			return h, g, nil
+		}
 		c := synth.NoControl()
 		c.Kill = get("kill", 0) != 0
 		for k, dst := range map[string]*float64{"n": &c.Note, "amp": &c.Amp, "pan": &c.Pan, "cutoff": &c.Cutoff, "rate": &c.Rate} {
@@ -737,7 +766,7 @@ func Collect(vm *rubyvm.VM, code string, seconds float64) ([]engine.Hit, float64
 		switch m.Kind() {
 		case "ev":
 			if h, _, e := Translate(m); e == nil {
-				if h.Ctl != nil || h.Mix != nil {
+				if h.Ctl != nil || h.Mix != nil || h.Unit != nil {
 					continue // control changes a sound; MIDI export keeps the note as it started
 				}
 				hits = append(hits, h)

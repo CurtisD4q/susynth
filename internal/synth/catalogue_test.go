@@ -10,7 +10,8 @@ func TestCatalogue(t *testing.T) {
 		t.Fatal("IsPorted is wrong for tb303, sc808_snare, prophet or an unknown name")
 	}
 	cat := Catalogue()
-	ents, beats, ok := strings.Cut(cat, "\t")
+	ents, rest, ok := strings.Cut(cat, "~")
+	beats, _, _ := strings.Cut(rest, "~")
 	if !ok || !strings.Contains(beats, "release") {
 		t.Fatalf("no time options in %q", cat)
 	}
