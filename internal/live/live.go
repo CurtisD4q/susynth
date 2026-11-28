@@ -651,8 +651,35 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 	if v, ok := kv["rsize"]; ok {
 		g.RoomSet, g.RoomSize, g.RoomDamp = true, v, get("rdamp", 0.5)
 	}
+	p.Mods = mods(kv)
 	h.Params = p
 	return h, g, nil
+}
+
+// mods reads the per-voice effects Ruby sends as x<i><field>=value.
+func mods(kv map[string]float64) []synth.Mod {
+	var out []synth.Mod
+	for i := 0; i < 16; i++ {
+		pre := "x" + strconv.Itoa(i)
+		k, ok := kv[pre+"k"]
+		if !ok {
+			break
+		}
+		f := func(name string, d float64) float64 {
+			if v, ok := kv[pre+name]; ok {
+				return v
+			}
+			return d
+		}
+		out = append(out, synth.Mod{
+			Kind: synth.ModKind(k), Mix: f("mix", 1), Phase: f("ph", 0.25), Offset: f("off", 0),
+			Origin: f("org", 0), Wave: int(f("wv", 1)), Width: f("w", 0.5), Invert: f("inv", 0) != 0,
+			Smooth: f("sm", 0), Prob: f("pb", 0), ProbAt: f("pp", 0), Seed: f("sd", 0),
+			Min: f("lo", 0), Max: f("hi", 1), Res: f("res", 0), Freq: f("fq", 60), DB: f("db", 0),
+			Depth: f("dp", 0), Delay: f("dl", 0), FB: f("fb", 0), A: f("a", 0), B: f("b", 0), C: f("c", 0),
+		})
+	}
+	return out
 }
 
 // Collect runs code from time 0 for seconds without audio and returns every

@@ -122,6 +122,10 @@ type Params struct {
 	// Held is how long (seconds) a sample plays before its release, when
 	// sustain: was given; 0 plays to the end.
 	Held float64
+
+	// Mods are the with_fx effects that run inside the voice (mods.go),
+	// innermost first.
+	Mods []Mod
 }
 
 type kind int
@@ -194,6 +198,7 @@ type Voice struct {
 	amp0, pan0, lpf0, res0 float64
 	ctl                    *controlled
 	pend                   []pendingCtl
+	mods                   []*modState
 }
 
 type filterState struct{ lp, hp Filter }
@@ -233,6 +238,9 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 		v.crush = float32(math.Pow(2, math.Max(1, math.Min(16, p.Crush))-1))
 	}
 	v.shape = float32(math.Max(0, math.Min(1, p.Shape)))
+	if len(p.Mods) > 0 {
+		v.AddMods(p.Mods)
+	}
 
 	if sm := lookupSample(name, variant); sm != nil {
 		v.k = kSample
@@ -360,7 +368,13 @@ func (v *Voice) Next() (float32, float32) {
 		r *= fade
 	}
 	if v.stereo { // pan works as balance
+		if v.mods != nil {
+			return v.runMods(s*v.gl, r*v.gr)
+		}
 		return s * v.gl, r * v.gr
+	}
+	if v.mods != nil {
+		return v.runMods(s*v.gl, s*v.gr)
 	}
 	return s * v.gl, s * v.gr
 }

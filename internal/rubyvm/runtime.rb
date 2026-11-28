@@ -899,8 +899,15 @@ def rand_skip(_n = 1) = nil
 
 # ---- sound ---------------------------------------------------------------------------
 
-FX_SUPPORTED = %i[reverb gverb echo ping_pong lpf rlpf nlpf nrlpf hpf rhpf nhpf nrhpf bitcrusher krush
-                  distortion tanh level pan compressor normaliser eq chorus].freeze
+# MOD_FX run inside each voice they cover (internal/synth/mods.go), with the
+# kind number the Go side knows them by.
+MOD_FX = { slicer: 1, panslicer: 2, tremolo: 3, wobble: 4, ixi_techno: 4, flanger: 5, bpf: 6, rbpf: 6,
+           nbpf: 6, nrbpf: 6, band_eq: 7, ring_mod: 8, octaver: 9, vowel: 10, mono: 11 }.freeze
+FX_SUPPORTED = (%i[reverb gverb echo ping_pong lpf rlpf nlpf nrlpf hpf rhpf nhpf nrhpf bitcrusher krush
+                   distortion tanh level pan compressor normaliser eq chorus pitch_shift whammy] + MOD_FX.keys).freeze
+# These play the block as it is: recording and audio routing belong to Sonic
+# Pi's app, and the autotuner's design is GPL.
+FX_DRY = %i[record sound_out sound_out_stereo autotuner].freeze
 
 def __with(key, val, &blk)
   c = __ctx
@@ -954,15 +961,17 @@ def with_octave(n, &blk) = __with(:octave, n, &blk)
 
 def with_fx(name, reps: 1, **opts, &blk)
   name = name.to_s.sub(/\A:/, "").sub(/\Afx_/, "").to_sym
-  node = SusynthNode.new(:fx, name, nil)
+  opts = opts.dup
+  node = SusynthNode.new(:fx, name, nil, [], opts)
   unless FX_SUPPORTED.include?(name)
-    __warn_once("fx#{name}", "with_fx #{name.inspect} isn't available in susynth; the block plays without it")
+    msg = FX_DRY.include?(name) ? "does nothing in susynth" : "isn't available in susynth"
+    __warn_once("fx#{name}", "with_fx #{name.inspect} #{msg}; the block plays without it")
     r = nil
     reps.to_i.times { r = blk.call(node) }
     return r
   end
   c = __ctx
-  c[:fx] = c[:fx] + [[name, opts]]
+  c[:fx] = c[:fx] + [[name, opts, $__cur ? $__cur.time : 0.0]]
   r = nil
   reps.to_i.times { r = blk.call(node) }
   r
@@ -974,8 +983,18 @@ def __beats(o, k, bpm) = o.key?(k) ? o[k].to_f * 60.0 / bpm : nil
 
 # __fx folds the with_fx stack into per-note settings for the Go side.
 def __fx(out, bpm)
+  th = $__cur
+  mods = 0
+  __ctx[:fx].reverse_each do |name, f, t0|
+    next unless (kind = MOD_FX[name])
+    __mod(out, mods, kind, name, f, th ? th.time - t0.to_f : 0.0, bpm)
+    mods += 1
+  end
   __ctx[:fx].each do |name, f|
     case name
+    when :pitch_shift, :whammy
+      semis = name == :whammy ? (f[:transpose] || 12).to_f : (f[:pitch] || 0).to_f
+      out[:pshift] = out[:pshift].to_f + semis * (f[:mix] || 1).to_f.clamp(0, 1).round
     when :reverb, :gverb
       out[:room] = [out[:room].to_f, (f[:mix] || 0.4).to_f].max
       out[:rsize] = (f[:room] || f[:roomsize] || 0.6).to_f
@@ -1024,6 +1043,56 @@ def __fx(out, bpm)
   out
 end
 
+# __mod adds one per-voice effect (internal/synth/mods.go) to a note's
+# settings as x<i><field>=value. Times go to seconds; the LFO's origin is
+# how long the effect has been running.
+def __mod(out, i, kind, name, f, origin, bpm)
+  beat = 60.0 / bpm
+  num = ->(k, d) { (v = f[k]).is_a?(Numeric) ? v.to_f : (v == true ? 1.0 : (v == false ? 0.0 : d)) }
+  x = { k: kind, mix: num.(:mix, 1), org: origin,
+        off: num.(:phase_offset, 0), inv: num.(:invert_wave, 0) }
+  case name
+  when :slicer, :panslicer
+    x[:ph] = num.(:phase, 0.25) * beat
+    x[:wv] = num.(:wave, 1)
+    x[:w] = num.(:pulse_width, 0.5)
+    x[:sm] = [num.(:smooth, 0), num.(:smooth_up, 0), num.(:smooth_down, 0)].max * beat
+    x[:pb] = num.(:probability, 0)
+    x[:sd] = num.(:seed, 0)
+    if name == :slicer
+      x[:lo], x[:hi], x[:pp] = num.(:amp_min, 0), num.(:amp_max, 1), num.(:prob_pos, 0)
+    else
+      lo, hi = num.(:pan_min, -1), num.(:pan_max, 1)
+      x[:lo], x[:hi], x[:pp] = lo, hi, (num.(:prob_pos, 0) + 1) / 2
+    end
+  when :tremolo
+    d = num.(:depth, 0.5).clamp(0, 1)
+    x.merge!(ph: num.(:phase, 4) * beat, wv: num.(:wave, 2), lo: 1 - d, hi: 1)
+  when :wobble, :ixi_techno
+    wob = name == :wobble
+    x.merge!(ph: num.(:phase, wob ? 0.5 : 4) * beat, wv: wob ? num.(:wave, 0) : 3,
+             w: num.(:pulse_width, 0.5), lo: num.(:cutoff_min, 60), hi: num.(:cutoff_max, 120),
+             res: num.(:res, 0.8), sm: num.(:smooth, 0) * beat, pb: num.(:probability, 0),
+             pp: num.(:prob_pos, 0), sd: num.(:seed, 0))
+    x[:off] += 0.5 unless wob # ixi_techno's sine starts at the bottom
+  when :flanger
+    x.merge!(ph: num.(:phase, 4) * beat, wv: [num.(:wave, 4), 3].min, dl: num.(:delay, 5),
+             dp: num.(:depth, 5), fb: num.(:feedback, 0).clamp(0, 0.95))
+  when :bpf, :rbpf, :nbpf, :nrbpf
+    x.merge!(fq: num.(:centre, num.(:cutoff, 100)), res: num.(:res, name == :rbpf || name == :nrbpf ? 0.5 : 0.6))
+  when :band_eq
+    x.merge!(fq: num.(:freq, 100), res: num.(:res, 0.6), db: num.(:db, 0.6))
+  when :ring_mod
+    x.merge!(fq: num.(:freq, 30))
+    x[:mix] = x[:mix] * num.(:mod_amp, 1).clamp(0, 1)
+  when :octaver
+    x.merge!(a: num.(:super_amp, 1), b: num.(:sub_amp, 1), c: num.(:subsub_amp, 1))
+  when :vowel
+    x.merge!(a: num.(:vowel_sound, 1), b: num.(:voice, 0))
+  end
+  x.each { |k, v| out[:"x#{i}#{k}"] = v }
+end
+
 def __emit(kind, name, o)
   th = __need_thread(kind == "s" ? "sample" : "play")
   line = __buffer_line(caller_locations(2, 12))
@@ -1035,9 +1104,9 @@ end
 # A node stands for a sound that has started (a note, a sample or an effect),
 # so code that keeps hold of one (s = play 60 ... control s, note: 65) runs.
 class SusynthNode
-  attr_reader :kind, :name, :t_end, :ids
-  def initialize(kind, name, t_end, ids = [])
-    @kind, @name, @t_end, @ids = kind, name, t_end, ids
+  attr_reader :kind, :name, :t_end, :ids, :opts
+  def initialize(kind, name, t_end, ids = [], opts = nil)
+    @kind, @name, @t_end, @ids, @opts = kind, name, t_end, ids, opts
   end
   def control(**o) = Object.send(:control, self, **o)
   def kill(**_o) = Object.send(:kill, self)
@@ -1090,6 +1159,7 @@ def play(n = :__none, *rest, **opts, &_blk)
   ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
   ev[:res] = o[:res].to_f if o[:res]
   __fx(ev, bpm)
+  ev[:n] += ev.delete(:pshift).to_f if ev.key?(:pshift)
   id = __node_id
   ev[:id] = id
   __slides(o, ev, bpm)
@@ -1193,6 +1263,10 @@ def sample(name = nil, *rest, **opts, &_blk)
   __warn_once("smpps", "sample pitch_stretch: changes the pitch too in susynth") if o[:pitch_stretch]
   __warn_once("smpon", "sample onset: isn't in susynth; the whole sample plays") if o[:onset]
   __fx(ev, bpm)
+  if (ps = ev.delete(:pshift)) && ps != 0
+    __warn_once("pshift", "pitch_shift and whammy change a sample's speed too in susynth")
+    ev[:rate] *= 2**(ps / 12.0)
+  end
   id = __node_id
   ev[:id] = id
   __slides(o, ev, bpm)
@@ -1278,7 +1352,8 @@ def control(node = nil, *rest, **opts)
   return node.to_a.each { |x| control(x, **opts) } && nil if node.is_a?(Array) || node.is_a?(Ring)
   return nil unless node.is_a?(SusynthNode)
   if node.kind == :fx
-    __warn_once("ctlfx", "control on a with_fx effect isn't supported in susynth yet; the effect keeps its settings")
+    # the effect's new settings apply to the sounds that start from now on
+    node.opts&.merge!(opts.reject { |k, _| k.to_s.end_with?("_slide") })
     return nil
   end
   th = __need_thread("control")
