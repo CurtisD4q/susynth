@@ -72,8 +72,6 @@ func env(curve float64, init float64, pairs ...float64) *curveEnv {
 	return e
 }
 
-func noteOf(v *Voice) float64 { return 69 + 12*math.Log2(v.freq/440) }
-
 // bHiPass is SuperCollider's BHiPass (rq is the reciprocal of Q).
 func bHiPass(freq, rq, sr float64) biq {
 	w := 2 * math.Pi * math.Min(freq, sr*0.49) / sr
