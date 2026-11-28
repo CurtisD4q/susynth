@@ -4,6 +4,10 @@ A terminal instrument for live-coding music in **Sonic Pi's language**. You writ
 `live_loop`s in an editor pane, press `^E`, and hear the change on the loop's next
 pass. One standalone Go binary: no cgo, no Ruby to install, no external player programs.
 
+It **plays Sonic Pi code you find online**, with **Sonic Pi's real samples** and its
+**moving effects** (`slicer`, `wobble`, `flanger`, …): of 34 example songs that ship with
+Sonic Pi, 29 play with nothing left out. See [Playing Sonic Pi code](#playing-sonic-pi-code).
+
 **Install:** `curl -fsSL https://raw.githubusercontent.com/CurtisD4q/susynth/main/install.sh | sh` (Linux and macOS; [more ways below](#install)).
 
 ```ruby
@@ -64,26 +68,128 @@ The pages are icons down the left. Press `m` to open them as a pop-up (in the ed
 * **The audio engine** (`internal/engine`) starts every note on its exact sample and mixes,
   records, and sends MIDI/OSC as before.
 
-Sonic Pi's synth, sample and effect **names** work. The synths are susynth's own
-synthesised voices (no SuperCollider): `:prophet` plays a supersaw, and so on. The
-**samples are Sonic Pi's own**: all 206 of them (`:loop_amen`, `:ambi_choir`, `:bd_haus`, …)
-are built in, released by the Sonic Pi project under CC0 (see
-`internal/synth/sonicpi_samples/README.md`), with `start:`, `finish:`, `slice:`, `rate:`
-(negative plays backwards), `beat_stretch:`, `rpitch:`, `attack:`/`sustain:`/`release:` and
-`sample_duration`. The Sounds page lists every name. Effects map onto susynth's own (below);
-effects with no equivalent are skipped with a note. A synth or sample susynth hasn't got
-plays `:beep` or is skipped, with a note, so the rest of the music carries on. Put your own
-`.wav` or `.flac` files in the samples folder to add samples (`sample :mybank, 2`,
-`sample :kick`, or `sample "~/path/to/file.wav"`); a file of your own with a built-in's name
-plays instead of it.
+Sonic Pi's synth, sample and effect **names** all work (see
+[Playing Sonic Pi code](#playing-sonic-pi-code)). The synths are susynth's own voices,
+modelled on Sonic Pi's designs (no SuperCollider); the samples are Sonic Pi's own. The Sounds
+page lists every name. Put your own `.wav` or `.flac` files in the samples folder to add
+samples (`sample :mybank, 2`, `sample :kick`, or `sample "~/path/to/file.wav"`); a file of
+your own with a built-in's name plays instead of it.
 
 The engine works in 32-bit float to the sound card and records 24-bit WAVs. Synths have
 Sonic Pi's ADSR envelope (`attack:`, `decay:`, `sustain:`, `release:` and their `_level`s) and a
 24 dB resonant low-pass (`cutoff:`, `res:`); `:tb303` adds its filter envelope (`cutoff_min:`,
 `cutoff_attack:`, …). Effects: `:reverb` (`room:`, `damp:`), `:echo` and `:ping_pong`, the
-filters, `:bitcrusher`, `:distortion`, and three that only change tracks that use them:
+filters, `:bitcrusher`, `:distortion`, the moving effects (below), and three that only change
+tracks that use them:
 `:compressor` (`threshold:`, `slope_above:`, `clamp_time:`, `relax_time:`), `:eq` (`low_shelf:`,
 `mid:`, `high_shelf:` in dB, with `_note:` frequencies) and `:chorus` (`mix:`, `rate:`, `depth:` in ms).
+
+## Playing Sonic Pi code
+
+susynth aims to play a Sonic Pi song you copy off the internet as it is. It runs real Ruby
+with Sonic Pi's language rebuilt on top, so most code runs unchanged. When a song uses
+something susynth hasn't got, that part is left out with a note and the rest plays on.
+
+### How much plays
+
+Measured on 209 real Sonic Pi files, each rendered for 16 seconds: the 34 examples that
+ship with Sonic Pi, and 175 songs from 73 people's GitHub repositories.
+
+| | Plays with nothing left out | Plays, something left out | Stops with an error |
+|---|---|---|---|
+| Sonic Pi's examples | 85% | 12% | 3% |
+| Songs from GitHub | 56% | 30% | 14% |
+
+Most of what's left out is MIDI or OSC (which needs a device) and a few rare effects. Most
+of the errors would happen in Sonic Pi too: code that loads Ruby libraries or the author's
+own files, or has a typo. This is measured against susynth, not against Sonic Pi itself.
+
+### The language
+
+Beyond `live_loop`, `play`, `sample` and friends, the parts of Sonic Pi that songs lean on
+are there:
+
+* `(ring 1, 2, 3)` and `(chord :e3, :minor)` written Lisp-style, as Sonic Pi allows.
+* `control` changes a sound while it plays, gliding over `note_slide:`, `amp_slide:`,
+  `pan_slide:`, `cutoff_slide:` and `rate_slide:`:
+  ```ruby
+  s = play 60, release: 4, note_slide: 1
+  sleep 1
+  control s, note: 65     # glides up to 65 over a beat
+  ```
+* `time_warp`, `with_swing`, negative `sleep`, `density` with an index, `stop :name`,
+  `defonce`, `comment`/`uncomment`, `use_bpm_mul`, `use_sample_bpm`, `rand(2..5)`.
+* Note arithmetic: `:c4 + 12`, `chord(:e3, :minor) + 12`, `"x-x-".ring`.
+* MIDI, OSC, Ableton Link, recording and track functions run as harmless no-ops with a
+  note; use the Settings page for MIDI and OSC output.
+* A synth susynth hasn't got plays `:beep`, and a sample it hasn't got is skipped, each with
+  a one-time note, instead of stopping the loop.
+
+### Real samples
+
+All 206 of Sonic Pi's samples are built in: `:loop_amen`, `:ambi_choir`, `:bd_haus`,
+`:guit_em9`, the tabla, the bass hits, all of them. The Sonic Pi project released them under
+CC0; their credits are in `internal/synth/sonicpi_samples/README.md`. They're read the first
+time they play.
+
+`sample` takes Sonic Pi's options:
+
+```ruby
+sample :loop_amen, beat_stretch: 4          # fit the loop to 4 beats
+sample :loop_amen, slice: 3, num_slices: 8  # play an eighth of it
+sample :loop_amen, rate: -1                 # backwards
+sample :loop_amen, start: 0.25, finish: 0.5, release: 0.1
+sample :ambi_choir, rpitch: 7, lpf: 90
+sleep sample_duration(:loop_amen)           # the real length, at the current bpm
+```
+
+Sample filters work too: `sample "bd_", 2` plays the third built-in whose name contains
+`bd_`. Not there yet: `pitch:` (changing pitch but not speed) and `onset:`.
+
+For more sounds, `susynth samples install tr808` downloads a free sample library (see
+[Free sample libraries](#free-sample-libraries)).
+
+### Moving effects
+
+Sonic Pi's effects that move in time with the beat are there, each with Sonic Pi's options
+(`phase:`, `wave:`, `pulse_width:`, `phase_offset:`, `invert_wave:`, `smooth:`,
+`probability:`, `mix:`, …):
+
+| Effect | What it does |
+|---|---|
+| `:slicer` | chops the sound on and off |
+| `:panslicer` | throws it from side to side |
+| `:tremolo` | swells the volume up and down |
+| `:wobble` | sweeps a resonant filter (the dubstep wobble) |
+| `:ixi_techno` | a slow, smooth filter sweep |
+| `:flanger` | the jet-plane swoosh |
+
+```ruby
+use_bpm 120
+with_fx :slicer, phase: 0.25 do
+  with_fx :wobble, phase: 2 do
+    synth :saw, note: :e1, sustain: 8
+  end
+end
+```
+
+Every note inside one `with_fx` moves in step, however late it starts, as if the effect
+were one unit. `control` on an effect (`with_fx :wobble do |w| … control w, phase: 1`)
+changes it for the sounds that start after.
+
+Also new: `:bpf`, `:rbpf`, `:nbpf`, `:nrbpf`, `:band_eq`, `:ring_mod`, `:octaver`, `:vowel`,
+`:mono`, and `:pitch_shift` and `:whammy` (which change a sample's speed too). `:record`,
+`:sound_out` and `:autotuner` play the block as it is.
+
+### The synths
+
+All 67 of Sonic Pi's synth names work. The ones code uses most have voices modelled on
+Sonic Pi's own designs: `:prophet` (pulse-width-modulated pulses), `:hollow` (breathy
+band-passed noise), `:dark_ambience`, `:blade` (a saw with vibrato through violin formants),
+`:pretty_bell` and `:dull_bell`, `:dsaw`, `:rhodey`, `:gabberkick` and the 808 kit. They're
+built from the designs and checked for pitch and level, not matched by ear, so they're close
+but won't sound exactly the same. `:piano` is a stand-in for Sonic Pi's sampled-style piano.
+`:sound_in` (live audio input) is skipped.
 
 ## Prerequisites
 
@@ -500,6 +606,9 @@ sync, ring/tick, define, hashes, interpolation, chords, spread, effects, error l
 recovery from a loop that never sleeps), Ruby → engine → audio rendered offline and checked
 for beats, live redefinition in real time, the editor through a pty including a first launch
 with an empty cache, rendered levels (no clipping), MIDI export, cross-compiles for five targets.
+Sonic Pi compatibility is measured on 209 real Sonic Pi files (see
+[How much plays](#how-much-plays)); the FLAC decoder matches ffmpeg bit for bit on all of
+Sonic Pi's samples.
 Sound quality is measured by tests (`internal/audiotest`): aliasing, distortion, clicks on
 changes, dither, reverb decay and density, echo, filter and EQ responses, envelopes, compression.
 
@@ -509,6 +618,9 @@ original (it won't sound the same).
 
 ## Known gaps
 
-* No `control` (changing a note while it plays), no `sample` `start:`/`finish:`/`beat_stretch:`,
-  and only the effects listed on the Sounds page. MIDI/OSC calls in code are skipped; use the Settings page.
+* `control` on an effect only changes sounds that start after it; sounds already playing keep
+  the old settings.
+* No sample `pitch:` or `onset:`; no `:autotuner`. `:pitch_shift` and `:whammy` change a
+  sample's speed as well as its pitch.
+* MIDI/OSC calls in code are skipped; use the Settings page.
 * Ruby's own `Thread` isn't available; Sonic Pi's `in_thread` and `live_loop` are.
