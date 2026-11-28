@@ -6,8 +6,8 @@ import (
 )
 
 func TestCatalogue(t *testing.T) {
-	if !IsPorted("tb303") || !IsPorted("sc808_snare") || IsPorted("prophet") || IsPorted("nonsense") {
-		t.Fatal("IsPorted is wrong for tb303, sc808_snare, prophet or an unknown name")
+	if !IsPorted("tb303") || !IsPorted("sc808_snare") || IsPorted("beep") || IsPorted("nonsense") {
+		t.Fatal("IsPorted is wrong for tb303, sc808_snare, beep or an unknown name")
 	}
 	cat := Catalogue()
 	ents, rest, ok := strings.Cut(cat, "~")

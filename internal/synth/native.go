@@ -213,7 +213,12 @@ func sawBL(p, dt float64) float64 { return 0.5 * (2*p - 1 - polyBLEP(p, dt)) }
 
 // pulseBL is SuperCollider's Pulse of width w: band-limited, with no DC, and
 // half the size of an LFPulse.
-func pulseBL(p, dt, w float64) float64 { return 0.5 * blepPulse(p, dt, w) }
+func pulseBL(p, dt, w float64) float64 {
+	if w >= 1 { // scsynth takes the fraction of a width past one (1.2 plays as 0.2)
+		w -= math.Floor(w)
+	}
+	return 0.5 * blepPulse(p, dt, w)
+}
 
 // osc is a phase accumulator.
 type osc struct{ p float64 }
