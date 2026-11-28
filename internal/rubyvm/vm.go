@@ -28,6 +28,9 @@ import (
 //go:embed ruby.wasm.gz
 var rubyGz []byte
 
+//go:embed stdlib.rb
+var stdlibRB string
+
 //go:embed runtime.rb
 var runtimeRB string
 
@@ -225,7 +228,7 @@ func (v *VM) instantiate(gen int) error {
 	cfg := wazero.NewModuleConfig().
 		WithName(fmt.Sprintf("ruby%d", instances.Add(1))).
 		WithStdin(inR).WithStdout(outW).WithStderr(&stderr).
-		WithArgs("ruby", "--disable-gems", "-W0", "-e", runtimeRB)
+		WithArgs("ruby", "--disable-gems", "-W0", "-e", stdlibRB+"\n"+runtimeRB)
 	go func() {
 		_, err := rt.InstantiateModule(ctx, mod, cfg)
 		_ = err

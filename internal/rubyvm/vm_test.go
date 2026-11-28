@@ -547,3 +547,35 @@ midi_pc 5
 		t.Errorf("warned: %s", l)
 	}
 }
+
+// Ruby's Set (reached by autoload), json, csv, stringio and a few more work
+// without files on disk; a gem that is not there is still a LoadError.
+func TestStdlibStandIns(t *testing.T) {
+	v := vm(t)
+	_, other := run(t, v, `
+s = Set.new([1, 2, 3]) << 9
+puts "set #{(s & Set[2, 9, 10]).to_a} #{[3, 3, 4].to_set.size}"
+require 'json'
+puts "json #{JSON.parse('{"a":[1,2.5,null],"b":"x"}', symbolize_names: true)} #{JSON.generate({a: [1, nil, "q"]})}"
+require 'stringio'
+io = StringIO.new; io.puts "hi"; io << "x"
+puts "io #{io.string.inspect}"
+require 'csv'
+puts "csv #{CSV.parse("a,b\n1,\"x,y\"\n", headers: true).map(&:to_h)} #{CSV.generate_line([1, "a,b"]).inspect}"
+require 'securerandom'
+require 'ostruct'
+puts "misc #{SecureRandom.hex(4).size} #{OpenStruct.new(a: 1).a}"
+begin
+  require 'socket'
+rescue LoadError
+  puts "loaderror"
+end
+`, 1)
+	logs := strings.Join(flat(other), " | ")
+	for _, want := range []string{"set [2, 9] 2", `json {a: [1, 2.5, nil], b: "x"} {"a":[1,null,"q"]}`, `io "hi\nx"`,
+		`csv [{"a" => "1", "b" => "x,y"}] "1,\"a,b\"\n"`, "misc 8 1", "loaderror"} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("missing %q in %s", want, logs)
+		}
+	}
+}

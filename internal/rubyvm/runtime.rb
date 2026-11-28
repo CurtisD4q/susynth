@@ -928,7 +928,7 @@ def ring(*a) = Ring.new(a)
 def knit(*a) = Ring.new(a.each_slice(2).flat_map { |v, n| [v] * n.to_i })
 def bools(*a) = Ring.new(a.map { |x| x == true || x == 1 })
 
-def range(s, e, step_or_opts = 1, step: nil, inclusive: false)
+def range(s, e, step_or_opts = 1, step: nil, inclusive: false, **_ignored)
   st = (step || (step_or_opts.is_a?(Numeric) ? step_or_opts : 1)).to_f.abs
   raise ArgumentError, "range step must be above 0" if st.zero?
   out = []
