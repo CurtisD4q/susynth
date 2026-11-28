@@ -293,26 +293,6 @@ func TestOutputsGetNotesClockAndStart(t *testing.T) {
 	}
 }
 
-func TestEffectsAddTailsAndSends(t *testing.T) {
-	dry, wet := New(), New()
-	wet.SetDelay(0.25, 0.6, false)
-	h := hit(0, "a", "cp")
-	dry.Schedule(h)
-	h.Params.Delay, h.Params.Room = 0.9, 0.8
-	wet.Schedule(h)
-	dry.Play()
-	wet.Play()
-	var d, w []float32
-	for i := 0; i < 150; i++ {
-		d = append(d, dry.Render(480)...)
-		w = append(w, wet.Render(480)...)
-	}
-	from, to := 21600, 67200
-	if rd, rw := rms(d, from, to), rms(w, from, to); rd > 20 || rw < rd*5+50 {
-		t.Errorf("effect tail missing: dry=%.1f wet=%.1f", rd, rw)
-	}
-}
-
 func TestRollKeepsNotesWithPitchAndLength(t *testing.T) {
 	e := New() // 60 bpm: one beat = 48000 frames
 	e.Play()

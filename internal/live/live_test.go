@@ -30,24 +30,24 @@ func vm(t *testing.T) *rubyvm.VM {
 }
 
 func TestTranslate(t *testing.T) {
-	h, g, err := Translate(rubyvm.Msg{"ev", "0.500000", "bass", "7", "p", "tb303", "n=40.0,amp=0.8,pan=-0.5,a=0.1,r=0.25,cutoff=80.0,o_cutoff=80.0,room=0.4,rsize=0.7"})
+	h, err := Translate(rubyvm.Msg{"ev", "0.500000", "bass", "7", "p", "tb303", "n=40.0,amp=0.8,pan=-0.5,a=0.1,r=0.25,cutoff=80.0,o_cutoff=80.0"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if h.At != 24000 || h.Track != "bass" || h.Line != 7 || h.Word != "40" || h.Params.Wave != "tb303" ||
 		h.Params.Gain != 0.8 || h.Params.Pan != -0.5 || h.Params.Release != 0.25 || h.Params.Attack != 0.1 ||
-		h.Gate != 4800 || h.Params.Opt["cutoff"] != 80 || h.Params.LPF != 0 || h.Params.Room != 0.4 || !g.RoomSet || g.RoomSize != 0.7 {
-		t.Errorf("%+v %+v", h, g)
+		h.Gate != 4800 || h.Params.Opt["cutoff"] != 80 || h.Params.LPF != 0 {
+		t.Errorf("%+v", h)
 	}
-	h, _, err = Translate(rubyvm.Msg{"ev", "1", "drums", "2", "s", "drum_tom_mid_hard", "amp=1,rate=-2"})
+	h, err = Translate(rubyvm.Msg{"ev", "1", "drums", "2", "s", "drum_tom_mid_hard", "amp=1,rate=-2"})
 	if err != nil || !strings.HasSuffix(h.Word, "drum_tom_mid_hard") || h.Params.Speed != 2 || !h.Params.Reverse || h.Label != 'd' {
 		t.Errorf("%+v %v", h, err)
 	}
-	h, _, err = Translate(rubyvm.Msg{"ev", "2", "x", "3", "c", "beep", "id=7,n=65.0,nsl=0.5"})
+	h, err = Translate(rubyvm.Msg{"ev", "2", "x", "3", "c", "beep", "id=7,n=65.0,nsl=0.5"})
 	if err != nil || h.Ctl == nil || h.Node != 7 || h.Ctl.Note != 65 || h.Ctl.NoteSlide != 0.5 || h.Ctl.Amp == h.Ctl.Amp {
 		t.Errorf("control: %+v %v", h, err)
 	}
-	if _, _, err := Translate(rubyvm.Msg{"ev", "1", "x", "2", "s", "loop_no_such_sample", ""}); err == nil {
+	if _, err := Translate(rubyvm.Msg{"ev", "1", "x", "2", "s", "loop_no_such_sample", ""}); err == nil {
 		t.Error("unknown sample should fail")
 	}
 }
@@ -235,7 +235,7 @@ end
 	var units []engine.Hit
 	for _, m := range ms {
 		if m.Kind() == "ev" {
-			h, _, err := Translate(m)
+			h, err := Translate(m)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -284,7 +284,7 @@ func TestRubyScalesPortedSynthTimeByTempo(t *testing.T) {
 	ms = append(ms, more...)
 	for _, m := range ms {
 		if m.Kind() == "ev" {
-			if h, _, err := Translate(m); err == nil && h.Word != "" && h.Unit == nil {
+			if h, err := Translate(m); err == nil && h.Word != "" && h.Unit == nil {
 				if h.Params.Opt["release"] != 1 || h.Params.Opt["attack"] != 0.5 {
 					t.Fatalf("release 2 beats at 120 bpm should be 1 s, attack 0.5 s: %+v", h.Params.Opt)
 				}
@@ -318,7 +318,7 @@ play 40
 	var gates []int
 	for _, m := range append(ms, more...) {
 		if m.Kind() == "ev" {
-			h, _, err := Translate(m)
+			h, err := Translate(m)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -346,7 +346,7 @@ play 40
 	}
 }
 
-// The compressor, EQ and chorus settings reach the engine from Ruby.
+// The compressor and EQ run as units; there is no chorus in Sonic Pi.
 func TestRubyPassesDynamics(t *testing.T) {
 	v := vm(t)
 	ms, err := v.Run(1, 0, 0, `
@@ -369,11 +369,10 @@ play 65
 		t.Fatal(err)
 	}
 	var hs []engine.Hit
-	var gs []Globals
 	var comp *engine.UnitOp
 	for _, m := range append(ms, more...) {
 		if m.Kind() == "ev" {
-			h, g, err := Translate(m)
+			h, err := Translate(m)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -383,7 +382,7 @@ play 65
 				}
 				continue
 			}
-			hs, gs = append(hs, h), append(gs, g)
+			hs = append(hs, h)
 		}
 	}
 	if len(hs) != 4 {
@@ -395,10 +394,10 @@ play 65
 	if hs[1].Bus == 0 { // the eq is a unit too
 		t.Errorf("eq: the note is not on a unit's bus: %+v", hs[1])
 	}
-	if hs[2].Params.Chorus != 0.4 || gs[2].Chorus.Rate != 1.2 {
-		t.Errorf("chorus: %+v %+v", hs[2].Params, gs[2])
+	if hs[2].Bus != 0 { // there is no chorus in Sonic Pi: the block plays without it
+		t.Errorf("chorus: the note is on bus %d", hs[2].Bus)
 	}
-	if p := hs[3].Params; p.Comp || p.EQ || p.Chorus != 0 {
-		t.Errorf("a plain note picked up dynamics: %+v", p)
+	if hs[3].Bus != 0 {
+		t.Errorf("a plain note is on bus %d", hs[3].Bus)
 	}
 }

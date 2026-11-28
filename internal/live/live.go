@@ -380,7 +380,7 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 	for _, m := range ms {
 		switch m.Kind() {
 		case "ev":
-			h, g, err := Translate(m)
+			h, err := Translate(m)
 			if err != nil {
 				key := err.Error()
 				s.mu.Lock()
@@ -398,21 +398,6 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 					}
 				}
 				continue
-			}
-			if g.DelaySet {
-				s.Eng.SetDelay(g.DelayTime, g.DelayFB, g.PingPong)
-			}
-			if g.CompSet {
-				s.Eng.SetCompressor(g.Comp)
-			}
-			if g.EQSet {
-				s.Eng.SetEQ(g.EQ)
-			}
-			if g.ChorusSet {
-				s.Eng.SetChorus(g.Chorus)
-			}
-			if g.RoomSet {
-				s.Eng.SetReverb(g.RoomSize, g.RoomDamp)
 			}
 			hits = append(hits, h)
 		case "bpm":
@@ -449,31 +434,7 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 	s.Eng.Schedule(hits...)
 }
 
-// Globals are bus settings carried by a note (echo time, reverb size).
-type Globals struct {
-	DelaySet           bool
-	DelayTime, DelayFB float64
-	PingPong           bool
-	CompSet            bool
-	Comp               engine.CompSettings
-	EQSet              bool
-	EQ                 engine.EQSettings
-	ChorusSet          bool
-	Chorus             engine.ChorusSettings
-	RoomSet            bool
-	RoomSize           float64
-	RoomDamp           float64
-}
-
 func midiHz(n float64) float64 { return 440 * math.Pow(2, (n-69)/12) }
-
-// hzOr reads a frequency given as a MIDI note, or returns def.
-func hzOr(kv map[string]float64, k string, def float64) float64 {
-	if n, ok := kv[k]; ok {
-		return midiHz(n)
-	}
-	return def
-}
 
 var noteLetters = "ccddeffggaab"
 
@@ -482,12 +443,11 @@ var noteLetters = "ccddeffggaab"
 // (see __synth_opts in runtime.rb).
 var synthOptKeys = []string{"det", "div", "dep", "vel", "vr", "vd", "vdl", "von", "mr", "mp", "mw", "mpw", "moff", "minv"}
 
-func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
+func Translate(m rubyvm.Msg) (engine.Hit, error) {
 	var h engine.Hit
-	var g Globals
 	t, err := strconv.ParseFloat(m.Arg(0), 64)
 	if err != nil {
-		return h, g, errors.New("bad event time")
+		return h, errors.New("bad event time")
 	}
 	h.At = int64(math.Round(t * engine.SampleRate))
 	h.Track = m.Arg(1)
@@ -539,10 +499,10 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 			}
 		}
 		h.Raw = raw
-		return h, g, nil
+		return h, nil
 	case "x": // the master mixer
 		h.Mix = engine.MixerSet(kv)
-		return h, g, nil
+		return h, nil
 	case "f", "fc": // with_fx starts (f) or its block ends (fc)
 		op := "open"
 		if kind == "fc" {
@@ -556,7 +516,7 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		}
 		h.Unit = &engine.UnitOp{Op: op, ID: int64(get("id", 0)), Parent: int64(get("parent", 0)), Name: name,
 			Opts: opts, BPM: get("bpm", 0)}
-		return h, g, nil
+		return h, nil
 	case "c": // control a playing node
 		if get("fx", 0) != 0 { // an effect unit: new options, or kill
 			op := "ctl"
@@ -570,7 +530,7 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 				}
 			}
 			h.Unit = &engine.UnitOp{Op: op, ID: int64(get("id", 0)), Name: name, Opts: opts, BPM: get("bpm", 0)}
-			return h, g, nil
+			return h, nil
 		}
 		c := synth.NoControl()
 		c.Kill = get("kill", 0) != 0
@@ -586,11 +546,11 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		}
 		h.Ctl = &c
 		h.Slides = nil
-		return h, g, nil
+		return h, nil
 	case "p":
 		sy, ok := synth.LookupSynth(name)
 		if !ok {
-			return h, g, fmt.Errorf("synth :%s isn't available", name)
+			return h, fmt.Errorf("synth :%s isn't available", name)
 		}
 		if sy.Drum != "" {
 			h.Word = sy.Drum
@@ -645,7 +605,7 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		idx := int(get("i", 0))
 		w, err := synth.ResolveSample(name, idx)
 		if err != nil {
-			return h, g, err
+			return h, err
 		}
 		h.Word = w
 		h.Label = w[0]
@@ -673,78 +633,22 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 			p.Held = math.Max(get("a", 0)+get("d", 0)+sus, 1e-9)
 		}
 	default:
-		return h, g, fmt.Errorf("unknown event kind %q", kind)
+		return h, fmt.Errorf("unknown event kind %q", kind)
 	}
-	if c, ok := kv["flpf"]; ok {
-		hz := midiHz(c)
-		if p.LPF == 0 || hz < p.LPF {
-			p.LPF = hz
-		}
-	}
-	if c, ok := kv["fhpf"]; ok {
-		p.HPF = midiHz(c)
-	}
-	// res: on the note or sample, and the resonant filter effects
-	p.Res = math.Max(get("res", defRes), get("fres", 0))
-	p.Comp, p.EQ, p.Chorus = get("comp", 0) != 0, get("eq", 0) != 0, get("cho", 0)
-	if p.Comp {
-		g.CompSet = true
-		g.Comp = engine.CompSettings{Threshold: get("cthr", engine.DefaultComp.Threshold),
-			SlopeAbove: get("cslope", engine.DefaultComp.SlopeAbove), Clamp: get("cclamp", engine.DefaultComp.Clamp),
-			Relax: get("crelax", engine.DefaultComp.Relax)}
-	}
-	if p.EQ {
-		d := engine.DefaultEQ
-		g.EQSet = true
-		g.EQ = engine.EQSettings{LowDB: get("eqlo", 0), LowHz: hzOr(kv, "eqlon", d.LowHz),
-			MidDB: get("eqmid", 0), MidHz: hzOr(kv, "eqmidn", d.MidHz), MidQ: get("eqq", d.MidQ),
-			HighDB: get("eqhi", 0), HighHz: hzOr(kv, "eqhin", d.HighHz)}
-	}
-	if p.Chorus > 0 {
-		g.ChorusSet = true
-		g.Chorus = engine.ChorusSettings{Rate: get("chrate", engine.DefaultChorus.Rate), Depth: get("chdepth", engine.DefaultChorus.Depth)}
-	}
-	p.HPRes = get("fhres", 0)
-	p.Room = get("room", 0)
-	p.Delay = get("dly", 0)
-	p.Crush = get("crush", 0)
-	p.Shape = get("shape", 0)
-	if v, ok := kv["dtime"]; ok {
-		g.DelaySet, g.DelayTime, g.DelayFB = true, v, get("dfb", 0.45)
-		g.PingPong = get("dpp", 0) != 0
-	}
-	if v, ok := kv["rsize"]; ok {
-		g.RoomSet, g.RoomSize, g.RoomDamp = true, v, get("rdamp", 0.5)
-	}
+	// res: on the note or sample
+	p.Res = get("res", defRes)
 	p.Mods = mods(kv)
 	h.Params = p
-	return h, g, nil
+	return h, nil
 }
 
-// mods reads the per-voice effects Ruby sends as x<i><field>=value.
+// mods reads a sample's own pitch: shifter, which Ruby sends as x0k=1 and its
+// settings.
 func mods(kv map[string]float64) []synth.Mod {
-	var out []synth.Mod
-	for i := 0; i < 16; i++ {
-		pre := "x" + strconv.Itoa(i)
-		k, ok := kv[pre+"k"]
-		if !ok {
-			break
-		}
-		f := func(name string, d float64) float64 {
-			if v, ok := kv[pre+name]; ok {
-				return v
-			}
-			return d
-		}
-		out = append(out, synth.Mod{
-			Kind: synth.ModKind(k), Mix: f("mix", 1), Phase: f("ph", 0.25), Offset: f("off", 0),
-			Origin: f("org", 0), Wave: int(f("wv", 1)), Width: f("w", 0.5), Invert: f("inv", 0) != 0,
-			Smooth: f("sm", 0), Prob: f("pb", 0), ProbAt: f("pp", 0), Seed: f("sd", 0),
-			Min: f("lo", 0), Max: f("hi", 1), Res: f("res", 0), Freq: f("fq", 60), DB: f("db", 0),
-			Depth: f("dp", 0), Delay: f("dl", 0), FB: f("fb", 0), A: f("a", 0), B: f("b", 0), C: f("c", 0),
-		})
+	if k, ok := kv["x0k"]; ok && k == 12 {
+		return []synth.Mod{{Kind: synth.ModPitch, A: kv["x0a"], Delay: kv["x0dl"]}}
 	}
-	return out
+	return nil
 }
 
 // Collect runs code from time 0 for seconds without audio and returns every
@@ -765,7 +669,7 @@ func Collect(vm *rubyvm.VM, code string, seconds float64) ([]engine.Hit, float64
 	for _, m := range ms {
 		switch m.Kind() {
 		case "ev":
-			if h, _, e := Translate(m); e == nil {
+			if h, e := Translate(m); e == nil {
 				if h.Ctl != nil || h.Mix != nil || h.Unit != nil {
 					continue // control changes a sound; MIDI export keeps the note as it started
 				}

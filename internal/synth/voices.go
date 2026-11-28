@@ -95,15 +95,6 @@ type Params struct {
 
 	LPF, HPF float64 // filter cutoffs in Hz, 0 = off
 	Res      float64 // low-pass resonance 0..1 (res:)
-	HPRes    float64 // high-pass resonance 0..1 (with_fx :rhpf)
-	Crush    float64 // bit depth 1..16, 0 = off
-	Shape    float64 // distortion 0..1
-	Delay    float64 // send to the delay bus 0..1
-	Room     float64 // send to the reverb bus 0..1
-	Chorus   float64 // send to the chorus bus 0..1
-
-	// Comp and EQ route the note's track through the compressor or EQ.
-	Comp, EQ bool
 	Release  float64 // tone release in seconds, 0 = default
 	Attack   float64 // tone attack in seconds, 0 = a 3 ms click guard
 	Decay    float64 // tone decay in seconds (the gate holds attack+decay+sustain)
@@ -161,12 +152,10 @@ const (
 
 // Voice is one sounding note. Create with New; read with Next.
 type Voice struct {
-	Track               int
-	ID                  int64   // the Ruby node that started it, for control (0: none)
-	Bus                 int64   // the with_fx unit it plays into (0: its track)
-	SendDelay, SendRoom float32 // bus send levels, read by the engine mixer
-	SendChorus          float32
-	Gain                float32 // the track gain the engine mixer last applied
+	Track int
+	ID    int64   // the Ruby node that started it, for control (0: none)
+	Bus   int64   // the with_fx unit it plays into (0: its track)
+	Gain  float32 // the track gain the engine mixer last applied
 
 	k         kind
 	sr        float64
@@ -195,9 +184,7 @@ type Voice struct {
 	variant   float64
 
 	// per-voice effects and sample playback
-	shape     float32
 	fl        [2]filterState // left (or mono), right
-	crush     float32
 	ph        [6]float64
 	smp       *Sample
 	chL, chR  []float32 // the sample's channels at the octave being played
@@ -250,19 +237,14 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	v.gr = float32(g * math.Sin(ang))
 	v.amp0, v.pan0, v.lpf0, v.res0 = g, pan, p.LPF, p.Res
 	v.variant = 1 + 0.06*float64(variant)
-	v.SendDelay, v.SendRoom, v.SendChorus = float32(p.Delay), float32(p.Room), float32(p.Chorus)
 	for ch := range v.fl {
 		if p.LPF > 0 {
 			v.fl[ch].lp = NewLowPass(p.LPF, p.Res, v.sr)
 		}
 		if p.HPF > 0 {
-			v.fl[ch].hp = NewHighPass(p.HPF, p.HPRes, v.sr)
+			v.fl[ch].hp = NewHighPass(p.HPF, 0, v.sr)
 		}
 	}
-	if p.Crush > 0 {
-		v.crush = float32(math.Pow(2, math.Max(1, math.Min(16, p.Crush))-1))
-	}
-	v.shape = float32(math.Max(0, math.Min(1, p.Shape)))
 	if len(p.Mods) > 0 {
 		v.AddMods(p.Mods)
 	}
@@ -419,19 +401,13 @@ func (v *Voice) Next() (float32, float32) {
 	return s * v.gl, s * v.gr
 }
 
-// effects runs the per-voice filters, crush and shape on one channel.
+// effects runs the per-voice filters on one channel.
 func (v *Voice) effects(s float32, f *filterState) float32 {
 	if f.lp.Active() {
 		s = f.lp.Process(s)
 	}
 	if f.hp.Active() {
 		s = f.hp.Process(s)
-	}
-	if v.crush > 0 {
-		s = float32(math.Round(float64(s*v.crush))) / v.crush
-	}
-	if v.shape > 0 {
-		s = float32(math.Tanh(float64(s)*(1+float64(v.shape)*10))) * 0.8
 	}
 	return s
 }

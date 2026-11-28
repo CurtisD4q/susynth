@@ -173,7 +173,7 @@ def __stable_hash(s)
 end
 
 def __default_ctx
-  { bpm: 60.0, synth: :beep, sdef: {}, smpdef: {}, fx: [], transpose: 0, octave: 0,
+  { bpm: 60.0, synth: :beep, sdef: {}, smpdef: {}, transpose: 0, octave: 0,
     rng: Random.new(0), ticks: {}, density: 1.0 }
 end
 
@@ -184,7 +184,7 @@ def __ctx
 end
 
 def __inherit(c, seed)
-  { bpm: c[:bpm], synth: c[:synth], sdef: c[:sdef].dup, smpdef: c[:smpdef].dup, fx: c[:fx].dup,
+  { bpm: c[:bpm], synth: c[:synth], sdef: c[:sdef].dup, smpdef: c[:smpdef].dup,
     transpose: c[:transpose], octave: c[:octave], rng: Random.new(seed), ticks: {}, density: 1.0 }
 end
 
@@ -1004,12 +1004,6 @@ def rand_skip(_n = 1) = nil
 
 # ---- sound ---------------------------------------------------------------------------
 
-# MOD_FX run inside each voice they cover (internal/synth/mods.go), with the
-# kind number the Go side knows them by.
-MOD_FX = { slicer: 1, panslicer: 2, tremolo: 3, wobble: 4, ixi_techno: 4, flanger: 5, bpf: 6, rbpf: 6,
-           nbpf: 6, nrbpf: 6, band_eq: 7, ring_mod: 8, octaver: 9, vowel: 10, mono: 11, pitch_shift: 12, whammy: 12 }.freeze
-FX_SUPPORTED = (%i[reverb gverb echo ping_pong lpf rlpf nlpf nrlpf hpf rhpf nhpf nrhpf bitcrusher krush
-                   distortion tanh level pan compressor normaliser eq chorus pitch_shift whammy] + MOD_FX.keys).freeze
 # These play the block as it is: the autotuner's design is GPL.
 FX_DRY = %i[autotuner].freeze
 
@@ -1035,7 +1029,7 @@ def current_synth = __ctx[:synth]
 def synth_names = $__synths.map(&:to_sym)
 def sample_names(*_a) = Ring.new($__samples.map(&:to_sym))
 def all_sample_names = sample_names
-def fx_names = FX_SUPPORTED
+def fx_names = $__fxunits.map(&:to_sym)
 
 SOUND_IN = %w[sound_in sound_in_stereo].freeze
 SAMPLE_PLAYERS = %w[mono_player stereo_player basic_mono_player basic_stereo_player].freeze
@@ -1069,20 +1063,11 @@ def with_fx(name, reps: 1, **opts, &blk)
   opts = opts.dup
   return __with_fx_unit(name, reps, opts, &blk) if $__fxunits.include?(name.to_s)
   node = SusynthNode.new(:fx, name, nil, [], opts)
-  unless FX_SUPPORTED.include?(name)
-    msg = FX_DRY.include?(name) ? "does nothing in susynth" : "isn't available in susynth"
-    __warn_once("fx#{name}", "with_fx #{name.inspect} #{msg}; the block plays without it")
-    r = nil
-    reps.to_i.times { r = blk.call(node) }
-    return r
-  end
-  c = __ctx
-  c[:fx] = c[:fx] + [[name, opts, $__cur ? $__cur.time : 0.0]]
+  msg = FX_DRY.include?(name) ? "does nothing in susynth" : "isn't available in susynth"
+  __warn_once("fx#{name}", "with_fx #{name.inspect} #{msg}; the block plays without it")
   r = nil
   reps.to_i.times { r = blk.call(node) }
   r
-ensure
-  c[:fx] = c[:fx][0...-1] if c && FX_SUPPORTED.include?(name) && !$__fxunits.include?(name.to_s)
 end
 
 # $__fxunits are the effects that run as units on a bus of their own (the
@@ -1133,128 +1118,14 @@ end
 
 def __beats(o, k, bpm) = o.key?(k) ? o[k].to_f * 60.0 / bpm : nil
 
-# __fx folds the with_fx stack into per-note settings for the Go side.
-def __fx(out, bpm, sample: false, pitch: 0)
-  th = $__cur
-  mods = 0
-  # a sample's own pitch: sits nearest the sound, so it is the first effect
+# __fx gives a sample its own pitch: (a shift in semitones that keeps the
+# speed): the voice shifts it itself, the way Sonic Pi's sample player does.
+# Every with_fx effect runs as a unit on a bus of its own (__with_fx_unit).
+def __fx(out, _bpm, sample: false, pitch: 0)
   if sample && pitch.is_a?(Numeric) && pitch != 0
-    __mod(out, 0, 12, :pitch_shift, { pitch: pitch }, 0.0, bpm)
-    mods = 1
-  end
-  __ctx[:fx].reverse_each do |name, f, t0|
-    next unless (kind = MOD_FX[name])
-    next if kind == 12 && !(sample && __shift_semis(name, f) != 0) # a note is transposed instead (below)
-    __mod(out, mods, kind, name, f, th ? th.time - t0.to_f : 0.0, bpm)
-    mods += 1
-  end
-  __ctx[:fx].each do |name, f|
-    next if sample && %i[pitch_shift whammy].include?(name)
-    # pre_amp scales what goes into an effect, and amp what comes out
-    out[:amp] = out[:amp].to_f * f[:pre_amp].to_f if f[:pre_amp].is_a?(Numeric)
-    out[:amp] = out[:amp].to_f * f[:amp].to_f if f[:amp].is_a?(Numeric)
-    case name
-    when :pitch_shift, :whammy
-      semis = name == :whammy ? (f[:transpose] || 12).to_f : (f[:pitch] || 0).to_f
-      out[:pshift] = out[:pshift].to_f + semis * (f[:mix] || 1).to_f.clamp(0, 1).round
-    when :reverb, :gverb
-      out[:room] = [out[:room].to_f, (f[:mix] || 0.4).to_f].max
-      out[:rsize] = (f[:room] || f[:roomsize] || 0.6).to_f
-      out[:rdamp] = (f[:damp] || 0.5).to_f
-    when :echo, :ping_pong
-      phase = (f[:phase] || 0.25).to_f * 60.0 / bpm
-      decay = (f[:decay] || 2).to_f * 60.0 / bpm
-      out[:dly] = [out[:dly].to_f, (f[:mix] || 1).to_f * 0.6].max
-      out[:dtime] = phase
-      out[:dfb] = (f[:feedback] || 10**(-3 * phase / [decay, 0.01].max)).to_f.clamp(0, 0.95)
-      out[:dpp] = name == :ping_pong ? 1 : 0
-    when :lpf, :rlpf, :nlpf, :nrlpf
-      c = (f[:cutoff] || 100).to_f
-      out[:flpf] = out[:flpf] ? [out[:flpf], c].min : c
-      out[:fres] = [out[:fres].to_f, (f[:res] || 0.5).to_f].max if name == :rlpf || name == :nrlpf
-    when :hpf, :rhpf, :nhpf, :nrhpf
-      c = (f[:cutoff] || 100).to_f
-      out[:fhpf] = out[:fhpf] ? [out[:fhpf], c].max : c
-      out[:fhres] = [out[:fhres].to_f, (f[:res] || 0.5).to_f].max if name == :rhpf || name == :nrhpf
-    when :bitcrusher
-      b = (f[:bits] || 8).to_f
-      out[:crush] = out[:crush] ? [out[:crush], b].min : b
-    when :krush, :distortion, :tanh
-      d = (f[:distort] || f[:gain] && (f[:gain].to_f / 10) || 0.5).to_f.clamp(0, 1)
-      out[:shape] = [out[:shape].to_f, d].max
-    when :compressor
-      out[:comp] = 1
-      out[:cthr] = (f[:threshold] || 0.2).to_f
-      out[:cslope] = (f[:slope_above] || 0.5).to_f
-      out[:cclamp] = (f[:clamp_time] || 0.01).to_f
-      out[:crelax] = (f[:relax_time] || 0.1).to_f
-    when :eq
-      out[:eq] = 1
-      { low_shelf: :eqlo, low_shelf_note: :eqlon, mid: :eqmid, mid_note: :eqmidn, mid_q: :eqq,
-        high_shelf: :eqhi, high_shelf_note: :eqhin }.each { |k, s| out[s] = f[k].to_f if f.key?(k) }
-    when :chorus
-      out[:cho] = [out[:cho].to_f, (f[:mix] || 0.5).to_f].max
-      out[:chrate] = (f[:rate] || 0.6).to_f
-      out[:chdepth] = (f[:depth] || 2.5).to_f
-    when :pan
-      out[:pan] = (f[:pan] || 0).to_f
-    end
+    { k: 12, mix: 1.0, org: 0.0, off: 0, inv: 0, a: pitch.to_f, dl: 100.0 }.each { |k, v| out[:"x0#{k}"] = v }
   end
   out
-end
-
-def __shift_semis(name, f) = (name == :whammy ? (f[:transpose] || 12) : (f[:pitch] || 0)).to_f
-
-# __mod adds one per-voice effect (internal/synth/mods.go) to a note's
-# settings as x<i><field>=value. Times go to seconds; the LFO's origin is
-# how long the effect has been running.
-def __mod(out, i, kind, name, f, origin, bpm)
-  beat = 60.0 / bpm
-  num = ->(k, d) { (v = f[k]).is_a?(Numeric) ? v.to_f : (v == true ? 1.0 : (v == false ? 0.0 : d)) }
-  x = { k: kind, mix: num.(:mix, 1), org: origin,
-        off: num.(:phase_offset, 0), inv: num.(:invert_wave, 0) }
-  case name
-  when :slicer, :panslicer
-    x[:ph] = num.(:phase, 0.25) * beat
-    x[:wv] = num.(:wave, 1)
-    x[:w] = num.(:pulse_width, 0.5)
-    x[:sm] = [num.(:smooth, 0), num.(:smooth_up, 0), num.(:smooth_down, 0)].max * beat
-    x[:pb] = num.(:probability, 0)
-    x[:sd] = num.(:seed, 0)
-    if name == :slicer
-      x[:lo], x[:hi], x[:pp] = num.(:amp_min, 0), num.(:amp_max, 1), num.(:prob_pos, 0)
-    else
-      lo, hi = num.(:pan_min, -1), num.(:pan_max, 1)
-      x[:lo], x[:hi], x[:pp] = lo, hi, (num.(:prob_pos, 0) + 1) / 2
-    end
-  when :tremolo
-    d = num.(:depth, 0.5).clamp(0, 1)
-    x.merge!(ph: num.(:phase, 4) * beat, wv: num.(:wave, 2), lo: 1 - d, hi: 1)
-  when :wobble, :ixi_techno
-    wob = name == :wobble
-    x.merge!(ph: num.(:phase, wob ? 0.5 : 4) * beat, wv: wob ? num.(:wave, 0) : 3,
-             w: num.(:pulse_width, 0.5), lo: num.(:cutoff_min, 60), hi: num.(:cutoff_max, 120),
-             res: num.(:res, 0.8), sm: num.(:smooth, 0) * beat, pb: num.(:probability, 0),
-             pp: num.(:prob_pos, 0), sd: num.(:seed, 0))
-    x[:off] += 0.5 unless wob # ixi_techno's sine starts at the bottom
-  when :flanger
-    x.merge!(ph: num.(:phase, 4) * beat, wv: [num.(:wave, 4), 3].min, dl: num.(:delay, 5),
-             dp: num.(:depth, 5), fb: num.(:feedback, 0).clamp(0, 0.95))
-  when :bpf, :rbpf, :nbpf, :nrbpf
-    x.merge!(fq: num.(:centre, num.(:cutoff, 100)), res: num.(:res, name == :rbpf || name == :nrbpf ? 0.5 : 0.6))
-  when :band_eq
-    x.merge!(fq: num.(:freq, 100), res: num.(:res, 0.6), db: num.(:db, 0.6))
-  when :ring_mod
-    x.merge!(fq: num.(:freq, 30))
-    x[:mix] = x[:mix] * num.(:mod_amp, 1).clamp(0, 1)
-  when :octaver
-    x.merge!(a: num.(:super_amp, 1), b: num.(:sub_amp, 1), c: num.(:subsub_amp, 1))
-  when :vowel
-    x.merge!(a: num.(:vowel_sound, 1), b: num.(:voice, 0))
-  when :pitch_shift, :whammy
-    x.merge!(a: __shift_semis(name, f), dl: (num.(:window_size, 0.2) * 500).clamp(30, 200))
-  end
-  x.each { |k, v| out[:"x#{i}#{k}"] = v }
 end
 
 def __emit(kind, name, o, delay = 0.0)
@@ -1338,7 +1209,6 @@ def play(n = :__none, *rest, **opts, &_blk)
   ev[:bus] = c[:bus] if c[:bus]
   __synth_opts(ev, s.to_s, o, bpm)
   __fx(ev, bpm)
-  ev[:n] += ev.delete(:pshift).to_f if ev.key?(:pshift)
   id = __node_id
   ev[:id] = id
   __slides(o, ev, bpm)
