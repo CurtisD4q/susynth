@@ -370,11 +370,18 @@ play 65
 	}
 	var hs []engine.Hit
 	var gs []Globals
+	var comp *engine.UnitOp
 	for _, m := range append(ms, more...) {
 		if m.Kind() == "ev" {
 			h, g, err := Translate(m)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if h.Unit != nil { // the compressor is a unit
+				if h.Unit.Op == "open" {
+					comp = h.Unit
+				}
+				continue
 			}
 			hs, gs = append(hs, h), append(gs, g)
 		}
@@ -382,8 +389,8 @@ play 65
 	if len(hs) != 4 {
 		t.Fatalf("%d notes", len(hs))
 	}
-	if !hs[0].Params.Comp || !gs[0].CompSet || gs[0].Comp.Threshold != 0.1 || gs[0].Comp.SlopeAbove != 0.3 {
-		t.Errorf("compressor: %+v %+v", hs[0].Params, gs[0])
+	if comp == nil || comp.Name != "compressor" || comp.Opts["threshold"] != 0.1 || comp.Opts["slope_above"] != 0.3 || hs[0].Bus != comp.ID {
+		t.Errorf("compressor: %+v on bus %d", comp, hs[0].Bus)
 	}
 	if !hs[1].Params.EQ || gs[1].EQ.LowDB != 3 || gs[1].EQ.MidDB != -2 || math.Abs(gs[1].EQ.MidHz-midiHz(81)) > 0.01 {
 		t.Errorf("eq: %+v", gs[1])

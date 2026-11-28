@@ -121,44 +121,45 @@ func (l *leakDC) run(x float64) float64 {
 	return y
 }
 
-// normalizer is SuperCollider's Normalizer: it delays the sound by dur and
-// scales it so the loudest sample of the neighbouring blocks reaches level.
+// normalizer is SuperCollider's Normalizer (and, with limit set, Limiter):
+// the sound is delayed by two blocks of dur, and each block is scaled by a
+// gain that moves from the one its first neighbour allows to the one its
+// second allows, so the loudest sample reaches level.
 type normalizer struct {
-	level     float64
-	n, pos    int
-	prev, cur []float64
-	prevMax   float64
-	curMax    float64
-	g0, g1    float64
-	primed    bool
-	limit     bool // a Limiter: it only turns loud sound down
+	level         float64
+	n, pos        int
+	mid, cur, out []float64
+	prevMax, cMax float64
+	gA, gB        float64
+	flips         int
+	limit         bool // a Limiter: it only turns loud sound down
 }
 
 func newNormalizer(level, dur, sr float64) *normalizer {
 	n := int(math.Max(2, dur*sr))
-	return &normalizer{level: level, n: n, prev: make([]float64, n), cur: make([]float64, n), g0: 1, g1: 1}
+	return &normalizer{level: level, n: n, mid: make([]float64, n), cur: make([]float64, n), out: make([]float64, n), gA: 1, gB: 1}
 }
 
 func (z *normalizer) run(x float64) float64 {
-	out := z.prev[z.pos] * (z.g0 + (z.g1-z.g0)*float64(z.pos)/float64(z.n))
+	var y float64
+	if z.flips >= 2 {
+		y = z.out[z.pos] * (z.gA + (z.gB-z.gA)*float64(z.pos)/float64(z.n))
+	}
 	z.cur[z.pos] = x
-	z.curMax = math.Max(z.curMax, math.Abs(x))
+	z.cMax = math.Max(z.cMax, math.Abs(x))
 	z.pos++
 	if z.pos == z.n {
 		z.pos = 0
-		z.prev, z.cur = z.cur, z.prev
-		z.prevMax = z.curMax
-		z.curMax = 0
-		z.g0 = z.g1
-		z.g1 = z.level / math.Max(z.prevMax, 1e-5)
-		if z.limit && z.g1 > 1 {
-			z.g1 = 1
+		z.flips++
+		gNew := z.level / math.Max(math.Max(z.prevMax, z.cMax), 1e-5)
+		if z.limit && gNew > 1 {
+			gNew = 1
 		}
-		if !z.primed {
-			z.g0, z.primed = z.g1, true
-		}
+		z.gA, z.gB = z.gB, gNew
+		z.prevMax, z.cMax = z.cMax, 0
+		z.out, z.mid, z.cur = z.mid, z.cur, z.out
 	}
-	return out
+	return y
 }
 
 // curveEnv is a SuperCollider envelope held at its last level: breakpoints

@@ -440,19 +440,20 @@ end
 		kv = append(kv, e.Arg(5))
 	}
 	t.Log(kv)
-	if len(kv) != 4 {
+	// slicer and wobble run as units: slicer opens, wobble opens inside it, a
+	// note on the wobble's bus, wobble closes, control on the slicer, a note on
+	// the slicer's bus, slicer closes; then pitch_shift and record as notes.
+	if len(kv) != 9 {
 		t.Fatalf("events %v", kv)
 	}
-	// innermost first: wobble (4) then slicer (1); the slicer had run 1 beat
-	if !strings.Contains(kv[0], "x0k=4") || !strings.Contains(kv[0], "x1k=1") || !strings.Contains(kv[0], "x1ph=0.25") ||
-		!strings.Contains(kv[0], "x1org=0.5") {
-		t.Errorf("nested effects: %s", kv[0])
+	if !strings.Contains(kv[0], "phase=0.5") || !strings.Contains(kv[1], "parent=98") || !strings.Contains(kv[2], "bus=99") {
+		t.Errorf("nested units: %v", kv[:3])
 	}
-	if !strings.Contains(kv[1], "x0ph=0.5") {
-		t.Errorf("control on the slicer: %s", kv[1])
+	if !strings.Contains(kv[4], "phase=1.0") || !strings.Contains(kv[4], "id=98") || !strings.Contains(kv[5], "bus=98") {
+		t.Errorf("control on the slicer: %s / %s", kv[4], kv[5])
 	}
-	if !strings.Contains(kv[2], "n=72.0") || strings.Contains(kv[3], "x0k") {
-		t.Errorf("pitch_shift / record: %s %s", kv[2], kv[3])
+	if !strings.Contains(kv[7], "n=72.0") || strings.Contains(kv[8], "x0k") {
+		t.Errorf("pitch_shift / record: %s %s", kv[7], kv[8])
 	}
 	if !strings.Contains(strings.Join(flat(other), " "), "with_fx :record does nothing in susynth") {
 		t.Error("no note about :record")
