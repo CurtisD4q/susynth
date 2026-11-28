@@ -627,7 +627,7 @@ original (it won't sound the same).
 
 * `control` on an effect only changes sounds that start after it; sounds already playing keep
   the old settings.
-* No sample `pitch:` or `onset:`; no `:autotuner`. `:pitch_shift` and `:whammy` change a
-  sample's speed as well as its pitch.
-* MIDI/OSC calls in code are skipped; use the Settings page.
+* No sample `onset:` and no `:autotuner`; `.mp3` and `.ogg` sample files can't be loaded
+  (`.wav` and `.flac` can). OSC calls in code are skipped; `midi_*` calls go to the MIDI
+  device in Settings.
 * Ruby's own `Thread` isn't available; Sonic Pi's `in_thread` and `live_loop` are.
