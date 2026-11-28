@@ -98,7 +98,6 @@ type App struct {
 
 	setName string
 	dirty   bool
-	quitAsk bool
 
 	errs      []codeErr
 	lineSnap  []string    // buffer lines when the markers were last aligned
@@ -353,9 +352,6 @@ func (a *App) handleKey(k key) {
 			k.alt = true
 			from = a.escFrom // Esc already took us to Play; cycle from where we were
 		}
-	}
-	if k.kind != kCtrl || k.r != 'q' {
-		a.quitAsk = false
 	}
 	if k.alt && k.kind == kRune && k.r == 'm' {
 		if a.ctx != nil {
@@ -657,12 +653,7 @@ func (a *App) ctrlKey(r rune) {
 		a.errs = nil
 		a.say("error markers cleared — the log keeps them (Esc l)", false)
 	case 'q':
-		if a.dirty && !a.quitAsk {
-			a.quitAsk = true
-			a.say("unsaved changes — ^S saves, ^Q again quits anyway", true)
-			return
-		}
-		a.quit = true
+		a.quit = true // Mint asks canLeave before it closes
 	}
 }
 

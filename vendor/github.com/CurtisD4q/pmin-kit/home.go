@@ -499,10 +499,16 @@ func (a *App) Run() {
 			res := scr.run()
 			switch res.op {
 			case "quit":
+				if !canLeave(scr, stack) {
+					continue
+				}
 				return ""
 			case "back":
 				if a.NoHome && len(stack) == 1 {
 					continue // the first page has nothing under it
+				}
+				if !canLeave(scr, stack[len(stack)-1:]) {
+					continue
 				}
 				if scr.onLeave != nil {
 					scr.onLeave()
@@ -513,6 +519,9 @@ func (a *App) Run() {
 					stack = append(stack, res.screen)
 				}
 			case "page":
+				if !canLeave(scr, stack) {
+					continue
+				}
 				for i := len(stack) - 1; i >= 0; i-- {
 					if stack[i].onLeave != nil {
 						stack[i].onLeave()
@@ -530,6 +539,29 @@ func (a *App) Run() {
 		fmt.Fprint(os.Stderr, "error: "+strings.TrimRight(failed, "\n")+"\n")
 		exitProcess(1)
 	}
+}
+
+// canLeave asks each of the screens about to close whether it may, the one
+// nearest the front first, and stops at the first that says no. front is
+// the screen on show: a question is drawn over it.
+func canLeave(front *Screen, closing []*Screen) bool {
+	prev := activeScreen
+	activeScreen = front
+	defer func() { activeScreen = prev }()
+	for i := len(closing) - 1; i >= 0; i-- {
+		ask := closing[i].CanLeave
+		if ask == nil {
+			continue
+		}
+		ok := false
+		// A Ctx of its own, whose requests to move are never read. A panic
+		// leaves ok false: better to stay than to lose work.
+		protect(func() { ok = ask(&Ctx{nav: &navReq{}}) })
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // missingTools lists the Require entries that are not on PATH.

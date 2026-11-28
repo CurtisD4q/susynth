@@ -314,6 +314,14 @@ func (ss *screenSession) commitEdit() {
 	protect(func() { ed.commit(val) })
 }
 
+// finishEdit commits the field being edited in the focused pane, if any.
+func (ss *screenSession) finishEdit() {
+	if u := ss.screen.uiAt(ss.screen.focus); u != nil && u.editing != nil {
+		ss.st = u
+		ss.commitEdit()
+	}
+}
+
 func (ss *screenSession) selIndexOf(itemIdx int) int {
 	n := 0
 	for i := 1; i <= itemIdx && i <= len(ss.st.items); i++ {

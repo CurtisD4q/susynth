@@ -474,7 +474,7 @@ var helpLines = []helpLine{
 	{key: "Esc n / p", text: "perform: next / previous set in the set list"},
 	{key: "Esc i", text: "mix in the next set: it starts muted on the next bar, beside what plays"},
 	{key: "Esc o", text: "fade out the old set over 2 bars, then stop it"},
-	{key: "^Q", text: "quit (asks once if there are unsaved changes)"},
+	{key: "^Q", text: "quit (asks first if there are unsaved changes)"},
 	{text: ""},
 	{head: true, text: "EDITING"},
 	{key: "Shift + arrows", text: "select text (also Shift+Home/End/PgUp/PgDn); ^A selects everything"},

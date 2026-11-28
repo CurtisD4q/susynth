@@ -130,6 +130,23 @@ type Screen struct {
 	// field is being edited.
 	Keys []ScreenKey
 
+	// CanLeave, optional, is asked before App.Run closes the screen: for
+	// back and Pop, for quit, and when another page is chosen. Quit and a
+	// change of page close every screen that is open, so each one is asked,
+	// the front one first, even when it is under others. Returning false,
+	// or panicking, keeps them all open.
+	//
+	// A screen holding work that is not saved returns true at once when
+	// there is nothing to lose, and otherwise asks, for example with
+	// c.Confirm, whose preselected No then means stay. Another screen of
+	// the same program may still say no, so CanLeave must not throw the
+	// work away itself. It cannot move to another screen: what Push, Pop,
+	// Quit, Page, OpenPages and Open of this c ask for is ignored.
+	//
+	// It cannot be asked when the program is killed, the terminal closes
+	// or the program panics.
+	CanLeave func(c *Ctx) bool
+
 	appStatus func() []Badge
 	ui        *uiState
 	customRun func() screenResult
@@ -156,10 +173,13 @@ type Screen struct {
 
 	cursor string // where the terminal's cursor goes, from a Draw's SetCursor
 
-	redraw   func(int, int)
-	onKey    func(*Key, *int, *int, *int) (*screenResult, bool)
-	grabKey  func(*Key) (*screenResult, bool)
-	frameBuf *strings.Builder
+	redraw  func(int, int)
+	onKey   func(*Key, *int, *int, *int) (*screenResult, bool)
+	grabKey func(*Key) (*screenResult, bool)
+	// finishEdit takes what has been typed into a field that is still
+	// being edited.
+	finishEdit func()
+	frameBuf   *strings.Builder
 	// ptrSeen is the pointer as of the last frame (hover and pressed).
 	ptrSeen pointerWatch
 
@@ -701,6 +721,10 @@ func (screen *Screen) run() screenResult {
 		}
 		k, rres, handled := screen.railKey(k)
 		if rres != nil {
+			// A click on the rail can choose a page while a field is being
+			// typed into. Take the text first, as a click elsewhere does, so
+			// CanLeave counts it.
+			screen.finishEdit()
 			return *rres
 		}
 		if handled {
@@ -767,6 +791,7 @@ func (screen *Screen) bind() {
 	screen.redraw = ss.draw
 	screen.onKey = ss.onKey
 	screen.grabKey = ss.grab
+	screen.finishEdit = ss.finishEdit
 }
 
 func (screen *Screen) renderFrame(h, w int) string {
