@@ -127,6 +127,10 @@ type Params struct {
 	// sustain: was given; 0 plays to the end.
 	Held float64
 
+	// Opt holds synth-specific options by key (synthopts.go); a missing key
+	// is the synth's default.
+	Opt map[string]float64
+
 	// Mods are the with_fx effects that run inside the voice (mods.go),
 	// innermost first.
 	Mods []Mod
@@ -208,6 +212,7 @@ type Voice struct {
 	pend                   []pendingCtl
 	mods                   []*modState
 	ext                    *toneState // tones.go
+	so                     synthOpts  // synthopts.go
 }
 
 type filterState struct{ lp, hp Filter }
@@ -305,6 +310,7 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 		note = p.Note
 	}
 	v.freq = 440 * math.Pow(2, (note-69)/12) * v.speed
+	v.initOpts(p.Opt)
 	if v.wave == "" {
 		v.wave = "saw"
 	}
@@ -622,6 +628,17 @@ func (v *Voice) sweep() {
 }
 
 func (v *Voice) tone() float32 {
+	if v.so.mod == nil {
+		return v.toneBody()
+	}
+	base := v.freq
+	v.freq = base * math.Pow(2, v.so.mod.semis(float64(v.t)/v.sr)/12)
+	s := v.toneBody()
+	v.freq = base
+	return s
+}
+
+func (v *Voice) toneBody() float32 {
 	if v.env.Done() {
 		v.done = true
 		return 0
@@ -632,7 +649,7 @@ func (v *Voice) tone() float32 {
 	}
 	var s float32
 	if extWaves[v.wave] {
-		return v.toneExt() * env * 0.35
+		return v.toneExt() * env * 0.35 * float32(v.so.velGain(v.wave))
 	}
 	switch v.wave {
 	case "sine":
@@ -653,10 +670,13 @@ func (v *Voice) tone() float32 {
 		v.lp += 0.35 * (s - v.lp)
 		s = v.lp
 	case "fm":
-		idx := 4 * float64(exp(float64(v.t)/v.sr*3))
-		v.phase2 += v.freq * 2 * 2 * math.Pi / v.sr
-		v.phase += v.freq*2*math.Pi/v.sr + 0
-		s = float32(math.Sin(v.phase + idx*math.Sin(v.phase2)))
+		// Sonic Pi's fm: the modulator is the note divided by divisor, and it
+		// swings the carrier by depth times the note's own frequency, shaped
+		// by the envelope, which is an index of depth*divisor
+		idx := v.so.depth * v.so.divisor * float64(env)
+		v.phase2 += v.freq / v.so.divisor * 2 * math.Pi / v.sr
+		v.phase += v.freq * 2 * math.Pi / v.sr
+		s = float32(math.Sin(v.phase+idx*math.Sin(v.phase2))) * 0.8
 	case "supersaw":
 		var acc float32
 		for k, d := range [5]float64{-0.012, -0.006, 0, 0.006, 0.012} {

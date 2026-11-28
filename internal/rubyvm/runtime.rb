@@ -980,6 +980,9 @@ def rand_i(m = 2) = m.is_a?(Range) ? rrand_i(m.begin, m.end) : __ctx[:rng].rand(
 def rand_look(m = 1) = Random.new(__ctx[:rng].seed + 1).rand * m
 def dice(n = 6) = __ctx[:rng].rand(n.to_i) + 1
 def one_in(n) = __ctx[:rng].rand(n.to_i).zero?
+
+# on runs its block only when the condition is true (Sonic Pi's `on`).
+def on(cond, &blk) = cond ? blk.call : nil
 def choose(list) = list.to_a.empty? ? nil : list.to_a[__ctx[:rng].rand(list.to_a.size)]
 # pick with no list is a sample filter: sample "tabla_", pick
 def pick(list = nil, n = 1, **_o)
@@ -1036,12 +1039,13 @@ def all_sample_names = sample_names
 def fx_names = FX_SUPPORTED
 
 SOUND_IN = %w[sound_in sound_in_stereo].freeze
+SAMPLE_PLAYERS = %w[mono_player stereo_player basic_mono_player basic_stereo_player].freeze
 
 # __synth_name gives the synth to play: the name asked for, or :beep with a
 # warning when susynth hasn't got it, so the music carries on.
 def __synth_name(s)
   n = s.to_s.sub(/\A:/, "")
-  return n.to_sym if $__synths.empty? || $__synths.include?(n) || SOUND_IN.include?(n)
+  return n.to_sym if $__synths.empty? || $__synths.include?(n) || SOUND_IN.include?(n) || SAMPLE_PLAYERS.include?(n)
   __warn_once("syn#{n}", "synth #{s.inspect} isn't in susynth; :beep plays instead")
   :beep
 end
@@ -1093,6 +1097,9 @@ def __fx(out, bpm)
     mods += 1
   end
   __ctx[:fx].each do |name, f|
+    # pre_amp scales what goes into an effect, and amp what comes out
+    out[:amp] = out[:amp].to_f * f[:pre_amp].to_f if f[:pre_amp].is_a?(Numeric)
+    out[:amp] = out[:amp].to_f * f[:amp].to_f if f[:amp].is_a?(Numeric)
     case name
     when :pitch_shift, :whammy
       semis = name == :whammy ? (f[:transpose] || 12).to_f : (f[:pitch] || 0).to_f
@@ -1136,8 +1143,6 @@ def __fx(out, bpm)
       out[:cho] = [out[:cho].to_f, (f[:mix] || 0.5).to_f].max
       out[:chrate] = (f[:rate] || 0.6).to_f
       out[:chdepth] = (f[:depth] || 2.5).to_f
-    when :level
-      out[:amp] = out[:amp].to_f * (f[:amp] || 1).to_f
     when :pan
       out[:pan] = (f[:pan] || 0).to_f
     end
@@ -1238,7 +1243,13 @@ def play(n = :__none, *rest, **opts, &_blk)
   c = __ctx
   o = c[:sdef].merge(opts)
   return nil if o.key?(:on) && !o[:on]
-  s = __synth_name(o.delete(:synth) || c[:synth])
+  sn = o.delete(:synth) || c[:synth]
+  if SAMPLE_PLAYERS.include?(sn.to_s)
+    # mono_player and stereo_player play a sample file through synth
+    return nil unless (path = o[:path])
+    return sample(path, **o.except(:path, :note, :on))
+  end
+  s = __synth_name(sn)
   if SOUND_IN.include?(s.to_s)
     __warn_once("sndin", "synth #{s.inspect} needs a live audio input, which susynth hasn't got; it is skipped")
     return nil
@@ -1260,6 +1271,7 @@ def play(n = :__none, *rest, **opts, &_blk)
   ev[:cmin] = o[:cutoff_min].to_f if o.key?(:cutoff_min)
   ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
   ev[:res] = o[:res].to_f if o[:res]
+  __synth_opts(ev, s.to_s, o, bpm)
   __fx(ev, bpm)
   ev[:n] += ev.delete(:pshift).to_f if ev.key?(:pshift)
   id = __node_id
@@ -1274,6 +1286,24 @@ def synth(name, *rest, **opts, &blk)
   opts = rest.first.merge(opts) if rest.first.is_a?(Hash)
   return play(**opts, &blk) if name.nil?
   play(opts.key?(:note) ? opts[:note] : 52, synth: name, **opts.except(:note))
+end
+
+# SYNTH_OPTS are the synth-specific options the voices read, as the event
+# key each goes under.
+SYNTH_OPTS = { detune: :det, divisor: :div, depth: :dep, vel: :vel, vibrato_rate: :vr, vibrato_depth: :vd,
+               vibrato_delay: :vdl, vibrato_onset: :von }.freeze
+
+# The mod_ synths sweep their note up by mod_range semitones on an
+# oscillator (a pulse by default) one mod_phase beats long.
+def __synth_opts(ev, synth, o, bpm)
+  SYNTH_OPTS.each { |k, d| ev[d] = o[k].to_f if o[k].is_a?(Numeric) }
+  return unless synth.start_with?("mod_")
+  ev[:mr] = (o[:mod_range] || 5).to_f
+  ev[:mp] = (o[:mod_phase] || 0.25).to_f * 60.0 / bpm
+  ev[:mw] = (o[:mod_wave] || 1).to_i
+  ev[:mpw] = (o[:mod_pulse_width] || 0.5).to_f
+  ev[:moff] = (o[:mod_phase_offset] || 0).to_f
+  ev[:minv] = o[:mod_invert_wave].to_f if o[:mod_invert_wave]
 end
 
 def play_chord(notes, **opts) = play(notes.to_a, **opts)
@@ -1349,7 +1379,7 @@ def sample(name = nil, *rest, **opts, &_blk)
   end
   bpm = c[:bpm]
   st, fi = __sample_region(o)
-  ev = { amp: (o[:amp] || 1).to_f, pan: (o[:pan] || 0).to_f, rate: __sample_rate(n, o, bpm) }
+  ev = { amp: (o[:amp] || 1).to_f * (o[:pre_amp] || 1).to_f, pan: (o[:pan] || 0).to_f, rate: __sample_rate(n, o, bpm) }
   ev[:st] = st.round(6) if st != 0
   ev[:fi] = fi.round(6) if fi != 1
   ev[:i] = idx if idx

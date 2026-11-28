@@ -477,6 +477,10 @@ func hzOr(kv map[string]float64, k string, def float64) float64 {
 var noteLetters = "ccddeffggaab"
 
 // Translate turns one "ev" line from Ruby into an engine hit.
+// synthOptKeys are the event keys that carry synth-specific options
+// (see __synth_opts in runtime.rb).
+var synthOptKeys = []string{"det", "div", "dep", "vel", "vr", "vd", "vdl", "von", "mr", "mp", "mw", "mpw", "moff", "minv"}
+
 func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 	var h engine.Hit
 	var g Globals
@@ -556,6 +560,14 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 			return h, g, fmt.Errorf("note %.1f is out of range", n)
 		}
 		p.Wave, p.Note = sy.Wave, n
+		for _, k := range synthOptKeys {
+			if v, ok := kv[k]; ok {
+				if p.Opt == nil {
+					p.Opt = map[string]float64{}
+				}
+				p.Opt[k] = v
+			}
+		}
 		h.Word = strconv.Itoa(int(math.Round(math.Min(127, n))))
 		h.Label = noteLetters[int(math.Round(n))%12]
 		a, d, sus, r := get("a", 0), get("d", 0), get("s", 0), get("r", 1)

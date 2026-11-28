@@ -476,3 +476,40 @@ puts scale(:c4, :rast).to_a.map { |x| x.round(3) }.inspect
 		}
 	}
 }
+
+// Synth options reach the engine, mono_player plays a sample, fx pre_amp and
+// amp scale the notes inside them, and on runs only when it is true.
+func TestSynthOptionsAndPlayers(t *testing.T) {
+	v := vm(t)
+	v.SetTables([]string{"beep", "dsaw", "mod_saw", "fm", "mono_player"}, []string{"bd_haus"})
+	defer v.SetTables([]string{"beep", "saw", "prophet"}, []string{"bd_haus", "drum_snare_hard"})
+	evs, other := run(t, v, `
+use_bpm 120
+play 60, synth: :dsaw, detune: 0.3
+play 60, synth: :fm, divisor: 3, depth: 2
+play 60, synth: :mod_saw, mod_range: 7, mod_wave: 3
+synth :mono_player, path: :bd_haus, amp: 0.5
+with_fx :level, pre_amp: 0.5, amp: 0.5 do
+  play 60
+end
+on true do puts "on-yes" end
+on false do puts "on-no" end
+`, 2)
+	logs := strings.Join(flat(other), " | ")
+	var kv []string
+	for _, e := range evs {
+		kv = append(kv, e.Arg(4)+" "+e.Arg(5))
+	}
+	t.Log(kv, logs)
+	if len(kv) != 5 {
+		t.Fatalf("events: %v", kv)
+	}
+	for i, want := range []string{"det=0.3", "div=3.0,dep=2.0", "mr=7.0,mp=0.125,mw=3", "bd_haus", "amp=0.25"} {
+		if !strings.Contains(kv[i], want) {
+			t.Errorf("event %d %q: want %q", i, kv[i], want)
+		}
+	}
+	if !strings.Contains(logs, "on-yes") || strings.Contains(logs, "on-no") {
+		t.Errorf("on: %s", logs)
+	}
+}
