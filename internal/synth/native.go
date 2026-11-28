@@ -697,12 +697,11 @@ type fvAllp struct {
 
 func newFreeVerb(sr, mix, room, damp float64) *freeVerb {
 	z := &freeVerb{mix: clamp(mix, 0, 1)}
-	k := sr / 44100
 	for i, n := range [8]int{1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617} {
-		z.comb[i].buf = make([]float64, int(float64(n)*k))
+		z.comb[i].buf = make([]float64, n)
 	}
 	for i, n := range [4]int{556, 441, 341, 225} {
-		z.allp[i].buf = make([]float64, int(float64(n)*k))
+		z.allp[i].buf = make([]float64, n)
 	}
 	z.fb = clamp(room, 0, 1)*0.28 + 0.7
 	z.d = clamp(damp, 0, 1) * 0.4
@@ -715,12 +714,16 @@ func (z *freeVerb) run(x float64) float64 {
 	for i := range z.comb {
 		c := &z.comb[i]
 		y := c.buf[c.i]
+		// scsynth's FreeVerb sums each comb's output with the next entry in
+		// its ring (measured against scsynth: the echo arrives as two
+		// samples and the reverb is about twice as loud and longer)
+		next := c.buf[(c.i+1)%len(c.buf)]
 		c.store = y*(1-z.d) + c.store*z.d
 		c.buf[c.i] = in + c.store*z.fb
 		if c.i++; c.i == len(c.buf) {
 			c.i = 0
 		}
-		out += y
+		out += y + next
 	}
 	for i := range z.allp {
 		a := &z.allp[i]
@@ -741,10 +744,10 @@ const freeVerbWet = 1
 
 func newTechSaws(v *Voice, o func(string, float64) float64) *native {
 	cut := &cutoffHolder{o("cutoff", 130)}
-	rq := rqOf(0) // Sonic Pi clips res with its limits the wrong way round (Clip(res, 1, 0)): the filter has no resonance
-	if o("res", 0.7) < 0 {
-		rq = 1
-	}
+	// Sonic Pi maps res with Clip(res, 1, 0), the limits the wrong way round,
+	// so for res in 0..1 the filter's rq is 0 (scsynth measured: a strong
+	// resonance at the top of the spectrum).
+	rq := 0.0
 	var ph [10]osc
 	var dl [10]*delayLine
 	var det, dly [10]float64
