@@ -70,6 +70,9 @@ var superSynth = map[string]string{
 	"sine": "superhammond", "tri": "superhammond", "organ": "superhammond",
 	"saw": "supersaw", "supersaw": "supersaw", "square": "supersquare",
 	"pluck": "superpiano", "fm": "superpwm", "noise": "supernoise",
+	"dsaw": "supersaw", "prophet": "superpwm", "blade": "supersaw", "bell": "superfork",
+	"dullbell": "superfork", "piano": "superpiano", "rhodey": "superfm", "hollow": "supernoise",
+	"ambience": "supernoise", "horn": "supersaw", "gabber": "superkick",
 }
 
 // PlayMessage builds the /dirt/play message for a note event.
