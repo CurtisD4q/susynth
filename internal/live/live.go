@@ -566,9 +566,9 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 			break
 		}
 		n := get("n", 60)
-		if n < 0 || n > 135 {
-			return h, g, fmt.Errorf("note %.1f is out of range", n)
-		}
+		// Sonic Pi plays any note, however high or low, and so does a note
+		// past what can be heard here: it is held at the edge, not an error
+		n = math.Max(0, math.Min(135, n))
 		p.Wave, p.Note = sy.Wave, n
 		for _, k := range synthOptKeys {
 			if v, ok := kv[k]; ok {

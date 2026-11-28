@@ -1007,7 +1007,7 @@ def rand_skip(_n = 1) = nil
 # MOD_FX run inside each voice they cover (internal/synth/mods.go), with the
 # kind number the Go side knows them by.
 MOD_FX = { slicer: 1, panslicer: 2, tremolo: 3, wobble: 4, ixi_techno: 4, flanger: 5, bpf: 6, rbpf: 6,
-           nbpf: 6, nrbpf: 6, band_eq: 7, ring_mod: 8, octaver: 9, vowel: 10, mono: 11 }.freeze
+           nbpf: 6, nrbpf: 6, band_eq: 7, ring_mod: 8, octaver: 9, vowel: 10, mono: 11, pitch_shift: 12, whammy: 12 }.freeze
 FX_SUPPORTED = (%i[reverb gverb echo ping_pong lpf rlpf nlpf nrlpf hpf rhpf nhpf nrhpf bitcrusher krush
                    distortion tanh level pan compressor normaliser eq chorus pitch_shift whammy] + MOD_FX.keys).freeze
 # These play the block as it is: recording and audio routing belong to Sonic
@@ -1088,15 +1088,22 @@ end
 def __beats(o, k, bpm) = o.key?(k) ? o[k].to_f * 60.0 / bpm : nil
 
 # __fx folds the with_fx stack into per-note settings for the Go side.
-def __fx(out, bpm)
+def __fx(out, bpm, sample: false, pitch: 0)
   th = $__cur
   mods = 0
+  # a sample's own pitch: sits nearest the sound, so it is the first effect
+  if sample && pitch.is_a?(Numeric) && pitch != 0
+    __mod(out, 0, 12, :pitch_shift, { pitch: pitch }, 0.0, bpm)
+    mods = 1
+  end
   __ctx[:fx].reverse_each do |name, f, t0|
     next unless (kind = MOD_FX[name])
+    next if kind == 12 && !(sample && __shift_semis(name, f) != 0) # a note is transposed instead (below)
     __mod(out, mods, kind, name, f, th ? th.time - t0.to_f : 0.0, bpm)
     mods += 1
   end
   __ctx[:fx].each do |name, f|
+    next if sample && %i[pitch_shift whammy].include?(name)
     # pre_amp scales what goes into an effect, and amp what comes out
     out[:amp] = out[:amp].to_f * f[:pre_amp].to_f if f[:pre_amp].is_a?(Numeric)
     out[:amp] = out[:amp].to_f * f[:amp].to_f if f[:amp].is_a?(Numeric)
@@ -1150,6 +1157,8 @@ def __fx(out, bpm)
   out
 end
 
+def __shift_semis(name, f) = (name == :whammy ? (f[:transpose] || 12) : (f[:pitch] || 0)).to_f
+
 # __mod adds one per-voice effect (internal/synth/mods.go) to a note's
 # settings as x<i><field>=value. Times go to seconds; the LFO's origin is
 # how long the effect has been running.
@@ -1196,6 +1205,8 @@ def __mod(out, i, kind, name, f, origin, bpm)
     x.merge!(a: num.(:super_amp, 1), b: num.(:sub_amp, 1), c: num.(:subsub_amp, 1))
   when :vowel
     x.merge!(a: num.(:vowel_sound, 1), b: num.(:voice, 0))
+  when :pitch_shift, :whammy
+    x.merge!(a: __shift_semis(name, f), dl: (num.(:window_size, 0.2) * 500).clamp(30, 200))
   end
   x.each { |k, v| out[:"x#{i}#{k}"] = v }
 end
@@ -1389,16 +1400,9 @@ def sample(name = nil, *rest, **opts, &_blk)
   ev[:res] = o[:res].to_f if o[:res]
   %i[attack decay sustain release].each { |k| (v = __beats(o, k, bpm)) && ev[k.to_s[0].to_sym] = v }
   ev.delete(:s) if ev[:s] && ev[:s] < 0 # sustain: -1 is Sonic Pi's "to the end"
-  if o[:pitch] && o[:pitch] != 0
-    __warn_once("smppitch", "sample pitch: (shifting pitch but not speed) isn't in susynth; use rpitch: or rate:")
-  end
   __warn_once("smpps", "sample pitch_stretch: changes the pitch too in susynth") if o[:pitch_stretch]
   __warn_once("smpon", "sample onset: isn't in susynth; the whole sample plays") if o[:onset]
-  __fx(ev, bpm)
-  if (ps = ev.delete(:pshift)) && ps != 0
-    __warn_once("pshift", "pitch_shift and whammy change a sample's speed too in susynth")
-    ev[:rate] *= 2**(ps / 12.0)
-  end
+  __fx(ev, bpm, sample: true, pitch: o[:pitch])
   id = __node_id
   ev[:id] = id
   __slides(o, ev, bpm)
