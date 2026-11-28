@@ -2,9 +2,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/susynth/susynth/internal/engine"
 	"github.com/susynth/susynth/internal/live"
 	"github.com/susynth/susynth/internal/midi"
+	"github.com/susynth/susynth/internal/packs"
 	"github.com/susynth/susynth/internal/paths"
 	"github.com/susynth/susynth/internal/rubyvm"
 	"github.com/susynth/susynth/internal/synth"
@@ -26,6 +29,8 @@ usage:
   susynth check set.rb             report syntax and runtime errors
   susynth midi [flags] set.rb      export a set as a Standard MIDI File
   susynth samples                  list the sample banks found in the samples folder
+  susynth samples packs            list free sample libraries that can be downloaded
+  susynth samples install NAME     download one into the samples folder (tr808, vcsl, vsco)
   susynth devices                  list detected audio outputs and MIDI devices
   susynth install [--system]       put susynth on your PATH (~/.local/bin, or /usr/local)
   susynth uninstall                take it off again; your sets and samples are kept
@@ -58,6 +63,9 @@ func main() {
 		case "midi":
 			os.Exit(exportMIDI(args[1:]))
 		case "samples":
+			if len(args) > 1 {
+				os.Exit(samplePacks(args[1:]))
+			}
 			loadSamples()
 			banks := synth.Banks()
 			fmt.Printf("built in: %d Sonic Pi samples (sample :loop_amen …)\n", len(synth.BuiltinSamples()))
@@ -262,4 +270,49 @@ func render(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// samplePacks lists or installs the free sample libraries (internal/packs).
+func samplePacks(args []string) int {
+	switch args[0] {
+	case "packs":
+		for _, p := range packs.Packs {
+			fmt.Printf("  %-6s %s: %s\n         %s, from github.com/%s\n", p.Name, p.Title, p.About, p.Licence, p.Repo)
+			if p.Note != "" {
+				fmt.Printf("         note: %s\n", p.Note)
+			}
+		}
+		fmt.Println("install one with: susynth samples install NAME")
+		return 0
+	case "install":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: susynth samples install NAME   (see: susynth samples packs)")
+			return 2
+		}
+		p, ok := packs.Find(args[1])
+		if !ok {
+			fmt.Fprintf(os.Stderr, "no pack called %q (see: susynth samples packs)\n", args[1])
+			return 2
+		}
+		fmt.Printf("%s: %s\nlicence: %s\n", p.Title, p.About, p.Licence)
+		if p.Note != "" {
+			fmt.Println("note:", p.Note)
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		res, err := packs.Install(ctx, p, paths.SamplesDir(), func(s string) { fmt.Println(" ", s) })
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "install failed:", err)
+			fmt.Fprintln(os.Stderr, "run the same command again to carry on; finished files are kept")
+			return 1
+		}
+		fmt.Printf("installed %d files in %d banks into %s", res.Files, res.Banks, paths.SamplesDir())
+		if res.Skipped > 0 {
+			fmt.Printf(" (%d files over 32 MB skipped)", res.Skipped)
+		}
+		fmt.Printf("\nlicence and credits: %s\nsee the banks with: susynth samples\n", res.Licence)
+		return 0
+	}
+	fmt.Fprintf(os.Stderr, "unknown samples command %q (try: susynth samples packs)\n", args[0])
+	return 2
 }

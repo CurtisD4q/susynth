@@ -146,6 +146,7 @@ susynth render -seconds 30 set.rb   # render a WAV, no sound device needed
 susynth midi -seconds 30 set.rb     # export a Standard MIDI File
 susynth check set.rb                # syntax check, then run 8 s silently to catch errors
 susynth samples                     # list loaded sample banks (and the built-in count)
+susynth samples install tr808       # download a free sample library (see: susynth samples packs)
 susynth devices                     # audio outputs and MIDI devices
 ```
 
@@ -312,6 +313,29 @@ so they play at normal speed exactly as recorded. Stereo files stay stereo (`pan
 as a balance), and `rate:` changes are band-limited, so fast playback doesn't alias.
 
 On Settings, highlight *Samples* and press `Enter` to reload after adding files.
+
+#### Free sample libraries
+
+susynth can download three free (CC0) libraries into the samples folder:
+
+```
+susynth samples packs            # what there is
+susynth samples install tr808    # the Roland TR-808, every drum at every setting (13 MB)
+susynth samples install vcsl     # Versilian Community Sample Library: ~4,200 instrument recordings
+susynth samples install vsco     # VSCO 2 Community Edition: ~3,200 orchestral recordings
+```
+
+Each folder of a library becomes a bank named after the pack and the folder,
+for example `sample :tr808_bd8, 3`; `susynth samples` lists them. The
+licence and credits go in `samples/licences/`. If a download is cut short, run
+the same command again: finished files are kept. VCSL and VSCO are large, so
+check your free disk space first. The TR-808 set was released as CC0 by the
+TidalCycles project, but it hasn't been confirmed that the original recordist
+agreed to that.
+
+Files in the samples folder are only read when they are first played, so a
+big library costs nothing until it is used. If too much is loaded at once, the
+samples played longest ago are let go and read again when next needed.
 
 ### 10. Mix while you play
 

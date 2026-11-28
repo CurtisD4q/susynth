@@ -74,7 +74,7 @@ func split(word string) (string, int) {
 // Known reports whether the engine can play the word, for eval-time errors.
 func Known(word string) error {
 	name, _ := split(word)
-	if lookupSample(name, 0) != nil {
+	if findSample(name, 0) != nil {
 		return nil
 	}
 	if _, ok := drumAlias[strings.ToLower(name)]; ok {
