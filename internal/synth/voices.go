@@ -163,6 +163,7 @@ const (
 type Voice struct {
 	Track               int
 	ID                  int64   // the Ruby node that started it, for control (0: none)
+	Bus                 int64   // the with_fx unit it plays into (0: its track)
 	SendDelay, SendRoom float32 // bus send levels, read by the engine mixer
 	SendChorus          float32
 	Gain                float32 // the track gain the engine mixer last applied

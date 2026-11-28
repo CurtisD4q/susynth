@@ -163,7 +163,10 @@ end
 	if !strings.Contains(logs, "hi 36 [60, 63, 67, 70] x..x..x.") {
 		t.Errorf("Ruby features: %s", logs)
 	}
-	if len(evs) != 3 || !strings.Contains(evs[0].Arg(5), "room=0.5") || !strings.Contains(evs[0].Arg(5), "dtime=0.5") {
+	// reverb and echo are units: two opens, three notes on the echo's bus, two closes
+	if len(evs) != 7 || evs[0].Arg(3) != "f" || !strings.Contains(evs[0].Arg(5), "mix=0.5") ||
+		evs[1].Arg(3) != "f" || !strings.Contains(evs[1].Arg(5), "phase=0.5") || !strings.Contains(evs[1].Arg(5), "parent=") ||
+		evs[2].Arg(3) != "p" || !strings.Contains(evs[2].Arg(5), "bus=") || evs[5].Arg(3) != "fc" || evs[6].Arg(3) != "fc" {
 		t.Errorf("fx events: %v", evs)
 	}
 }

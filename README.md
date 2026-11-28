@@ -210,6 +210,12 @@ checked only for pitch and level: `:prophet` (pulse-width-modulated pulses), `:h
 `:dark_ambience`, `:blade`, `:pretty_bell` and `:dull_bell` and `:dsaw`.
 `:sound_in` (live audio input) is skipped.
 
+`with_fx :reverb`, `:echo` and `:ping_pong` run the way Sonic Pi's effects do: the block's notes
+and samples play into an effect of their own, effects nest, the tail rings on after the block
+until the effect's `kill_delay`, and `control fx, mix: 0.2` and `kill fx` work on the effect
+you get from `with_fx ... do |fx|`. The other effects still colour each note as it starts and
+are being moved over one by one.
+
 ## Prerequisites
 
 To **run** a prebuilt binary:
