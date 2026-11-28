@@ -210,10 +210,17 @@ func ResolveSample(name string, idx int) (string, error) {
 	if strings.HasSuffix(lower, ".wav") || strings.HasSuffix(lower, ".flac") || strings.ContainsAny(name, `/\`) {
 		return loadFile(name)
 	}
-	if lookupSample(lower, 0) != nil {
+	// a sample of the user's is read now, ahead of when it plays
+	if sm := findSample(lower, idx); sm != nil {
+		if err := sm.ensure(); err != nil {
+			return "", fmt.Errorf("sample :%s: %w", name, err)
+		}
 		return fmt.Sprintf("%s:%d", lower, idx), nil
 	}
 	if key := fileInBank(lower); key != "" {
+		if err := findSample(key, 0).ensure(); err != nil {
+			return "", fmt.Errorf("sample :%s: %w", name, err)
+		}
 		return key, nil
 	}
 	if key, err := builtinKey(lower); key != "" || err != nil {

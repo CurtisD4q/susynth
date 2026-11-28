@@ -158,8 +158,8 @@ func sampleFromFLAC(b []byte) (*Sample, error) {
 // SampleSeconds is how long a sample name plays at rate 1, if it is known
 // without loading it: a built-in Sonic Pi sample or a loaded bank.
 func SampleSeconds(name string) (float64, bool) {
-	if s := lookupSample(name, 0); s != nil && s.Rate > 0 {
-		return float64(len(s.Data)) / float64(s.Rate), true
+	if s := findSample(name, 0); s != nil && s.Seconds() > 0 {
+		return s.Seconds(), true
 	}
 	if in, ok := builtinInfo()[name]; ok && in.Frames > 0 {
 		return in.Seconds(), true
