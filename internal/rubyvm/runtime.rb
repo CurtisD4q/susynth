@@ -1310,10 +1310,15 @@ SYNTH_OPTS = { detune: :det, divisor: :div, depth: :dep, vel: :vel, vibrato_rate
 # (internal/synth/native.go): they take their options by Sonic Pi's names.
 # NATIVE_BEATS are the options that are lengths of time in beats, and
 # NATIVE_DEFAULTS what a synth's attack is when it is not the usual 0.
-NATIVE_SYNTHS = %w[bass_foundation bass_highend winwood_lead zawa supersaw subpulse chiplead chipbass tb303 hoover tech_saws growl noise pnoise bnoise gnoise cnoise chipnoise].freeze
+NATIVE_SYNTHS = %w[bass_foundation bass_highend winwood_lead zawa supersaw subpulse chiplead chipbass tb303 hoover tech_saws growl noise pnoise bnoise gnoise cnoise chipnoise kalimba gabberkick rhodey rodeo organ_tonewheel].freeze
 NATIVE_BEATS = %i[attack decay sustain release cutoff_attack cutoff_decay cutoff_sustain cutoff_release phase].freeze
 NATIVE_DEFAULTS = { "tb303" => { attack: 0.01 }.freeze, "hoover" => { attack: 0.05 }.freeze,
-                    "growl" => { attack: 0.1 }.freeze }.freeze
+                    "growl" => { attack: 0.1 }.freeze,
+                    "kalimba" => { sustain: 4 }.freeze,
+                    "gabberkick" => { amp: 0.5, attack: 0.001, decay: 0.01, sustain: 0.3, release: 0.02,
+                                      decay_level: 0.7, sustain_level: 0.7 }.freeze,
+                    "organ_tonewheel" => { attack: 0.01, sustain: 1, release: 0.01 }.freeze,
+                    "rhodey" => { attack: 0.001, decay: 1, sustain: 0, release: 1, sustain_level: 0 }.freeze }.freeze
 
 # The mod_ synths sweep their note up by mod_range semitones on an
 # oscillator (a pulse by default) one mod_phase beats long.
