@@ -22,7 +22,7 @@ type toneState struct {
 
 var extWaves = map[string]bool{
 	"hollow": true, "ambience": true, "prophet": true, "blade": true, "bell": true, "dullbell": true,
-	"dsaw": true, "piano": true, "rhodey": true, "horn": true, "gabber": true,
+	"dsaw": true, "dpulse": true, "dtri": true, "piano": true, "rhodey": true, "horn": true, "gabber": true,
 }
 
 func (v *Voice) initExt() {
@@ -146,8 +146,8 @@ func (v *Voice) toneExt() float32 {
 		s = float64(y) * 1.0
 	case "blade":
 		// a saw with vibrato that fades in after half a second
-		depth := 0.15 * math.Max(0, math.Min(1, (t-0.5)/0.1))
-		fv := f * math.Pow(2, depth*math.Sin(2*math.Pi*6*t)/12)
+		depth := v.so.vibDepth * math.Max(0, math.Min(1, (t-v.so.vibDelay)/math.Max(v.so.vibOnset, 1e-3)))
+		fv := f * math.Pow(2, depth*math.Sin(2*math.Pi*v.so.vibRate*t)/12)
 		dt := fv / sr
 		v.phase += dt
 		v.phase -= math.Floor(v.phase)
@@ -164,14 +164,22 @@ func (v *Voice) toneExt() float32 {
 			x.pamp[k] *= x.pdec[k]
 		}
 		s *= 1.8
-	case "dsaw": // two saws a tenth of a semitone apart
-		dt1, dt2 := f/sr, f*math.Pow(2, 0.1/12)/sr
+	case "dsaw", "dpulse", "dtri": // two oscillators detune semitones apart
+		dt1, dt2 := f/sr, f*math.Pow(2, v.so.detune/12)/sr
 		v.phase += dt1
 		v.phase -= math.Floor(v.phase)
 		v.phase2 += dt2
 		v.phase2 -= math.Floor(v.phase2)
-		a := 2*v.phase - 1 - polyBLEP(v.phase, dt1)
-		b := 2*v.phase2 - 1 - polyBLEP(v.phase2, dt2)
+		var a, b float64
+		switch v.wave {
+		case "dpulse":
+			a, b = blepPulse(v.phase, dt1, 0.5), blepPulse(v.phase2, dt2, 0.5)
+		case "dtri":
+			a, b = 4*math.Abs(v.phase-0.5)-1, 4*math.Abs(v.phase2-0.5)-1
+		default:
+			a = 2*v.phase - 1 - polyBLEP(v.phase, dt1)
+			b = 2*v.phase2 - 1 - polyBLEP(v.phase2, dt2)
+		}
 		x.lp[0] += 0.3 * (float32(a+b)*0.5 - x.lp[0])
 		s = float64(x.lp[0]) * 1.2
 	case "piano":

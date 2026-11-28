@@ -25,12 +25,12 @@
         square               square, low-passed                                                                                                      ▶ preview│
         pulse                square                                                                                                                  ▶ preview│
         subpulse             square                                                                                                                  ▶ preview│
-        dpulse               square                                                                                                                  ▶ preview│
+        dpulse               two pulses a tenth of a semitone apart                                                                                  ▶ preview│
         mod_pulse            square                                                                                                                  ▶ preview│
         chipbass             chiptune square bass                                                                                                    ▶ preview│
         chiplead             chiptune square lead                                                                                                    ▶ preview│
         tri                  triangle                                                                                                                ▶ preview│
-        dtri                 triangle                                                                                                                ▶ preview│
+        dtri                 two triangles a tenth of a semitone apart                                                                               ▶ preview│
         mod_tri              triangle                                                                                                                ▶ preview│
         fm                   two-operator FM                                                                                                         ▶ preview│
         mod_fm               FM                                                                                                                      ▶ preview│
