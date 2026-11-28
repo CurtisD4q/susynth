@@ -95,7 +95,7 @@ valid Ruby are left out).
 | | Plays with nothing left out | Plays, something left out | Stops with an error |
 |---|---|---|---|
 | Sonic Pi's examples (34) | 100% | 0% | 0% |
-| Songs from GitHub (1,159) | 66% | 13% | 21% |
+| Songs from GitHub (1,159) | 66% | 13% | 22% |
 
 Most of what's left out is something that needs a device or the author's own files: OSC,
 Ableton Link, sound files on their computer. Most of the errors would happen in Sonic Pi
