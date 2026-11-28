@@ -18,6 +18,10 @@ var drumAlias = map[string]string{
 	"rim": "rim",
 	"tom": "tom",
 	"cb":  "cb", "cowbell": "cb",
+	"clave": "clave", "claves": "clave",
+	"conga": "conga",
+	"cym":   "cym", "cymbal": "cym",
+	"maracas": "maracas",
 }
 
 var noteBase = map[byte]int{'c': 0, 'd': 2, 'e': 4, 'f': 5, 'g': 7, 'a': 9, 'b': 11}
@@ -141,6 +145,10 @@ const (
 	kCB
 	kTone
 	kSample
+	kClave
+	kConga
+	kCym
+	kMaracas
 )
 
 // Voice is one sounding note. Create with New; read with Next.
@@ -181,7 +189,7 @@ type Voice struct {
 	shape     float32
 	fl        [2]filterState // left (or mono), right
 	crush     float32
-	ph        [5]float64
+	ph        [6]float64
 	smp       *Sample
 	chL, chR  []float32 // the sample's channels at the octave being played
 	stereo    bool
@@ -199,6 +207,7 @@ type Voice struct {
 	ctl                    *controlled
 	pend                   []pendingCtl
 	mods                   []*modState
+	ext                    *toneState // tones.go
 }
 
 type filterState struct{ lp, hp Filter }
@@ -282,7 +291,8 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	}
 
 	if d, ok := drumAlias[strings.ToLower(name)]; ok {
-		v.k = map[string]kind{"bd": kBD, "sn": kSN, "cp": kCP, "hh": kHH, "oh": kOH, "rim": kRim, "tom": kTom, "cb": kCB}[d]
+		v.k = map[string]kind{"bd": kBD, "sn": kSN, "cp": kCP, "hh": kHH, "oh": kOH, "rim": kRim, "tom": kTom, "cb": kCB,
+			"clave": kClave, "conga": kConga, "cym": kCym, "maracas": kMaracas}[d]
 		return v, nil
 	}
 	n, ok := ParseNote(name)
@@ -479,6 +489,46 @@ func (v *Voice) sample() float32 {
 		}
 		return (sq(v.phase) + sq(v.phase2)) * 0.2 * exp(tau*14)
 	}
+	switch v.k {
+	case kClave: // the 808's claves: a short, bright wooden ring
+		v.phase += 2500 * v.speed * dt
+		if tau > 0.08 {
+			v.done = true
+		}
+		return float32(math.Sin(v.phase)) * exp(tau*60) * 0.55
+	case kConga: // a tuned skin that bends down a little as it rings
+		f := 200 * v.variant * v.variant * (1 + 0.15*math.Exp(-tau*40)) * v.speed
+		v.phase += f * dt
+		if tau > 0.5 {
+			v.done = true
+		}
+		return float32(math.Sin(v.phase)) * exp(tau*11) * 0.75
+	case kCym: // six detuned square partials, high-passed: the 808's metal
+		var m float32
+		for k, fr := range [6]float64{205.3, 304.4, 369.6, 522.7, 540, 800} {
+			v.ph[k] += fr * 1.7 * v.speed / v.sr
+			v.ph[k] -= math.Floor(v.ph[k])
+			if v.ph[k] < 0.5 {
+				m++
+			} else {
+				m--
+			}
+		}
+		hp := m - v.prev
+		v.prev = m
+		if tau > 1.6 {
+			v.done = true
+		}
+		return hp * 0.12 * exp(tau*2.4)
+	case kMaracas: // a quick burst of bright noise
+		n := v.noise()
+		hp := n - v.prev
+		v.prev = n
+		if tau > 0.06 {
+			v.done = true
+		}
+		return hp * 0.4 * exp(tau*70)
+	}
 	if v.k == kSample {
 		i := int(v.pos)
 		if i+1 >= v.end || i < v.begin || v.pos < 0 {
@@ -581,6 +631,9 @@ func (v *Voice) tone() float32 {
 		v.sweep()
 	}
 	var s float32
+	if extWaves[v.wave] {
+		return v.toneExt() * env * 0.35
+	}
 	switch v.wave {
 	case "sine":
 		v.phase += v.freq * 2 * math.Pi / v.sr

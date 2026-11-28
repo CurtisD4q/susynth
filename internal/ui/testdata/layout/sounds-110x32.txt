@@ -15,11 +15,11 @@
         winwood_lead         saw lead                                                              ▶ preview│
         bass_foundation      saw bass                                                              ▶ preview│
         bass_highend         saw bass                                                              ▶ preview│
-        dsaw                 detuned saws                                                          ▶ preview│
-        mod_dsaw             detuned saws                                                          ▶ preview│
+        dsaw                 two saws a tenth of a semitone apart                                  ▶ preview│
+        mod_dsaw             two detuned saws                                                      ▶ preview│
         supersaw             five detuned saws                                                     ▶ preview│
-        prophet              wide analogue-style pad                                               ▶ preview│
-        blade                detuned saws                                                          ▶ preview│
+        prophet              pulse-width-modulated pulses, Prophet-style                           ▶ preview│
+        blade                saw with vibrato through violin formants                              ▶ preview│
         hoover               detuned saws                                                          ▶ preview│
         tech_saws            detuned saws                                                          ▶ preview│
         square               square, low-passed                                                    ▶ preview│
