@@ -27,6 +27,7 @@ const (
 	ModOctaver
 	ModVowel
 	ModMono
+	ModPitch // pitch_shift, whammy and a sample's pitch: A semitones, without changing speed
 )
 
 // LFO waves, numbered as Sonic Pi numbers them.
@@ -74,6 +75,7 @@ type modState struct {
 	last   [2]float32
 	dc     [2]float32
 	lastP  int64
+	pp     float64 // pitch shifter: where the first tap is in its window, 0..1
 	skip   bool
 }
 
@@ -99,6 +101,13 @@ func (v *Voice) AddMods(ms []Mod) {
 			for c := range st.bq {
 				st.bq[c][0] = peaking(midiToHz(m.Freq), m.Res, m.DB, v.sr)
 			}
+		case ModPitch:
+			win := m.Delay / 1000
+			if win <= 0 {
+				win = 0.1
+			}
+			n := int(win*v.sr) + 4
+			st.line = [2][]float32{make([]float32, n), make([]float32, n)}
 		case ModFlanger:
 			n := int(0.025*v.sr) + 2
 			st.line = [2][]float32{make([]float32, n), make([]float32, n)}
@@ -222,6 +231,38 @@ func (v *Voice) runMods(l, r float32) (float32, float32) {
 				out[c] = (in[c] + y) * 0.7
 			}
 			st.w = (st.w + 1) % n
+			l, r = out[0], out[1]
+		case ModPitch:
+			// Two taps on a delay line, half a window apart, each sweeping
+			// through it at the rate that shifts the pitch, and faded in and
+			// out so that their sum stays level.
+			n := len(st.line[0])
+			win := float64(n - 4)
+			ratio := math.Pow(2, m.A/12)
+			p1, p2 := st.pp, st.pp+0.5
+			if p2 >= 1 {
+				p2--
+			}
+			s1, s2 := math.Sin(math.Pi*p1), math.Sin(math.Pi*p2)
+			g1, g2 := float32(s1*s1), float32(s2*s2)
+			in := [2]float32{l, r}
+			var out [2]float32
+			for c := 0; c < 2; c++ {
+				st.line[c][st.w] = in[c]
+				tap := func(p float64) float32 {
+					pos := float64(st.w) - p*win
+					for pos < 0 {
+						pos += float64(n)
+					}
+					i := int(pos)
+					f := float32(pos - float64(i))
+					return st.line[c][i%n]*(1-f) + st.line[c][(i+1)%n]*f
+				}
+				out[c] = tap(p1)*g1 + tap(p2)*g2
+			}
+			st.w = (st.w + 1) % n
+			st.pp -= (ratio - 1) / win
+			st.pp -= math.Floor(st.pp)
 			l, r = out[0], out[1]
 		case ModRing:
 			mod := float32(math.Sin(2 * math.Pi * midiToHz(m.Freq) * (t + m.Origin)))

@@ -579,3 +579,28 @@ end
 		}
 	}
 }
+
+// A sample's pitch: and with_fx :pitch_shift on a sample become the voice's
+// pitch shifter (kind 12) with no warning; a note is simply transposed.
+func TestPitchShiftEvents(t *testing.T) {
+	v := vm(t)
+	evs, other := run(t, v, `
+sample :bd_haus, pitch: 3
+with_fx :pitch_shift, pitch: -12 do
+  sample :bd_haus
+  play 60
+end
+`, 1)
+	var kv []string
+	for _, e := range evs {
+		kv = append(kv, e.Arg(5))
+	}
+	if len(kv) != 3 || !strings.Contains(kv[0], "x0k=12") || !strings.Contains(kv[0], "x0a=3.0") ||
+		!strings.Contains(kv[1], "x0k=12") || !strings.Contains(kv[1], "x0a=-12.0") ||
+		strings.Contains(kv[2], "x0k") || !strings.Contains(kv[2], "n=48.0") {
+		t.Errorf("events: %v", kv)
+	}
+	if l := strings.Join(flat(other), " "); strings.Contains(l, "speed") || strings.Contains(l, "isn't in susynth") {
+		t.Errorf("warned: %s", l)
+	}
+}
