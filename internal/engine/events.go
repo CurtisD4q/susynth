@@ -15,6 +15,7 @@ const (
 	KindStart             // transport started at At
 	KindStop              // transport stopped at At
 	KindPanic             // silence everything now (hush)
+	KindRaw               // raw MIDI bytes (Event.Data) at At, from midi_note_on and friends
 )
 
 // Event is what external outputs (OSC, MIDI) receive. Times are wall-clock,
@@ -28,6 +29,7 @@ type Event struct {
 	Params synth.Params
 	Dur    time.Duration
 	BPM    float64
+	Data   []byte // KindRaw: the MIDI message
 }
 
 // Output receives events. Emit is called with the engine lock held, so it

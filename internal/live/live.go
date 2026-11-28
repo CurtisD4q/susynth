@@ -30,7 +30,8 @@ type Note struct {
 	Line   int
 	Thread string
 	Text   string
-	First  int // ran: first and last line evaluated
+	Warn   bool // log: susynth could not play something, as against a puts line
+	First  int  // ran: first and last line evaluated
 	Last   int
 	RunID  int
 	When   string // ran: "beat" or "bar" when the change waits for one
@@ -391,7 +392,7 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 					if m.Arg(3) == "s" {
 						// a sample file that can't be read is skipped and the
 						// rest of the music plays on, so it is a warning
-						s.note(Note{Kind: "log", Line: line, Thread: m.Arg(1), Text: key + "; it is skipped"})
+						s.note(Note{Kind: "log", Warn: true, Line: line, Thread: m.Arg(1), Text: key + "; it is skipped"})
 					} else {
 						s.note(Note{Kind: "err", Line: line, Thread: m.Arg(1), Text: key})
 					}
@@ -431,7 +432,7 @@ func (s *Seq) dispatch(ms []rubyvm.Msg, waits string) {
 		case "err":
 			s.note(errNote(m))
 		case "log":
-			s.note(Note{Kind: "log", Text: m.Arg(0)})
+			s.note(Note{Kind: "log", Text: m.Arg(0), Warn: m.Arg(1) == "warn"})
 		case "cue":
 			s.note(Note{Kind: "cue", Text: "cue :" + m.Arg(0)})
 		case "ran":
@@ -529,6 +530,15 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		}
 	}
 	switch kind {
+	case "m": // a raw MIDI message: status and up to two data bytes
+		raw := []byte{byte(get("st", 0))}
+		for _, k := range []string{"d1", "d2"} {
+			if v, ok := kv[k]; ok {
+				raw = append(raw, byte(v))
+			}
+		}
+		h.Raw = raw
+		return h, g, nil
 	case "c": // control a playing node
 		c := synth.NoControl()
 		c.Kill = get("kill", 0) != 0

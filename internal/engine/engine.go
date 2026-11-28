@@ -44,6 +44,7 @@ type Hit struct {
 	// set starts nothing: it changes the playing sounds of that node.
 	Node   int64
 	Ctl    *synth.Control
+	Raw    []byte      // a raw MIDI message for the outputs; it makes no sound
 	Slides *[5]float64 // note, amp, pan, cutoff, rate slide times (seconds)
 }
 
@@ -592,6 +593,14 @@ func (e *Engine) startHits(n int) {
 	e.queue = append([]Hit(nil), e.queue[k:]...)
 	solo := e.anySolo()
 	for _, h := range due {
+		if h.Raw != nil {
+			if len(e.outputs) > 0 {
+				if at := e.wallAt(h.At); !at.IsZero() {
+					e.emit(Event{Kind: KindRaw, At: at, Data: h.Raw})
+				}
+			}
+			continue
+		}
 		if h.Ctl != nil {
 			off := int(h.At - e.samples)
 			for _, v := range e.voices {
