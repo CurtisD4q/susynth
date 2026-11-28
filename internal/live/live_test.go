@@ -249,24 +249,27 @@ end
 	if len(hs) != 6 {
 		t.Fatalf("%d notes", len(hs))
 	}
-	if hs[0].Params.Res != 0.7 || hs[1].Params.Res != 0.4 || hs[2].Params.HPRes != 0.6 || hs[2].Params.HPF == 0 {
-		t.Errorf("filters: %+v / %+v / %+v", hs[0].Params, hs[1].Params, hs[2].Params)
+	// rlpf, rhpf, reverb, ping_pong and echo run as units: open, the note on its bus, close
+	if len(units) != 10 {
+		t.Fatalf("%d unit events, want 10 (five opens, five closes)", len(units))
 	}
-	// reverb, ping_pong and echo run as units: open, the note on its bus, close
-	if len(units) != 6 {
-		t.Fatalf("%d unit events, want 6 (three opens, three closes)", len(units))
+	if u := units[0].Unit; u.Op != "open" || u.Name != "rlpf" || u.Opts["cutoff"] != 90 || u.Opts["res"] != 0.7 || hs[0].Bus != u.ID || hs[0].Params.Res != 0.3 {
+		t.Errorf("rlpf unit: %+v, note %+v on bus %d", u, hs[0].Params, hs[0].Bus)
 	}
-	if u := units[0].Unit; u.Op != "open" || u.Name != "reverb" || u.Opts["damp"] != 0.8 || hs[3].Bus != u.ID {
+	if u := units[2].Unit; u.Op != "open" || u.Name != "rhpf" || u.Opts["res"] != 0.6 || hs[2].Bus != u.ID {
+		t.Errorf("rhpf unit: %+v on bus %d", u, hs[2].Bus)
+	}
+	if u := units[4].Unit; u.Op != "open" || u.Name != "reverb" || u.Opts["damp"] != 0.8 || hs[3].Bus != u.ID {
 		t.Errorf("reverb unit: %+v on bus %d", u, hs[3].Bus)
 	}
-	if u := units[2].Unit; u.Op != "open" || u.Name != "ping_pong" || u.Opts["phase"] != 0.5 || hs[4].Bus != u.ID {
+	if u := units[6].Unit; u.Op != "open" || u.Name != "ping_pong" || u.Opts["phase"] != 0.5 || hs[4].Bus != u.ID {
 		t.Errorf("ping_pong unit: %+v on bus %d", u, hs[4].Bus)
 	}
-	if u := units[4].Unit; u.Op != "open" || u.Name != "echo" || hs[5].Bus != u.ID || units[5].Unit.Op != "close" || units[5].Unit.ID != u.ID {
+	if u := units[8].Unit; u.Op != "open" || u.Name != "echo" || hs[5].Bus != u.ID || units[9].Unit.Op != "close" || units[9].Unit.ID != u.ID {
 		t.Errorf("echo unit: %+v on bus %d", u, hs[5].Bus)
 	}
-	if hs[0].Bus != 0 || hs[1].Bus != 0 {
-		t.Errorf("notes outside with_fx unit are on bus %d, %d", hs[0].Bus, hs[1].Bus)
+	if hs[1].Bus != 0 {
+		t.Errorf("a note outside with_fx is on bus %d", hs[1].Bus)
 	}
 }
 
@@ -367,11 +370,18 @@ play 65
 	}
 	var hs []engine.Hit
 	var gs []Globals
+	var comp *engine.UnitOp
 	for _, m := range append(ms, more...) {
 		if m.Kind() == "ev" {
 			h, g, err := Translate(m)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if h.Unit != nil { // the compressor is a unit
+				if h.Unit.Op == "open" && h.Unit.Name == "compressor" {
+					comp = h.Unit
+				}
+				continue
 			}
 			hs, gs = append(hs, h), append(gs, g)
 		}
@@ -379,11 +389,11 @@ play 65
 	if len(hs) != 4 {
 		t.Fatalf("%d notes", len(hs))
 	}
-	if !hs[0].Params.Comp || !gs[0].CompSet || gs[0].Comp.Threshold != 0.1 || gs[0].Comp.SlopeAbove != 0.3 {
-		t.Errorf("compressor: %+v %+v", hs[0].Params, gs[0])
+	if comp == nil || comp.Name != "compressor" || comp.Opts["threshold"] != 0.1 || comp.Opts["slope_above"] != 0.3 || hs[0].Bus != comp.ID {
+		t.Errorf("compressor: %+v on bus %d", comp, hs[0].Bus)
 	}
-	if !hs[1].Params.EQ || gs[1].EQ.LowDB != 3 || gs[1].EQ.MidDB != -2 || math.Abs(gs[1].EQ.MidHz-midiHz(81)) > 0.01 {
-		t.Errorf("eq: %+v", gs[1])
+	if hs[1].Bus == 0 { // the eq is a unit too
+		t.Errorf("eq: the note is not on a unit's bus: %+v", hs[1])
 	}
 	if hs[2].Params.Chorus != 0.4 || gs[2].Chorus.Rate != 1.2 {
 		t.Errorf("chorus: %+v %+v", hs[2].Params, gs[2])

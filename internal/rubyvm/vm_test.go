@@ -440,19 +440,20 @@ end
 		kv = append(kv, e.Arg(5))
 	}
 	t.Log(kv)
-	if len(kv) != 4 {
+	// slicer and wobble run as units: slicer opens, wobble opens inside it, a
+	// note on the wobble's bus, wobble closes, control on the slicer, a note on
+	// the slicer's bus, slicer closes; then pitch_shift and record as notes.
+	if len(kv) != 11 {
 		t.Fatalf("events %v", kv)
 	}
-	// innermost first: wobble (4) then slicer (1); the slicer had run 1 beat
-	if !strings.Contains(kv[0], "x0k=4") || !strings.Contains(kv[0], "x1k=1") || !strings.Contains(kv[0], "x1ph=0.25") ||
-		!strings.Contains(kv[0], "x1org=0.5") {
-		t.Errorf("nested effects: %s", kv[0])
+	if !strings.Contains(kv[0], "phase=0.5") || !strings.Contains(kv[1], "parent=98") || !strings.Contains(kv[2], "bus=99") {
+		t.Errorf("nested units: %v", kv[:3])
 	}
-	if !strings.Contains(kv[1], "x0ph=0.5") {
-		t.Errorf("control on the slicer: %s", kv[1])
+	if !strings.Contains(kv[4], "phase=1.0") || !strings.Contains(kv[4], "id=98") || !strings.Contains(kv[5], "bus=98") {
+		t.Errorf("control on the slicer: %s / %s", kv[4], kv[5])
 	}
-	if !strings.Contains(kv[2], "n=72.0") || strings.Contains(kv[3], "x0k") {
-		t.Errorf("pitch_shift / record: %s %s", kv[2], kv[3])
+	if !strings.Contains(kv[7], "pitch=12.0") || !strings.Contains(kv[8], "bus=") || strings.Contains(kv[10], "x0k") || strings.Contains(kv[10], "bus=") {
+		t.Errorf("pitch_shift / record: %s %s", kv[7], kv[10])
 	}
 	if !strings.Contains(strings.Join(flat(other), " "), "with_fx :record does nothing in susynth") {
 		t.Error("no note about :record")
@@ -504,10 +505,10 @@ on false do puts "on-no" end
 		kv = append(kv, e.Arg(4)+" "+e.Arg(5))
 	}
 	t.Log(kv, logs)
-	if len(kv) != 5 {
+	if len(kv) != 7 { // the level effect is a unit: open, the note on its bus, close
 		t.Fatalf("events: %v", kv)
 	}
-	for i, want := range []string{"det=0.3", "div=3.0,dep=2.0", "mr=7.0,mp=0.125,mw=3", "bd_haus", "amp=0.25"} {
+	for i, want := range []string{"det=0.3", "div=3.0,dep=2.0", "mr=7.0,mp=0.125,mw=3", "bd_haus", "pre_amp=0.5,amp=0.5", "bus=", "id="} {
 		if !strings.Contains(kv[i], want) {
 			t.Errorf("event %d %q: want %q", i, kv[i], want)
 		}
@@ -583,8 +584,8 @@ end
 	}
 }
 
-// A sample's pitch: and with_fx :pitch_shift on a sample become the voice's
-// pitch shifter (kind 12) with no warning; a note is simply transposed.
+// A sample's pitch: becomes the voice's pitch shifter (kind 12) with no warning;
+// with_fx :pitch_shift is an effect unit.
 func TestPitchShiftEvents(t *testing.T) {
 	v := vm(t)
 	evs, other := run(t, v, `
@@ -598,9 +599,11 @@ end
 	for _, e := range evs {
 		kv = append(kv, e.Arg(5))
 	}
-	if len(kv) != 3 || !strings.Contains(kv[0], "x0k=12") || !strings.Contains(kv[0], "x0a=3.0") ||
-		!strings.Contains(kv[1], "x0k=12") || !strings.Contains(kv[1], "x0a=-12.0") ||
-		strings.Contains(kv[2], "x0k") || !strings.Contains(kv[2], "n=48.0") {
+	// the sample's own pitch: is the voice's pitch shifter; with_fx :pitch_shift is a
+	// unit (open, the sample and the note on its bus, close) and leaves the notes alone
+	if len(kv) != 5 || !strings.Contains(kv[0], "x0k=12") || !strings.Contains(kv[0], "x0a=3.0") ||
+		!strings.Contains(kv[1], "pitch=-12.0") || !strings.Contains(kv[2], "bus=") || strings.Contains(kv[2], "x0k") ||
+		!strings.Contains(kv[3], "n=60.0") || !strings.Contains(kv[3], "bus=") {
 		t.Errorf("events: %v", kv)
 	}
 	if l := strings.Join(flat(other), " "); strings.Contains(l, "speed") || strings.Contains(l, "isn't in susynth") {
