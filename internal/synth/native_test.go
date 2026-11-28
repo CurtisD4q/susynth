@@ -135,3 +135,29 @@ func TestEnvelopeShapes(t *testing.T) {
 		}
 	}
 }
+
+// The noise synths make their own kinds of noise: the brown one is mostly
+// low, the white one is not, and the chip noise holds each value for a while.
+func TestNativeNoiseKinds(t *testing.T) {
+	bright := func(name string) float64 {
+		x := renderNative(t, name, map[string]float64{"cutoff": 120}, 0.6)
+		var d, e float64
+		for i := 12000; i < len(x)-1; i++ {
+			d += (x[i+1] - x[i]) * (x[i+1] - x[i])
+			e += x[i] * x[i]
+		}
+		if e < 1e-6 || math.IsNaN(e) {
+			t.Fatalf("%s: silent or broken", name)
+		}
+		return d / e
+	}
+	if b, w := bright("sp_bnoise"), bright("sp_noise"); b > w/10 {
+		t.Errorf("brown noise brightness %.3f against white %.3f: want much duller", b, w)
+	}
+	if p, w := bright("sp_pnoise"), bright("sp_noise"); p > w/2 {
+		t.Errorf("pink noise brightness %.3f against white %.3f: want duller", p, w)
+	}
+	for _, n := range []string{"sp_gnoise", "sp_cnoise", "chipnoise"} {
+		bright(n)
+	}
+}

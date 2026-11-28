@@ -190,11 +190,13 @@ Also new: `:bpf`, `:rbpf`, `:nbpf`, `:nrbpf`, `:band_eq`, `:ring_mod`, `:octaver
 
 ### The synths
 
-All 66 of Sonic Pi's synth names work. Twelve are ported straight from Sonic Pi's compiled
+All 66 of Sonic Pi's synth names work. Eighteen are ported straight from Sonic Pi's compiled
 designs, unit generator by unit generator, and were measured against the real synth rendered
 with SuperCollider (pitch, envelope and tone agree to about 1 dB; level is a fixed fraction of
 the real one): `:tb303`, `:supersaw`, `:hoover`, `:tech_saws`, `:growl`, `:zawa`,
-`:bass_foundation`, `:bass_highend`, `:winwood_lead`, `:subpulse`, `:chiplead` and `:chipbass`.
+`:bass_foundation`, `:bass_highend`, `:winwood_lead`, `:subpulse`, `:chiplead`, `:chipbass`, and the
+noise synths `:noise`, `:pnoise` (pink), `:bnoise` (brown), `:gnoise` (gray), `:cnoise` (clip) and
+`:chipnoise`.
 They read their options by Sonic Pi's names (`cutoff:`, `res:`, `drive:`, `wave:`, `phase:`...)
 and `control` moves their cutoff. `:tech_saws` picks random detunes for each note, as Sonic Pi
 does, so two notes differ slightly. Every synth's volume envelope is straight lines unless
