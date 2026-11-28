@@ -45,8 +45,10 @@ func TestSawKeepsItsLevel(t *testing.T) {
 		s += v * v
 	}
 	rms := math.Sqrt(s / float64(len(x)))
-	// the old naive saw measured 0.279 here
-	if rms < 0.27 || rms > 0.29 {
-		t.Fatalf("saw C3 rms %.3f, want about 0.28 (as before)", rms)
+	// the old naive saw measured 0.279 here, before voices were raised to
+	// the level of Sonic Pi's (ToneGain) and the saw trimmed to its measured level
+	want := 0.279 * ToneGain / 0.35 * float64(waveTrim["saw"])
+	if rms < want*0.97 || rms > want*1.03 {
+		t.Fatalf("saw C3 rms %.3f, want about %.3f", rms, want)
 	}
 }

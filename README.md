@@ -192,8 +192,7 @@ Also new: `:bpf`, `:rbpf`, `:nbpf`, `:nrbpf`, `:band_eq`, `:ring_mod`, `:octaver
 
 All 66 of Sonic Pi's synth names work. Forty are ported straight from Sonic Pi's compiled
 designs, unit generator by unit generator, and were measured against the real synth rendered
-with SuperCollider (pitch, envelope and tone agree to about 1 dB; level is a fixed fraction of
-the real one): `:tb303`, `:supersaw`, `:hoover`, `:tech_saws`, `:growl`, `:zawa`,
+with SuperCollider (pitch, envelope and tone agree to about 1 dB, and they are as loud as the real ones): `:tb303`, `:supersaw`, `:hoover`, `:tech_saws`, `:growl`, `:zawa`,
 `:bass_foundation`, `:bass_highend`, `:winwood_lead`, `:subpulse`, `:chiplead`, `:chipbass`, and the
 noise synths `:noise`, `:pnoise` (pink), `:bnoise` (brown), `:gnoise` (gray), `:cnoise` (clip) and
 `:chipnoise`, `:kalimba`, `:gabberkick`, `:rhodey`, `:rodeo` and `:organ_tonewheel` (drawbars and
@@ -543,6 +542,18 @@ own tempo until it stops.
 | Compiled Ruby cache | `~/.cache/susynth/ruby` (macOS: `~/Library/Caches/susynth/ruby`) | `SUSYNTH_CACHE` |
 
 Deleting the cache is safe; Ruby is compiled again on the next launch.
+
+### 12. The master mixer
+
+Open the Mixer page (`Esc m`, then pick Mixer; `Esc b` from Play also lands on it). It is Sonic
+Pi's master mixer: **Volume** is the fader after the limiter, **Drive** pushes the mix into the
+limiter, and there are a high-pass and low-pass for the whole mix, mono, swapped channels and
+the limiter switch. A level meter shows the output peak. The same controls are in code, with
+Sonic Pi's names and ranges: `set_volume! 0.5`, `set_drive! 0.7`, `set_mixer_control! hpf: 60,
+force_mono: true`, `reset_mixer!`, `set_mixer_invert_stereo!`, `set_mixer_mono_mode!`,
+`set_mixer_standard_stereo!`, `set_mixer_stereo_mode!`, `current_volume` and `current_drive`.
+Notes and samples play at the level they have in Sonic Pi (a full-scale sample peaks at full
+scale), so the same code is as loud here.
 
 ## Keys
 

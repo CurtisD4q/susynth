@@ -1262,12 +1262,12 @@ def play(n = :__none, *rest, **opts, &_blk)
     return sample(path, **o.except(:path, :note, :on))
   end
   s = __synth_name(sn)
-  o = NATIVE_DEFAULTS[s.to_s].merge(o) if NATIVE_DEFAULTS.key?(s.to_s)
+  o = $__ndef[s.to_s].merge(o) if $__ndef.key?(s.to_s)
   if SOUND_IN.include?(s.to_s)
     __warn_once("sndin", "synth #{s.inspect} needs a live audio input, which susynth hasn't got; it is skipped")
     return nil
   end
-  n = NATIVE_NOTES[s.to_s] if none && NATIVE_NOTES.key?(s.to_s)
+  n = $__nnote[s.to_s] if none && $__nnote.key?(s.to_s)
   nn = note(o.key?(:note) ? o.delete(:note) : n)
   return nil if nn.nil?
   nn += c[:transpose] + c[:octave] * 12
@@ -1308,35 +1308,26 @@ end
 SYNTH_OPTS = { detune: :det, divisor: :div, depth: :dep, vel: :vel, vibrato_rate: :vr, vibrato_depth: :vd,
                vibrato_delay: :vdl, vibrato_onset: :von }.freeze
 
-# NATIVE_SYNTHS are the voices ported straight from Sonic Pi's own designs
-# (internal/synth/native.go): they take their options by Sonic Pi's names.
-# NATIVE_BEATS are the options that are lengths of time in beats, and
-# NATIVE_DEFAULTS what a synth's attack is when it is not the usual 0.
-NATIVE_SYNTHS = %w[bass_foundation bass_highend winwood_lead zawa supersaw subpulse chiplead chipbass tb303 hoover tech_saws growl noise pnoise bnoise gnoise cnoise chipnoise kalimba gabberkick rhodey rodeo organ_tonewheel piano sc808_bassdrum sc808_snare sc808_clap sc808_closed_hihat sc808_open_hihat sc808_rimshot sc808_tomlo sc808_tommid sc808_tomhi sc808_cowbell sc808_claves sc808_congalo sc808_congamid sc808_congahi sc808_cymbal sc808_maracas].freeze
-NATIVE_BEATS = %i[attack decay sustain release cutoff_attack cutoff_decay cutoff_sustain cutoff_release phase].freeze
-# NATIVE_NOTES is the note a synth plays when the code names none, as in its
-# own design (the 808 drums are tuned to theirs).
-NATIVE_NOTES = { "sc808_bassdrum" => 34, "sc808_snare" => 65, "sc808_claves" => 99, "sc808_cowbell" => 79.5898,
-                 "sc808_rimshot" => 92, "sc808_tomlo" => 40, "sc808_tommid" => 44, "sc808_tomhi" => 52,
-                 "sc808_congalo" => 52, "sc808_congamid" => 57, "sc808_congahi" => 65 }.freeze
-NATIVE_DEFAULTS = { "tb303" => { attack: 0.01 }.freeze, "hoover" => { attack: 0.05 }.freeze,
-                    "growl" => { attack: 0.1 }.freeze,
-                    "kalimba" => { sustain: 4 }.freeze,
-                    "gabberkick" => { amp: 0.5, attack: 0.001, decay: 0.01, sustain: 0.3, release: 0.02,
-                                      decay_level: 0.7, sustain_level: 0.7 }.freeze,
-                    "organ_tonewheel" => { attack: 0.01, sustain: 1, release: 0.01 }.freeze,
-                    "rhodey" => { attack: 0.001, decay: 1, sustain: 0, release: 1, sustain_level: 0 }.freeze }.freeze
+# The voices ported straight from Sonic Pi's own designs
+# (internal/synth/native.go) take their options by Sonic Pi's names.
+# The ported synths, the notes they play when none is named, the defaults of
+# their designs and the options that are lengths of time all come from Go
+# (internal/synth/catalogue.go) when Ruby starts: see the "cat" message.
+$__nat = {}
+$__nnote = {}
+$__ndef = {}
+$__beats = []
 
 # The mod_ synths sweep their note up by mod_range semitones on an
 # oscillator (a pulse by default) one mod_phase beats long.
 def __synth_opts(ev, synth, o, bpm)
   SYNTH_OPTS.each { |k, d| ev[d] = o[k].to_f if o[k].is_a?(Numeric) }
-  if NATIVE_SYNTHS.include?(synth)
+  if $__nat.key?(synth)
     # these voices are Sonic Pi's own designs and read every option by name
     o.each do |k, val|
       next unless val.is_a?(Numeric) || val == true || val == false
       val = val == true ? 1 : (val == false ? 0 : val)
-      val = val.to_f * 60.0 / bpm if NATIVE_BEATS.include?(k)
+      val = val.to_f * 60.0 / bpm if $__beats.include?(k)
       ev[:"o_#{k}"] = val.to_f
     end
   end
@@ -1611,7 +1602,7 @@ def midi_stop(**_o) = __midi(0, nil, 0xFC)
 end
 
 %i[use_debug use_arg_checks use_timing_guarantees use_real_time use_sched_ahead_time
-   set_sched_ahead_time! set_volume! set_mixer_control! use_osc use_midi_defaults set_audio_latency!
+   set_sched_ahead_time! use_osc use_midi_defaults set_audio_latency!
    set_cent_tuning! use_tuning use_cent_tuning].each do |m|
   define_method(m) { |*_a, **_o| nil }
 end
@@ -1911,10 +1902,64 @@ end
     blk&.call
   end
 end
-%i[use_timing_warnings use_external_synths use_midi_ports set_mixer_invert_stereo! set_mixer_mono_mode!
-   set_mixer_standard_stereo! set_mixer_stereo_mode! set_mixer_global_timewarp!].each do |m|
+%i[use_timing_warnings use_external_synths use_midi_ports set_mixer_global_timewarp!].each do |m|
   define_method(m) { |*_a, **_o| nil }
 end
+# The master mixer (internal/engine/mixer.go): the same controls as Sonic
+# Pi's. Volume is the fader after the limiter; drive pushes the mix into it.
+$__mixer = { volume: 1.0, drive: 0.5 }
+
+def __mixer_set(**kv)
+  th = __need_thread("play")
+  return if __silent?(th)
+  line = __buffer_line(caller_locations(2, 12))
+  s = kv.map { |k, v| "#{k}=#{v.is_a?(Float) ? v.round(5) : v}" }.join(",")
+  __send("ev", format("%.6f", th.time), __tname(th), line, "x", "mixer", s, th.run_id.to_i)
+end
+
+def set_volume!(vol, _now = false, _silent = false)
+  vol = vol.to_f.clamp(0.0, 1.0)
+  $__mixer[:volume] = vol
+  __mixer_set(amp: vol)
+  nil
+end
+
+def current_volume = $__mixer[:volume]
+
+def set_drive!(amount, _now = false, _silent = false)
+  amount = amount.to_f.clamp(0.0, 1.0)
+  $__mixer[:drive] = amount
+  __mixer_set(drive: amount)
+  nil
+end
+
+def current_drive = $__mixer[:drive]
+
+MIXER_KEYS = %i[pre_amp amp hpf lpf hpf_bypass lpf_bypass force_mono invert_stereo limiter_bypass].freeze
+
+def set_mixer_control!(**opts)
+  kv = {}
+  opts.each do |k, v|
+    next unless MIXER_KEYS.include?(k)
+    v = v ? 1 : 0 if v == true || v == false
+    kv[k] = v.to_f
+  end
+  $__mixer[:volume] = kv[:amp].clamp(0.0, 1.0) if kv.key?(:amp)
+  $__mixer[:drive] = Math.log([kv[:pre_amp], 1e-6].max / 0.25) / Math.log(16) if kv.key?(:pre_amp)
+  __mixer_set(**kv) unless kv.empty?
+  nil
+end
+
+def reset_mixer!
+  $__mixer = { volume: 1.0, drive: 0.5 }
+  __mixer_set(reset: 1)
+  nil
+end
+
+def set_mixer_invert_stereo! = __mixer_set(invert_stereo: 1)
+def set_mixer_standard_stereo! = __mixer_set(invert_stereo: 0, force_mono: 0)
+def set_mixer_mono_mode! = __mixer_set(force_mono: 1)
+def set_mixer_stereo_mode! = __mixer_set(force_mono: 0)
 def with_timing_warnings(*_a, &blk) = blk&.call
 def with_tempo(*a, **o, &blk) = with_bpm(*a, **o, &blk)
 
@@ -1923,7 +1968,7 @@ def midi_clock_sources = Ring.new([])
 def tracks = Ring.new([])
 def midi_sync(*_a, **_o) = nil
 
-%i[reset clear reset_mixer! set_control_delta! set_drive! set_recording_bit_depth! use_arg_bpm_scaling
+%i[reset clear set_control_delta! set_recording_bit_depth! use_arg_bpm_scaling
    use_midi_logging use_osc_logging use_merged_midi_defaults scsynth_info].each do |m|
   define_method(m) { |*_a, **_o| nil }
 end
@@ -2041,6 +2086,19 @@ def __main
       __kill_named(args[0])
     when "syn"
       $__synths = args[0].to_s.split(",")
+    when "cat"
+      ents, beats = args[0].to_s.split("\t", 2)
+      $__nat = {}
+      $__nnote = {}
+      $__ndef = {}
+      ents.to_s.split(",").each do |e|
+        n, note, kv = e.split("|", 3)
+        $__nat[n] = true
+        $__nnote[n] = note.to_f unless note.to_s.empty?
+        next if kv.to_s.empty?
+        $__ndef[n] = kv.split(";").to_h { |p| k, v = p.split("=", 2); [k.to_sym, v.to_f] }
+      end
+      $__beats = beats.to_s.split(",").map(&:to_sym)
     when "smp"
       # name or name=seconds (its length at rate 1)
       $__sdur = {}

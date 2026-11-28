@@ -91,8 +91,8 @@ func TestResampledSamplesAreClean(t *testing.T) {
 		}
 		mid := l[2000:44000]
 		got := audiotest.Purity(mid, 48000, c.hz)
-		// equal-power centre pan: 0.9 * 30000/32768 * cos(pi/4) peak, rms / sqrt 2
-		level := audiotest.RMS(mid) / (0.9 * 30000 / 32768 * math.Cos(math.Pi/4) / math.Sqrt2)
+		// equal-power centre pan: ToneGain * 30000/32768 * cos(pi/4) peak, rms / sqrt 2
+		level := audiotest.RMS(mid) / (ToneGain * 30000 / 32768 * math.Cos(math.Pi/4) / math.Sqrt2)
 		t.Logf("%s: everything else %.1f dB down, level %.3f", c.word, got, level)
 		if got < c.want {
 			t.Errorf("%s: unwanted energy only %.1f dB down, want %.0f", c.word, got, c.want)

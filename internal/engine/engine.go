@@ -46,6 +46,7 @@ type Hit struct {
 	Ctl    *synth.Control
 	Raw    []byte      // a raw MIDI message for the outputs; it makes no sound
 	Slides *[5]float64 // note, amp, pan, cutoff, rate slide times (seconds)
+	Mix    MixerSet    // a change to the master mixer; it makes no sound
 }
 
 type stamp struct {
@@ -107,6 +108,7 @@ type Engine struct {
 
 	// effects
 	fx           *fxBus
+	mixer        mixerState
 	delaySeconds float64
 	delayFB      float64
 	pingPong     bool
@@ -144,7 +146,7 @@ type Voice = synth.Voice
 // New returns a stopped engine at 60 BPM, Sonic Pi's default.
 func New() *Engine {
 	return &Engine{bpm: 60, tracks: map[string]*track{}, internal: true,
-		fx: newFXBus(), delaySeconds: 0.25, delayFB: 0.45, roomSize: 0.6, roomDamp: 0.5, lastClock: -1,
+		fx: newFXBus(), mixer: newMixerState(), delaySeconds: 0.25, delayFB: 0.45, roomSize: 0.6, roomDamp: 0.5, lastClock: -1,
 		comp: compressor{set: DefaultComp}, eqA: eq{set: DefaultEQ}, eqB: eq{set: DefaultEQ}}
 }
 
@@ -553,9 +555,10 @@ func (e *Engine) Render(n int) []float32 {
 	e.fx.rev.set(e.roomSize, e.roomDamp)
 	e.fx.echo.set(e.delaySeconds, e.delayFB, e.pingPong)
 	e.fx.process(mix, e.dsend, e.rsend, e.csend)
+	e.mixer.process(mix)
 	out := mix
 	for i, v := range mix {
-		out[i] = limit(v) * outScale
+		out[i] = v * outScale
 	}
 	e.samples += int64(n)
 	if e.rec != nil {
@@ -599,6 +602,10 @@ func (e *Engine) startHits(n int) {
 					e.emit(Event{Kind: KindRaw, At: at, Data: h.Raw})
 				}
 			}
+			continue
+		}
+		if h.Mix != nil {
+			e.mixer.set = e.mixer.set.Apply(h.Mix)
 			continue
 		}
 		if h.Ctl != nil {

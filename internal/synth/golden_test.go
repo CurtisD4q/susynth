@@ -98,6 +98,6 @@ var goldenVoices = map[string]uint64{
 	"sn fx":     0x4f74ce1fce217e8c,
 	"hh":        0x9005c3893b3299e6,
 	"cp":        0xcc5880ffb8d3bded,
-	"sample":    0x9b79e53fac8ca8f9,
-	"sample fx": 0xa9492360609027d6,
+	"sample":    0x22df46dc71505045,
+	"sample fx": 0xa1735a816673551,
 }

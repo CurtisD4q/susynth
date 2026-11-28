@@ -27,10 +27,11 @@ const (
 	pageSettings
 	pageHelp
 	pagePerform
+	pageMixer
 	numPages
 )
 
-var pageNames = [numPages]string{"Play", "Sets", "Recordings", "Sounds", "Settings", "Help", "Perform"}
+var pageNames = [numPages]string{"Play", "Sets", "Recordings", "Sounds", "Settings", "Help", "Perform", "Mixer"}
 
 // pageStep reports +1 or -1 for a next/previous page key, otherwise 0.
 // Esc f / Esc b (and Alt+f / Alt+b) are the pair to use: f and b are
@@ -476,6 +477,7 @@ var helpLines = []helpLine{
 	{key: "Ctrl+↑↓", text: "nudge the number under the cursor; while playing it is heard on the next beat"},
 	{text: "Shift+Ctrl+↑↓ moves it 10×. Esc ↑ / Esc ↓ do the same where Ctrl+↑↓ is taken (macOS)."},
 	{key: "Esc r", text: "switch the right-hand pane between Tracks and the piano roll"},
+	{key: "Esc m", text: "the pages pop-up; the Mixer page is Sonic Pi's master mixer (volume, drive, filters, mono, limiter)"},
 	{key: "Esc t / a", text: "next theme / next audio output"},
 	{key: "Esc x", text: "export the set as a MIDI file (runs silently in a second sandbox)"},
 	{key: "Esc n / p", text: "perform: next / previous set in the set list"},
@@ -542,6 +544,8 @@ func (a *App) pageInfo() string {
 		return "saved automatically"
 	case pagePerform:
 		return "set list · " + txt.Count(len(a.setlist), "set")
+	case pageMixer:
+		return "master mixer"
 	case pageHelp:
 		return "↑↓ PgUp PgDn scroll"
 	}

@@ -46,7 +46,7 @@ func optInScene() uint64 {
 // The compressor, EQ and chorus are opt-in: a set that does not use them
 // sounds bit-for-bit as it did before they existed.
 func TestDynamicsAreOptIn(t *testing.T) {
-	const before = 0x2e59615a3e8b9e39 // recorded before the supersaw became a native voice; the older voices are unchanged bit for bit
+	const before uint64 = 0xd4f0890917dbd830 // re-recorded when voices were raised to Sonic Pi's level (ToneGain); the set is otherwise unchanged
 	if got := optInScene(); got != before {
 		t.Fatalf("a set without compressor/EQ/chorus changed: hash %#x, was %#x", got, before)
 	}

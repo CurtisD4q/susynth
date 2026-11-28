@@ -539,6 +539,9 @@ func Translate(m rubyvm.Msg) (engine.Hit, Globals, error) {
 		}
 		h.Raw = raw
 		return h, g, nil
+	case "x": // the master mixer
+		h.Mix = engine.MixerSet(kv)
+		return h, g, nil
 	case "c": // control a playing node
 		c := synth.NoControl()
 		c.Kill = get("kill", 0) != 0
@@ -734,7 +737,7 @@ func Collect(vm *rubyvm.VM, code string, seconds float64) ([]engine.Hit, float64
 		switch m.Kind() {
 		case "ev":
 			if h, _, e := Translate(m); e == nil {
-				if h.Ctl != nil {
+				if h.Ctl != nil || h.Mix != nil {
 					continue // control changes a sound; MIDI export keeps the note as it started
 				}
 				hits = append(hits, h)

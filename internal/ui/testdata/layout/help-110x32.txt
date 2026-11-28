@@ -11,7 +11,7 @@
   ⚙   KEYS ON EACH PAGE                                                                                     █
   ?   Sets                   ↑↓ select · Enter load · a add to the set list · n new · d delete (asks        █
   ◈   first)                                                                                                │
-      Recordings             ↑↓ select · Enter show the path · d delete (asks first)                        │
+  ▮   Recordings             ↑↓ select · Enter show the path · d delete (asks first)                        │
       Sounds                 ↑↓ select · ←→ fold a group · Enter preview or fold · i insert the example     │
       Settings               ↑↓ select · ←→ change · Enter edit or reload where it says so                  │
       Help                   ↑↓ PgUp PgDn scroll                                                            │

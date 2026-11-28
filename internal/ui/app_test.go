@@ -191,8 +191,8 @@ func TestPageKeysSkipTheEditor(t *testing.T) {
 	}
 	a.page = pagePlay
 	a.handleKey(key{kind: kRune, r: 'b', alt: true})
-	if a.page != pagePerform {
-		t.Fatalf("Alt+b from Play -> page %d, want Perform", a.page)
+	if a.page != pageMixer {
+		t.Fatalf("Alt+b from Play -> page %d, want Mixer", a.page)
 	}
 	a.handleKey(key{kind: kRune, r: 'f', alt: true})
 	if a.page != pagePlay {
@@ -412,5 +412,35 @@ func TestRunBlockIsHighlighted(t *testing.T) {
 	got := frameText(a)
 	if strings.Count(got, "┊") < 3 {
 		t.Fatal("the live_loop ^E would run is not highlighted")
+	}
+}
+
+// TestMixerPage: the Mixer page shows the master mixer and changes it.
+func TestMixerPage(t *testing.T) {
+	a := testApp()
+	a.changeMixer(mixVolume, -1, false)
+	if m := a.eng.Mixer(); m.Amp < 0.94 || m.Amp > 0.96 {
+		t.Fatalf("volume after one step down: %v", m.Amp)
+	}
+	if v := a.mixerValue(mixVolume); v != "95%" {
+		t.Fatalf("volume shows %q", v)
+	}
+	a.changeMixer(mixMono, 1, false)
+	a.changeMixer(mixLimiter, 1, false)
+	m := a.eng.Mixer()
+	if !m.ForceMono || !m.LimiterBypass {
+		t.Fatalf("toggles: %+v", m)
+	}
+	a.changeMixer(mixHPF, 1, false)
+	if v := a.mixerValue(mixHPF); v != "note 30" {
+		t.Fatalf("high-pass %q", v)
+	}
+	a.changeMixer(mixHPF, -1, false)
+	if v := a.mixerValue(mixHPF); v != "off" {
+		t.Fatalf("high-pass back %q", v)
+	}
+	a.changeMixer(mixReset, 1, true)
+	if a.eng.Mixer() != engine.DefaultMixer {
+		t.Fatalf("reset: %+v", a.eng.Mixer())
 	}
 }

@@ -218,6 +218,7 @@ type Voice struct {
 	ext                    *toneState // tones.go
 	so                     synthOpts  // synthopts.go
 	nat                    *native    // native.go: a Sonic Pi design ported as it is
+	trim                   float32    // this wave's level against Sonic Pi's (waveTrim)
 }
 
 type filterState struct{ lp, hp Filter }
@@ -234,6 +235,10 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 	name, variant := split(word)
 	v := &Voice{sr: float64(sr), delay: delay, gate: gate, rng: seed*2654435761 + 12345, wave: p.Wave}
 	v.speed = p.Speed
+	v.trim = 1
+	if x, ok := waveTrim[p.Wave]; ok {
+		v.trim = x
+	}
 	if v.speed <= 0 {
 		v.speed = 1
 	}
@@ -580,11 +585,23 @@ func (v *Voice) sample() float32 {
 			}
 			l, r = l*e, r*e
 		}
-		v.right = r * 0.9
-		return l * 0.9
+		v.right = r * ToneGain
+		return l * ToneGain
 	}
 	return v.tone()
 }
+
+// ToneGain is the level every voice is played at. The engine trims each voice
+// by 0.8 and the master stage by 28800/32768, so this makes a note come out
+// at the level Sonic Pi's synth or sample has before its mixer (a full-scale
+// sample peaks at full scale).
+// waveTrim brings the modelled waves to the level of the real synth (measured
+// by rendering both): the ported designs need none.
+var waveTrim = map[string]float32{"blade": 0.324, "hollow": 0.188, "ambience": 0.069,
+	"tri": 1.44, "dtri": 1.72, "fm": 1.33, "pluck": 1.4, "saw": 0.785, "prophet": 0.725, "square": 1.17, "dsaw": 1.25,
+	"bell": 0.83, "dullbell": 0.83}
+
+const ToneGain = 1 / (0.8 * 28800.0 / 32768)
 
 // sampleEnv is the sample's own envelope at this frame: a linear attack, then
 // a linear release either after the held length or ending with the sample.
@@ -671,18 +688,18 @@ func (v *Voice) toneBody() float32 {
 		}
 		if v.nat.lr != nil {
 			l, r := v.nat.lr()
-			v.right = float32(r) * env * 0.35
-			return float32(l) * env * 0.35
+			v.right = float32(r) * env * ToneGain
+			return float32(l) * env * ToneGain
 		}
 		x := v.nat.next()
 		if v.nat.done != nil && v.nat.done() {
 			v.done = true
 		}
-		return float32(x) * env * 0.35
+		return float32(x) * env * ToneGain
 	}
 	var s float32
 	if extWaves[v.wave] {
-		return v.toneExt() * env * 0.35 * float32(v.so.velGain(v.wave))
+		return v.toneExt() * env * ToneGain * v.trim * float32(v.so.velGain(v.wave))
 	}
 	switch v.wave {
 	case "sine":
@@ -735,5 +752,5 @@ func (v *Voice) toneBody() float32 {
 		v.lp += 0.3 * (raw - v.lp)
 		s = v.lp
 	}
-	return s * env * 0.35
+	return s * env * ToneGain * v.trim
 }
