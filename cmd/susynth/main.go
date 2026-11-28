@@ -60,6 +60,7 @@ func main() {
 		case "samples":
 			loadSamples()
 			banks := synth.Banks()
+			fmt.Printf("built in: %d Sonic Pi samples (sample :loop_amen …)\n", len(synth.BuiltinSamples()))
 			fmt.Printf("samples folder: %s\n", paths.SamplesDir())
 			if len(banks) == 0 {
 				fmt.Println("no banks found (make a sub-folder per bank and put .wav files in it)")
@@ -99,7 +100,7 @@ func loadSamples() {
 // first start takes a while.
 func startRuby() (*rubyvm.VM, bool) {
 	vm := rubyvm.Start(paths.CacheDir())
-	vm.SetTables(synth.SynthNames(), synth.SampleNames())
+	vm.SetTables(synth.SynthNames(), synth.SampleTable())
 	select {
 	case <-vm.Ready():
 	case <-time.After(2 * time.Second):

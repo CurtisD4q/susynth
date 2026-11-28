@@ -174,8 +174,15 @@ func SynthNames() []string {
 // names and the user's banks.
 func SampleNames() []string {
 	var out []string
+	seen := map[string]bool{}
 	for _, s := range SonicSamples {
 		out = append(out, s.Name)
+		seen[s.Name] = true
+	}
+	for _, n := range BuiltinSamples() {
+		if !seen[n] {
+			out = append(out, n)
+		}
 	}
 	for _, b := range Banks() {
 		out = append(out, b.Name)
@@ -200,7 +207,7 @@ var fileCache struct {
 // a .wav path, or a built-in Sonic Pi drum.
 func ResolveSample(name string, idx int) (string, error) {
 	lower := strings.ToLower(name)
-	if strings.HasSuffix(lower, ".wav") || strings.ContainsAny(name, `/\`) {
+	if strings.HasSuffix(lower, ".wav") || strings.HasSuffix(lower, ".flac") || strings.ContainsAny(name, `/\`) {
 		return loadFile(name)
 	}
 	if lookupSample(lower, 0) != nil {
@@ -208,6 +215,9 @@ func ResolveSample(name string, idx int) (string, error) {
 	}
 	if key := fileInBank(lower); key != "" {
 		return key, nil
+	}
+	if key, err := builtinKey(lower); key != "" || err != nil {
+		return key, err
 	}
 	if d, ok := sampleByName[lower]; ok {
 		return d, nil
@@ -224,6 +234,9 @@ func fileInBank(base string) string {
 		return "@" + base
 	}
 	for _, b := range reg.banks {
+		if strings.HasPrefix(b.Name, "@") { // only the user's own banks
+			continue
+		}
 		for _, s := range b.Samples {
 			if strings.ToLower(strings.TrimSuffix(s.Name, filepath.Ext(s.Name))) == base {
 				reg.banks["@"+base] = &Bank{Name: "@" + base, Samples: []*Sample{s}}
@@ -248,8 +261,9 @@ func loadFile(path string) (string, error) {
 	if k, ok := fileCache.keys[path]; ok {
 		return k, nil
 	}
-	if !strings.HasSuffix(strings.ToLower(path), ".wav") {
-		return "", errors.New("only .wav files can be loaded")
+	isFLAC := strings.HasSuffix(strings.ToLower(path), ".flac")
+	if !strings.HasSuffix(strings.ToLower(path), ".wav") && !isFLAC {
+		return "", errors.New("only .wav and .flac files can be loaded")
 	}
 	info, err := os.Stat(path)
 	if err != nil {
@@ -262,14 +276,20 @@ func loadFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	s, err := ParseWAV(b)
-	if err != nil {
-		return "", fmt.Errorf("sample %q: %w", path, err)
+	var s *Sample
+	if isFLAC {
+		if s, err = sampleFromFLAC(b); err != nil {
+			return "", fmt.Errorf("sample %q: %w", path, err)
+		}
+	} else {
+		if s, err = ParseWAV(b); err != nil {
+			return "", fmt.Errorf("sample %q: %w", path, err)
+		}
+		if s.prepared() > maxSampleTotal {
+			return "", fmt.Errorf("sample %q is too long to load", path)
+		}
+		s.prepare()
 	}
-	if s.prepared() > maxSampleTotal {
-		return "", fmt.Errorf("sample %q is too long to load", path)
-	}
-	s.prepare()
 	s.Name = filepath.Base(path)
 	key := fmt.Sprintf("@file%d", len(fileCache.keys)+1)
 	reg.Lock()

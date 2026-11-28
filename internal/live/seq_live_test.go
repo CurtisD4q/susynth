@@ -45,12 +45,12 @@ func TestChangeIsHeardOnTheNextBeat(t *testing.T) {
 	clock(e, s, 3.5)
 	got := strings.Join(heard(e), "\n")
 	// Ruby had already sent the note at 1.5 s or so; the next beat is 2 s.
-	for _, w := range []string{"1.03 a bd", "2.03 a sn", "3.03 a sn"} { // the first run started at 0.03
+	for _, w := range []string{"1.03 a @sp.bd_haus", "2.03 a @sp.drum_snare_hard", "3.03 a @sp.drum_snare_hard"} { // the first run started at 0.03
 		if !strings.Contains(got, w) {
 			t.Errorf("missing %q in\n%s", w, got)
 		}
 	}
-	if strings.Contains(got, "2.03 a bd") {
+	if strings.Contains(got, "2.03 a @sp.bd_haus") {
 		t.Errorf("the old loop played on the beat it handed over:\n%s", got)
 	}
 	var ran *Note
@@ -89,7 +89,7 @@ func TestMixInKeepsTheOldSetAndMutesTheNew(t *testing.T) {
 	got := strings.Join(heard(e), "\n")
 	// the new set starts on the next bar, 2 s at 120 bpm
 	// (the first run started at 0.03, and the bars count from there)
-	if !strings.Contains(got, "2.03 drums sn") || !strings.Contains(got, "2.03 old/drums bd") || strings.Contains(got, "1.53 drums sn") {
+	if !strings.Contains(got, "2.03 drums @sp.drum_snare_hard") || !strings.Contains(got, "2.03 old/drums @sp.bd_haus") || strings.Contains(got, "1.53 drums @sp.drum_snare_hard") {
 		t.Errorf("notes:\n%s", got)
 	}
 	s.StopOld()

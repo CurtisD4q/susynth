@@ -363,6 +363,8 @@ func soundName(word string) string {
 	switch {
 	case word == "":
 		return ""
+	case strings.HasPrefix(word, "@sp."):
+		return strings.TrimPrefix(word, "@sp.")
 	case strings.HasPrefix(word, "@"):
 		return "sample"
 	}

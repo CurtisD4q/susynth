@@ -64,11 +64,18 @@ The pages are icons down the left. Press `m` to open them as a pop-up (in the ed
 * **The audio engine** (`internal/engine`) starts every note on its exact sample and mixes,
   records, and sends MIDI/OSC as before.
 
-Sonic Pi's synth, sample and effect **names** work, but the sounds are susynth's own
-synthesised voices (no SuperCollider, no sample files): `:prophet` plays a supersaw,
-`:bd_haus` plays the built-in kick, and so on. The Sounds page lists every name. Effects map onto
-susynth's own (below); effects with no equivalent are skipped with a note. Put your own `.wav` files in the samples folder to use real samples
-(`sample :mybank, 2`, `sample :kick`, or `sample "~/path/to/file.wav"`).
+Sonic Pi's synth, sample and effect **names** work. The synths are susynth's own
+synthesised voices (no SuperCollider): `:prophet` plays a supersaw, and so on. The
+**samples are Sonic Pi's own**: all 206 of them (`:loop_amen`, `:ambi_choir`, `:bd_haus`, …)
+are built in, released by the Sonic Pi project under CC0 (see
+`internal/synth/sonicpi_samples/README.md`), with `start:`, `finish:`, `slice:`, `rate:`
+(negative plays backwards), `beat_stretch:`, `rpitch:`, `attack:`/`sustain:`/`release:` and
+`sample_duration`. The Sounds page lists every name. Effects map onto susynth's own (below);
+effects with no equivalent are skipped with a note. A synth or sample susynth hasn't got
+plays `:beep` or is skipped, with a note, so the rest of the music carries on. Put your own
+`.wav` or `.flac` files in the samples folder to add samples (`sample :mybank, 2`,
+`sample :kick`, or `sample "~/path/to/file.wav"`); a file of your own with a built-in's name
+plays instead of it.
 
 The engine works in 32-bit float to the sound card and records 24-bit WAVs. Synths have
 Sonic Pi's ADSR envelope (`attack:`, `decay:`, `sustain:`, `release:` and their `_level`s) and a
@@ -89,7 +96,7 @@ To **run** a prebuilt binary:
 | Sound | Recommended | Linux: PulseAudio or PipeWire, or ALSA (`libasound.so.2`, installed on nearly every desktop). macOS: nothing extra. Without sound it runs silent and can still record. |
 | Disk space | Yes | About 20 MB for the program, plus about 85 MB of cache the first time Ruby is compiled. |
 | Ruby, SuperCollider, Sonic Pi | No | Ruby is built in. No other music software is needed. |
-| Your own samples | Optional | `.wav` files (8/16/24/32-bit or float) in the samples folder. |
+| Your own samples | Optional | `.wav` files (8/16/24/32-bit or float) or `.flac` files in the samples folder. |
 | MIDI device | Optional | Linux raw MIDI device (for example `/dev/snd/midiC1D0`) for live MIDI out. |
 | SuperDirt | Optional | Only if you want to send notes to SuperCollider over OSC. |
 
@@ -138,7 +145,7 @@ susynth examples/first.rb
 susynth render -seconds 30 set.rb   # render a WAV, no sound device needed
 susynth midi -seconds 30 set.rb     # export a Standard MIDI File
 susynth check set.rb                # syntax check, then run 8 s silently to catch errors
-susynth samples                     # list loaded sample banks
+susynth samples                     # list loaded sample banks (and the built-in count)
 susynth devices                     # audio outputs and MIDI devices
 ```
 
