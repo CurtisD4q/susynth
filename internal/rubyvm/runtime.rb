@@ -1261,6 +1261,7 @@ def play(n = :__none, *rest, **opts, &_blk)
     return sample(path, **o.except(:path, :note, :on))
   end
   s = __synth_name(sn)
+  o = NATIVE_DEFAULTS[s.to_s].merge(o) if NATIVE_DEFAULTS.key?(s.to_s)
   if SOUND_IN.include?(s.to_s)
     __warn_once("sndin", "synth #{s.inspect} needs a live audio input, which susynth hasn't got; it is skipped")
     return nil
@@ -1280,6 +1281,7 @@ def play(n = :__none, *rest, **opts, &_blk)
     (v = __beats(o, k, bpm)) && ev[s] = v
   end
   ev[:cmin] = o[:cutoff_min].to_f if o.key?(:cutoff_min)
+  ev[:ec] = o[:env_curve].to_f if o[:env_curve].is_a?(Numeric)
   ev[:cutoff] = o[:cutoff].to_f if o[:cutoff]
   ev[:res] = o[:res].to_f if o[:res]
   __synth_opts(ev, s.to_s, o, bpm)
@@ -1304,10 +1306,28 @@ end
 SYNTH_OPTS = { detune: :det, divisor: :div, depth: :dep, vel: :vel, vibrato_rate: :vr, vibrato_depth: :vd,
                vibrato_delay: :vdl, vibrato_onset: :von }.freeze
 
+# NATIVE_SYNTHS are the voices ported straight from Sonic Pi's own designs
+# (internal/synth/native.go): they take their options by Sonic Pi's names.
+# NATIVE_BEATS are the options that are lengths of time in beats, and
+# NATIVE_DEFAULTS what a synth's attack is when it is not the usual 0.
+NATIVE_SYNTHS = %w[bass_foundation bass_highend winwood_lead zawa supersaw subpulse chiplead chipbass tb303 hoover tech_saws growl].freeze
+NATIVE_BEATS = %i[attack decay sustain release cutoff_attack cutoff_decay cutoff_sustain cutoff_release phase].freeze
+NATIVE_DEFAULTS = { "tb303" => { attack: 0.01 }.freeze, "hoover" => { attack: 0.05 }.freeze,
+                    "growl" => { attack: 0.1 }.freeze }.freeze
+
 # The mod_ synths sweep their note up by mod_range semitones on an
 # oscillator (a pulse by default) one mod_phase beats long.
 def __synth_opts(ev, synth, o, bpm)
   SYNTH_OPTS.each { |k, d| ev[d] = o[k].to_f if o[k].is_a?(Numeric) }
+  if NATIVE_SYNTHS.include?(synth)
+    # these voices are Sonic Pi's own designs and read every option by name
+    o.each do |k, val|
+      next unless val.is_a?(Numeric) || val == true || val == false
+      val = val == true ? 1 : (val == false ? 0 : val)
+      val = val.to_f * 60.0 / bpm if NATIVE_BEATS.include?(k)
+      ev[:"o_#{k}"] = val.to_f
+    end
+  end
   return unless synth.start_with?("mod_")
   ev[:mr] = (o[:mod_range] || 5).to_f
   ev[:mp] = (o[:mod_phase] || 0.25).to_f * 60.0 / bpm

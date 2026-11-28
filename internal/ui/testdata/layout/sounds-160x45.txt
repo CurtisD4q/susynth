@@ -9,26 +9,26 @@
   ●     mod_beep             sine                                                                                                                    ▶ preview█
   ♪     saw                  saw, gently low-passed                                                                                                  ▶ preview█
   ⚙     mod_saw              saw                                                                                                                     ▶ preview█
-  ?     tb303                acid bass: resonant filter sweep                                                                                        ▶ preview█
-  ◈     zawa                 saw                                                                                                                     ▶ preview│
-        growl                saw                                                                                                                     ▶ preview│
-        winwood_lead         saw lead                                                                                                                ▶ preview│
-        bass_foundation      saw bass                                                                                                                ▶ preview│
-        bass_highend         saw bass                                                                                                                ▶ preview│
+  ?     tb303                Roland TB-303 style bass (Sonic Pi's design)                                                                            ▶ preview█
+  ◈     zawa                 sync saw wobble (Sonic Pi's design)                                                                                     ▶ preview│
+        growl                growling saw and sine (Sonic Pi's design)                                                                               ▶ preview│
+        winwood_lead         Winwood lead (Sonic Pi's design)                                                                                        ▶ preview│
+        bass_foundation      saw bass (Sonic Pi's design)                                                                                            ▶ preview│
+        bass_highend         driven saw bass (Sonic Pi's design)                                                                                     ▶ preview│
         dsaw                 two saws a tenth of a semitone apart                                                                                    ▶ preview│
         mod_dsaw             two detuned saws                                                                                                        ▶ preview│
-        supersaw             five detuned saws                                                                                                       ▶ preview│
+        supersaw             supersaw (Sonic Pi's design)                                                                                            ▶ preview│
         prophet              pulse-width-modulated pulses, Prophet-style                                                                             ▶ preview│
         blade                saw with vibrato through violin formants                                                                                ▶ preview│
-        hoover               detuned saws                                                                                                            ▶ preview│
-        tech_saws            detuned saws                                                                                                            ▶ preview│
+        hoover               the rave hoover (Sonic Pi's design)                                                                                     ▶ preview│
+        tech_saws            stereo detuned saws through a reverb (Sonic Pi's design)                                                                ▶ preview│
         square               square, low-passed                                                                                                      ▶ preview│
         pulse                square                                                                                                                  ▶ preview│
-        subpulse             square                                                                                                                  ▶ preview│
+        subpulse             pulse with a sub sine (Sonic Pi's design)                                                                               ▶ preview│
         dpulse               two pulses a tenth of a semitone apart                                                                                  ▶ preview│
         mod_pulse            square                                                                                                                  ▶ preview│
-        chipbass             chiptune square bass                                                                                                    ▶ preview│
-        chiplead             chiptune square lead                                                                                                    ▶ preview│
+        chipbass             chiptune triangle bass (Sonic Pi's design)                                                                              ▶ preview│
+        chiplead             chiptune pulse lead (Sonic Pi's design)                                                                                 ▶ preview│
         tri                  triangle                                                                                                                ▶ preview│
         dtri                 two triangles a tenth of a semitone apart                                                                               ▶ preview│
         mod_tri              triangle                                                                                                                ▶ preview│

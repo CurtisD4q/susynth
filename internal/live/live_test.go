@@ -30,13 +30,13 @@ func vm(t *testing.T) *rubyvm.VM {
 }
 
 func TestTranslate(t *testing.T) {
-	h, g, err := Translate(rubyvm.Msg{"ev", "0.500000", "bass", "7", "p", "tb303", "n=40.0,amp=0.8,pan=-0.5,a=0.1,r=0.25,cutoff=80.0,room=0.4,rsize=0.7"})
+	h, g, err := Translate(rubyvm.Msg{"ev", "0.500000", "bass", "7", "p", "tb303", "n=40.0,amp=0.8,pan=-0.5,a=0.1,r=0.25,cutoff=80.0,o_cutoff=80.0,room=0.4,rsize=0.7"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h.At != 24000 || h.Track != "bass" || h.Line != 7 || h.Word != "40" || h.Params.Wave != "saw" ||
+	if h.At != 24000 || h.Track != "bass" || h.Line != 7 || h.Word != "40" || h.Params.Wave != "tb303" ||
 		h.Params.Gain != 0.8 || h.Params.Pan != -0.5 || h.Params.Release != 0.25 || h.Params.Attack != 0.1 ||
-		h.Gate != 4800 || math.Abs(h.Params.LPF-830.61) > 0.1 || h.Params.Room != 0.4 || !g.RoomSet || g.RoomSize != 0.7 {
+		h.Gate != 4800 || h.Params.Opt["cutoff"] != 80 || h.Params.LPF != 0 || h.Params.Room != 0.4 || !g.RoomSet || g.RoomSize != 0.7 {
 		t.Errorf("%+v %+v", h, g)
 	}
 	h, _, err = Translate(rubyvm.Msg{"ev", "1", "drums", "2", "s", "drum_tom_mid_hard", "amp=1,rate=-2"})
@@ -294,13 +294,12 @@ play 40
 		a.DecayLevel != 0 || gates[0] != 28800 {
 		t.Errorf("envelope: %+v gate %d", a, gates[0])
 	}
-	b := ps[1] // tb303 defaults: cutoff 120, cutoff_min 30, res 0.9, filter env follows the amp env
-	if math.Abs(b.LPF-midiHz(120)) > 0.01 || math.Abs(b.CutoffMin-midiHz(30)) > 0.01 || b.Res != 0.9 ||
-		b.CutoffEnv.Release != b.Release {
+	b := ps[1] // tb303 is a native voice: it has its own filter, and its defaults live there
+	if b.Wave != "tb303" || b.LPF != 0 || b.CutoffMin != 0 || b.Opt["attack"] != 0.01 || b.EnvShape != 5 || b.EnvCurve != 2 {
 		t.Errorf("tb303 defaults: %+v", b)
 	}
 	c := ps[2]
-	if math.Abs(c.LPF-midiHz(90)) > 0.01 || math.Abs(c.CutoffMin-midiHz(50)) > 0.01 || c.Res != 0.2 || c.CutoffEnv.Release != 0.2 {
+	if c.Opt["cutoff"] != 90 || c.Opt["cutoff_min"] != 50 || c.Opt["res"] != 0.2 || math.Abs(c.Opt["cutoff_release"]-0.2) > 1e-9 {
 		t.Errorf("tb303 options: %+v", c)
 	}
 	if d := ps[3]; d.LPF != 0 || d.CutoffMin != 0 || d.Res != 0 {
