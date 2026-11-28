@@ -1853,6 +1853,39 @@ def midi_pc(program, **o) = midi_program_change(program, **o)
   end
 end
 
+# invert_chord moves the lowest note up an octave (shift > 0) or the highest
+# down one (shift < 0), shift times.
+def invert_chord(notes, shift)
+  a = notes.to_a
+  raise ArgumentError, "invert_chord needs a list of notes" if a.empty?
+  shift = shift.to_i
+  shift.abs.times do
+    a = shift > 0 ? a.drop(1) + [a.first + 12] : [a.last - 12] + a.take(a.size - 1)
+  end
+  Ring.new(a)
+end
+
+# Sample packs are folders Sonic Pi looks sample names up in. susynth looks in
+# the samples folder in Settings instead, so these carry on with a note.
+%i[use_sample_pack use_sample_pack_as].each do |m|
+  define_method(m) do |*_a, **_o|
+    __warn_once("pack#{m}", "#{m} isn't in susynth; put the samples in the Settings samples folder")
+    nil
+  end
+end
+%i[with_sample_pack with_sample_pack_as].each do |m|
+  define_method(m) do |*_a, **_o, &blk|
+    __warn_once("pack#{m}", "#{m} isn't in susynth; put the samples in the Settings samples folder")
+    blk&.call
+  end
+end
+%i[use_timing_warnings use_external_synths use_midi_ports set_mixer_invert_stereo! set_mixer_mono_mode!
+   set_mixer_standard_stereo! set_mixer_stereo_mode! set_mixer_global_timewarp!].each do |m|
+  define_method(m) { |*_a, **_o| nil }
+end
+def with_timing_warnings(*_a, &blk) = blk&.call
+def with_tempo(*a, **o, &blk) = with_bpm(*a, **o, &blk)
+
 def midi_notes(*a) = Ring.new(a.map { |x| note(x) })
 def midi_clock_sources = Ring.new([])
 def tracks = Ring.new([])
