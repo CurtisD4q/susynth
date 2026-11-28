@@ -91,8 +91,9 @@ func init() {
 	})
 
 	type crush struct {
-		count [2]float64
+		count [2]float32 // single precision, as scsynth counts: when a hold lands depends on it
 		held  [2]float64
+		begun [2]bool
 		lp    [2]butter
 	}
 	defFX("bitcrusher", 1, map[string]float64{"sample_rate": 10000, "bits": 8, "cutoff": 0},
@@ -102,11 +103,22 @@ func init() {
 			rate, bits := f.g("sample_rate"), f.g("bits")
 			m := math.Pow(2, math.Max(1, math.Min(bits, 31))-1)
 			hz := midicps(f.g("cutoff"))
+			step := float32(rate) * float32(1/f.sr)
 			stereo(out, in, func(ch int, x float64) float64 {
-				st.count[ch] += rate
-				if st.count[ch] >= f.sr {
-					st.count[ch] -= f.sr
-					st.held[ch] = (math.Floor(x*m) + 0.5) / m
+				if !st.begun[ch] { // Decimator's count starts one step in
+					st.begun[ch] = true
+					st.count[ch] = step
+				}
+				st.count[ch] += step
+				if st.count[ch] >= 1 {
+					st.count[ch]--
+					// scsynth's quantiser works on the magnitude and steps half a level
+					// down: a tiny positive input, and silence, come out as -0.5/m
+					if x >= 0 {
+						st.held[ch] = (math.Floor(x*m-0.5) + 0.5) / m
+					} else {
+						st.held[ch] = -(math.Floor(-x*m-0.5) + 0.5) / m
+					}
 				}
 				y := st.held[ch]
 				if f.g("cutoff") > 0 {

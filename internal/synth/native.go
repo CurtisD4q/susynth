@@ -1,6 +1,9 @@
 package synth
 
-import "math"
+import (
+	"math"
+	"sync"
+)
 
 // Native voices are Sonic Pi's own synth designs ported unit generator by
 // unit generator from the compiled SynthDefs (etc/synthdefs in Sonic Pi),
@@ -210,7 +213,12 @@ func sawBL(p, dt float64) float64 { return 0.5 * (2*p - 1 - polyBLEP(p, dt)) }
 
 // pulseBL is SuperCollider's Pulse of width w: band-limited, with no DC, and
 // half the size of an LFPulse.
-func pulseBL(p, dt, w float64) float64 { return 0.5 * blepPulse(p, dt, w) }
+func pulseBL(p, dt, w float64) float64 {
+	if w >= 1 { // scsynth takes the fraction of a width past one (1.2 plays as 0.2)
+		w -= math.Floor(w)
+	}
+	return 0.5 * blepPulse(p, dt, w)
+}
 
 // osc is a phase accumulator.
 type osc struct{ p float64 }
@@ -697,12 +705,11 @@ type fvAllp struct {
 
 func newFreeVerb(sr, mix, room, damp float64) *freeVerb {
 	z := &freeVerb{mix: clamp(mix, 0, 1)}
-	k := sr / 44100
 	for i, n := range [8]int{1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617} {
-		z.comb[i].buf = make([]float64, int(float64(n)*k))
+		z.comb[i].buf = make([]float64, n)
 	}
 	for i, n := range [4]int{556, 441, 341, 225} {
-		z.allp[i].buf = make([]float64, int(float64(n)*k))
+		z.allp[i].buf = make([]float64, n)
 	}
 	z.fb = clamp(room, 0, 1)*0.28 + 0.7
 	z.d = clamp(damp, 0, 1) * 0.4
@@ -715,12 +722,16 @@ func (z *freeVerb) run(x float64) float64 {
 	for i := range z.comb {
 		c := &z.comb[i]
 		y := c.buf[c.i]
+		// scsynth's FreeVerb sums each comb's output with the next entry in
+		// its ring (measured against scsynth: the echo arrives as two
+		// samples and the reverb is about twice as loud and longer)
+		next := c.buf[(c.i+1)%len(c.buf)]
 		c.store = y*(1-z.d) + c.store*z.d
 		c.buf[c.i] = in + c.store*z.fb
 		if c.i++; c.i == len(c.buf) {
 			c.i = 0
 		}
-		out += y
+		out += y + next
 	}
 	for i := range z.allp {
 		a := &z.allp[i]
@@ -741,10 +752,10 @@ const freeVerbWet = 1
 
 func newTechSaws(v *Voice, o func(string, float64) float64) *native {
 	cut := &cutoffHolder{o("cutoff", 130)}
-	rq := rqOf(0) // Sonic Pi clips res with its limits the wrong way round (Clip(res, 1, 0)): the filter has no resonance
-	if o("res", 0.7) < 0 {
-		rq = 1
-	}
+	// Sonic Pi maps res with Clip(res, 1, 0), the limits the wrong way round,
+	// so for res in 0..1 the filter's rq is 0 (scsynth measured: a strong
+	// resonance at the top of the spectrum).
+	rq := 0.0
 	var ph [10]osc
 	var dl [10]*delayLine
 	var det, dly [10]float64
@@ -1091,10 +1102,28 @@ func newRodeo(v *Voice, o func(string, float64) float64) *native {
 	cut := &cutoffHolder{o("cutoff", 95)}
 	rq := o("rq", 0.5)
 	var p1, p2 osc
-	var s [4][2]float64 // four biquads' two delays (x1, x2) and (y1, y2) kept below
 	var x1, x2, y1, y2 [4]float64
-	_ = s
 	n := 0
+	// Sonic Pi starts rodeo with its chorus and compressor on (use_chorus: 1,
+	// use_compressor: 1); the synthdef's own defaults are off.
+	useChorus, useComp := o("use_chorus", 1) != 0, o("use_compressor", 1) != 0
+	var dl [4]*delayC
+	// the chorus delays were picked with rrand(0.005, 0.02) when Sonic Pi's
+	// rodeo synthdef was compiled, so they are the same every time
+	maxd := [4]float64{0.00525897, 0.0170652, 0.0195377, 0.00738289}
+	var lfn [4]lfNoise1
+	for i := range dl {
+		dl[i] = newDelayC(maxd[i], v.sr)
+		lfn[i] = newLFNoise1(0.1+0.5*rand01(v), v)
+	}
+	// Splay.ar: four sources panned from left to right with equal power
+	// pans, at 1/sqrt(4) each
+	var gl, gr [4]float64
+	for i := range gl {
+		pos := -1 + 2*float64(i)/3
+		a := (pos + 1) * math.Pi / 4
+		gl[i], gr[i] = 0.5*math.Cos(a), 0.5*math.Sin(a)
+	}
 	run := func(k int, x, a0, a1, b1, b2 float64) float64 {
 		y := a0*x + a1*x1[k] + a0*x2[k] + b1*y1[k] + b2*y2[k]
 		x2[k], x1[k] = x1[k], x
@@ -1121,11 +1150,50 @@ func newRodeo(v *Voice, o func(string, float64) float64) *native {
 			lo := 0.7 * pulseBL(p1.step(v.freq/v.sr), v.freq/v.sr, 0.2)
 			a := run(1, run(0, lo, a0, a1, b1, b2), a0, a1, b1, b2)
 			b := run(3, run(2, hi, a0, a1, b1, b2), a0, a1, b1, b2)
-			return a + b
+			if !useComp {
+				return a + b
+			}
+			// chorus: four delays of the low pulse, spread over the stereo
+			// field (or the dry pair when the chorus is off); then
+			// 2*(snd+chorus), which the Compander leaves alone (its control
+			// is amp_scale*snd, always below the 0.4 threshold, with slope 1
+			// there), and Mix adds the two channels
+			cl, cr := a, b
+			if useChorus {
+				cl, cr = 0, 0
+				for i := range dl {
+					dl[i].write(a)
+					y := dl[i].read((0.75 + 0.25*lfn[i].next()) * maxd[i] * v.sr)
+					cl += y * gl[i]
+					cr += y * gr[i]
+				}
+			}
+			return 2 * (a + b + cl + cr)
 		},
 		cut: func(m float64) { cut.midi = m },
 		cur: func() float64 { return cut.midi },
 	}
+}
+
+// lfNoise1 is SuperCollider's LFNoise1: random values at freq per second with
+// straight lines between them.
+type lfNoise1 struct {
+	v         *Voice
+	step, pos float64
+	from, to  float64
+}
+
+func newLFNoise1(freq float64, v *Voice) lfNoise1 {
+	return lfNoise1{v: v, step: freq / v.sr, from: 2*rand01(v) - 1, to: 2*rand01(v) - 1}
+}
+
+func (l *lfNoise1) next() float64 {
+	l.pos += l.step
+	for l.pos >= 1 {
+		l.pos--
+		l.from, l.to = l.to, 2*rand01(l.v)-1
+	}
+	return l.from + (l.to-l.from)*l.pos
 }
 
 // shapedAdsr is a Sonic Pi envelope with every move on one SuperCollider
@@ -1243,6 +1311,38 @@ func newOrgan(v *Voice, o func(string, float64) float64) *native {
 
 func init() { natives["piano"] = newPiano }
 
+var pianoGains sync.Map
+
+// pianoNoiseGain scales band b's filter so white noise through it has an rms
+// of one, as the measurements of the hammer were taken.
+func pianoNoiseGain(b int, sr float64) float64 {
+	key := [2]float64{float64(b), sr}
+	if g, ok := pianoGains.Load(key); ok {
+		return g.(float64)
+	}
+	lo, hi := pianoNoiseEdges[b], math.Min(pianoNoiseEdges[b+1], sr*0.45)
+	fc := math.Sqrt(lo * hi)
+	w := 2 * math.Pi * fc / sr
+	al := math.Sin(w) * (hi - lo) / (2 * fc)
+	var f biq
+	f.set(al, 0, -al, 1+al, -2*math.Cos(w), 1-al)
+	rng := uint32(12345)
+	var sum float64
+	const n = 100000
+	for i := 0; i < n+2000; i++ {
+		rng ^= rng << 13
+		rng ^= rng >> 17
+		rng ^= rng << 5
+		y := f.run(float64(rng)/float64(math.MaxUint32)*2 - 1)
+		if i >= 2000 {
+			sum += y * y
+		}
+	}
+	g := 1 / math.Sqrt(sum/n)
+	pianoGains.Store(key, g)
+	return g
+}
+
 // newPiano plays Sonic Pi's piano (an MdaPiano) from measurements of it: the
 // first sixteen partials, each with its own level and decay, stretched the way
 // a string's are, for the note and velocity (pianodata.go).
@@ -1285,12 +1385,50 @@ func newPiano(v *Voice, o func(string, float64) float64) *native {
 		t2[k] = math.Max((1-vf)*d[0]+vf*d[1], 0.02)
 		frq[k] = float64(k+1) * math.Sqrt(1+((1-vf)*bb[0]+vf*bb[1])*float64((k+1)*(k+1)))
 	}
+	// the hammer: noise in half-octave bands, each dying away on its own,
+	// measured from the piano like the partials
+	var na, nt [16]float64
+	var nfl [16]biq
+	var nz [16]float64
+	for b := 0; b < 16; b++ {
+		var a, t [2]float64
+		for j := 0; j < 2; j++ {
+			e0, e1 := pianoNoiseA[vi+j][ni][b], pianoNoiseA[vi+j][ni+1][b]
+			a[j] = mixLog(e0, e1, nf)
+			t[j] = (1-nf)*pianoNoiseT[vi+j][ni][b] + nf*pianoNoiseT[vi+j][ni+1][b]
+		}
+		na[b] = mixLog(a[0], a[1], vf)
+		nt[b] = math.Max((1-vf)*t[0]+vf*t[1], 0.005)
+		lo, hi := pianoNoiseEdges[b], math.Min(pianoNoiseEdges[b+1], v.sr*0.45)
+		if lo >= v.sr*0.45 || na[b] <= 0 {
+			na[b] = 0
+			continue
+		}
+		fc := math.Sqrt(lo * hi)
+		w := 2 * math.Pi * fc / v.sr
+		al := math.Sin(w) * (hi - lo) / (2 * fc)
+		nfl[b].set(al, 0, -al, 1+al, -2*math.Cos(w), 1-al)
+		nz[b] = pianoNoiseGain(b, v.sr)
+	}
+	rng := v.rng*2654435761 + 977
 	n := 0
 	return &native{
 		next: func() float64 {
 			t := float64(n) / v.sr
 			n++
 			var x float64
+			rng ^= rng << 13
+			rng ^= rng >> 17
+			rng ^= rng << 5
+			w := float64(rng)/float64(math.MaxUint32)*2 - 1
+			if t < 1 {
+				for b := range na {
+					if na[b] == 0 {
+						continue
+					}
+					x += nfl[b].run(w) * nz[b] * na[b] * math.Exp(-t/nt[b])
+				}
+			}
 			for k := 0; k < 16; k++ {
 				if a1[k] <= 0 && a2[k] <= 0 {
 					continue

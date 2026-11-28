@@ -38,7 +38,11 @@ func TestSonicPiVoices(t *testing.T) {
 	want := 440 * math.Pow(2, (52.0-69)/12) // 164.8 Hz
 	for _, w := range []string{"dsaw", "prophet", "blade", "bell", "piano", "hollow", "ambience"} {
 		f, rms := pitchOf(t, w)
-		semis := math.Abs(12 * math.Log2(f/want))
+		w0 := want
+		if w == "prophet" {
+			w0 = want / 2 // its half-rate pulse makes the period an octave down
+		}
+		semis := math.Abs(12 * math.Log2(f/w0))
 		if semis > 0.5 || rms < 0.02 || rms > 1.0 || math.IsNaN(rms) {
 			t.Errorf("%s: %.1f Hz (want %.1f), level %.3f", w, f, want, rms)
 		}

@@ -206,6 +206,7 @@ type Voice struct {
 	ext                    *toneState // tones.go
 	so                     synthOpts  // synthopts.go
 	nat                    *native    // native.go: a Sonic Pi design ported as it is
+	envNow                 float64    // the amplitude envelope now, for a native that uses it inside
 	trim                   float32    // this wave's level against Sonic Pi's (waveTrim)
 }
 
@@ -660,6 +661,7 @@ func (v *Voice) toneBody() float32 {
 		v.sweep()
 	}
 	if v.nat != nil {
+		v.envNow = float64(env)
 		if v.nat.own {
 			env = 1
 		}

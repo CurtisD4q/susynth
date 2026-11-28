@@ -1004,8 +1004,8 @@ def rand_skip(_n = 1) = nil
 
 # ---- sound ---------------------------------------------------------------------------
 
-# These play the block as it is: the autotuner's design is GPL.
-FX_DRY = %i[autotuner].freeze
+# Effects that play the block as it is (none: the autotuner is our own design).
+FX_DRY = %i[].freeze
 
 def __with(key, val, &blk)
   c = __ctx

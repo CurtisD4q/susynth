@@ -6,6 +6,10 @@ import "math"
 // cross-fades the two stereo results by spread. This one is our own
 // feedback-delay-network reverb tuned to GVerb's decay and level; it is not
 // GVerb's own algorithm.
+//
+// Its decay time, damping, early-reflection burst and levels were fitted to
+// impulse responses measured from scsynth's GVerb (the early burst as the
+// energy distribution of those responses, not GVerb's own tap table).
 
 type gverbCore struct {
 	lines [8][]float64
@@ -13,7 +17,11 @@ type gverbCore struct {
 	lp    [8]float64
 	early []float64
 	ew    int
-	taps  [8]int
+	etaps []int
+	esign []float64
+	esgn2 []float64 // the right channel's signs, for a spread above 0
+	bw    float64
+	lpIn  float64
 	gain  [8]float64
 	damp  float64
 }
@@ -22,7 +30,7 @@ var gverbLens = [8]float64{0.0297, 0.0371, 0.0411, 0.0437, 0.0533, 0.0611, 0.067
 
 func newGverbCore(sr, room, release, damp float64) *gverbCore {
 	g := &gverbCore{}
-	scale := math.Pow(math.Max(room, 1)/10, 0.6)
+	scale := math.Pow(math.Max(room, 1)/10, gvExp)
 	rt := gverbRT(release)
 	for i := range g.lines {
 		n := int(gverbLens[i] * scale * sr)
@@ -32,32 +40,64 @@ func newGverbCore(sr, room, release, damp float64) *gverbCore {
 		g.lines[i] = make([]float64, n)
 		g.gain[i] = math.Pow(10, -3*float64(n)/(rt*sr))
 	}
-	g.early = make([]float64, int(0.12*sr*scale)+8)
-	for i := range g.taps {
-		g.taps[i] = int((0.006 + 0.0113*float64(i+1)*float64(i%3+1)/2) * scale * sr)
-		if g.taps[i] >= len(g.early) {
-			g.taps[i] = len(g.early) - 1
+	// the early reflections: a dense, decaying burst whose length follows the
+	// room (the density of GVerb's, measured against scsynth)
+	rs := sr / 48000 * math.Max(room, 1)
+	last := int(float64(gverbEarlyPos[len(gverbEarlyPos)-1])*rs) + 2
+	g.early = make([]float64, last+1)
+	g.etaps = make([]int, len(gverbEarlyPos))
+	g.esign = make([]float64, len(gverbEarlyPos))
+	g.esgn2 = make([]float64, len(gverbEarlyPos))
+	seed := uint32(2463534242)
+	for i, p := range gverbEarlyPos {
+		g.etaps[i] = int(float64(p)*rs + 0.5)
+		seed ^= seed << 13
+		seed ^= seed >> 17
+		seed ^= seed << 5
+		g.esign[i] = gverbEarlyAmp
+		g.esgn2[i] = gverbEarlyAmp
+		if seed&0x10000 != 0 {
+			g.esign[i] = -gverbEarlyAmp
+		}
+		if seed&0x100 != 0 {
+			g.esgn2[i] = -gverbEarlyAmp
 		}
 	}
-	g.damp = clamp(1-0.575*math.Pow((1-clamp(damp, 0, 1))/0.5, 1.7), 0, 0.99)
+	g.damp = clamp(1-gvDA*math.Pow((1-clamp(damp, 0, 1))/0.5, gvDB), 0, 0.99)
 	return g
 }
 
-// gverbRT is the decay time the effect aims for, from Sonic Pi's release.
-func gverbRT(release float64) float64 { return math.Max(0.2, 0.35*release+1.2) }
+// gverbRT is the reverb time, which Sonic Pi passes straight on as release:.
+func gverbRT(release float64) float64 { return math.Max(0.2, release) }
 
-func (g *gverbCore) run(x float64, ref, tail float64) (l, r float64) {
+// run feeds one sample through the reverb: the early reflections and the
+// tail, as one mono signal (Sonic Pi runs GVerb with spread 0).
+func (g *gverbCore) run(x float64, ref, tail float64) float64 {
+	l, _ := g.step(x, ref, tail, false)
+	return l
+}
+
+// step is run for both outputs: with stereo, the right one is its own
+// decorrelated mix (what GVerb's spread does); without, it is not worked out.
+func (g *gverbCore) step(x float64, ref, tail float64, stereo bool) (float64, float64) {
+	g.lpIn += g.bw * (x - g.lpIn)
+	x = g.lpIn
 	g.early[g.ew] = x
-	var e [2]float64
-	for i, t := range g.taps {
-		v := g.early[(g.ew-t+len(g.early))%len(g.early)]
-		if i%2 == 0 {
-			e[0] += v / float64(1+i/2)
-		} else {
-			e[1] += v / float64(1+i/2)
+	var e, e2 float64
+	n := len(g.early)
+	for i, t := range g.etaps {
+		k := g.ew - t
+		if k < 0 {
+			k += n
+		}
+		e += g.esign[i] * g.early[k]
+		if stereo {
+			e2 += g.esgn2[i] * g.early[k]
 		}
 	}
-	g.ew = (g.ew + 1) % len(g.early)
+	if g.ew++; g.ew == n {
+		g.ew = 0
+	}
 	var out [8]float64
 	var sum float64
 	for i := range g.lines {
@@ -75,17 +115,58 @@ func (g *gverbCore) run(x float64, ref, tail float64) (l, r float64) {
 		}
 	}
 	var tl, tr float64
-	for i := range out {
-		if i%2 == 0 {
-			tl += out[i]
-		} else {
-			tr += out[i]
-		}
+	for i := 0; i < len(out); i += 2 {
+		tl += out[i]
+		tr += out[i+1]
 	}
-	return ref*0.5*e[0] + tail*gverbTail*tl, ref*0.5*e[1] + tail*gverbTail*tr
+	if !stereo {
+		return ref*e + tail*gverbTail*tl, 0
+	}
+	return ref*e + tail*gverbTail*tl, ref*e2 + tail*gverbTail*tr
 }
 
-const gverbTail = 2.7
+const gverbTail = 1.889
+
+const gverbEarlyAmp = 0.096 // the early burst has the measured energy (3.3 for a unit impulse)
+
+var gverbEarlyPos = [300]float32{
+	13.98, 13.98, 21.88, 21.88, 21.88, 21.88, 24.56, 27.96, 32.46, 35.14,
+	35.86, 41.28, 41.28, 41.94, 42.34, 42.34, 42.34, 42.34, 43.04, 49.18,
+	49.18, 49.18, 49.18, 49.18, 49.84, 51.40, 51.86, 52.92, 53.62, 55.26,
+	56.32, 57.02, 57.88, 57.88, 57.88, 57.88, 59.30, 59.30, 59.30, 59.30,
+	59.76, 60.42, 63.10, 63.16, 63.50, 64.20, 65.84, 67.60, 68.46, 69.24,
+	69.64, 69.64, 69.64, 69.64, 69.88, 70.28, 70.34, 71.86, 71.86, 73.28,
+	73.28, 74.40, 76.48, 76.48, 77.14, 78.70, 78.70, 79.04, 79.76, 79.76,
+	79.76, 79.76, 79.82, 80.22, 80.46, 81.58, 83.22, 83.62, 83.86, 84.32,
+	85.18, 85.18, 85.18, 85.36, 86.60, 86.60, 86.60, 86.60, 87.00, 87.26,
+	88.38, 89.28, 90.34, 90.34, 90.80, 91.04, 91.50, 92.68, 93.74, 93.74,
+	94.44, 95.30, 95.30, 95.30, 95.30, 95.76, 96.54, 96.72, 96.94, 96.94,
+	97.18, 97.60, 97.64, 99.16, 99.16, 99.86, 100.58, 100.92, 101.24, 101.70,
+	103.26, 103.92, 104.78, 105.88, 105.88, 106.34, 106.66, 107.06, 107.06, 107.06,
+	107.30, 107.52, 107.72, 108.18, 109.28, 109.74, 110.52, 110.92, 111.50, 111.82,
+	112.48, 112.48, 113.38, 113.90, 113.90, 114.56, 115.36, 116.40, 116.78, 117.18,
+	117.18, 117.64, 117.88, 118.34, 119.46, 120.32, 121.04, 121.28, 121.74, 122.60,
+	122.60, 122.60, 122.60, 123.18, 123.72, 124.02, 124.24, 124.48, 124.94, 125.94,
+	126.70, 127.16, 127.78, 128.22, 128.54, 129.34, 130.56, 131.16, 132.08, 132.72,
+	133.06, 133.18, 133.84, 134.14, 134.36, 134.60, 135.02, 135.48, 136.58, 136.80,
+	137.62, 138.08, 138.66, 139.14, 139.78, 140.44, 141.20, 141.86, 142.66, 143.32,
+	143.76, 144.48, 144.48, 144.94, 145.60, 146.70, 147.16, 148.20, 148.60, 149.38,
+	149.90, 150.04, 150.80, 151.32, 151.98, 153.10, 154.00, 154.60, 155.06, 155.52,
+	156.42, 157.98, 158.70, 159.56, 160.02, 160.24, 160.68, 161.44, 161.90, 162.56,
+	163.66, 164.54, 165.20, 165.96, 167.08, 168.56, 169.74, 170.40, 171.14, 171.78,
+	172.44, 173.62, 174.66, 175.58, 176.34, 177.38, 178.52, 179.18, 180.74, 181.64,
+	182.36, 183.42, 185.04, 186.22, 187.32, 187.98, 188.96, 190.20, 191.36, 192.48,
+	193.48, 195.16, 196.50, 197.78, 198.86, 199.98, 201.88, 203.06, 204.50, 206.34,
+	207.70, 209.06, 210.36, 212.58, 214.62, 216.60, 219.06, 220.02, 223.00, 225.00,
+	227.10, 230.02, 232.84, 235.32, 237.82, 240.90, 244.36, 247.08, 251.06, 255.58,
+	259.90, 265.56, 270.92, 277.18, 283.66, 292.58, 304.04, 318.08, 339.50, 385.20,
+}
+
+const (
+	gvExp = 0.829 // how the delay lengths grow with the room size
+	gvDA  = 0.3557
+	gvDB  = 1.1844 // the damping filter's pole from damp:
+)
 
 func init() {
 	type gv struct {
@@ -111,7 +192,10 @@ func init() {
 							for k := range n.lines {
 								n.lines[k], n.pos[k], n.lp[k] = old.lines[k], old.pos[k], old.lp[k]
 							}
-							n.early, n.ew = old.early, old.ew
+							if len(old.early) == len(n.early) {
+								n.early, n.ew = old.early, old.ew
+							}
+							n.lpIn = old.lpIn
 						}
 						s.c[i] = n
 					}
@@ -123,9 +207,10 @@ func init() {
 			dry := f.g("dry")
 			for i := 0; i+1 < len(in); i += 2 {
 				xl, xr := float64(in[i]), float64(in[i+1])
-				ll, lr := s.c[0].run(xl, f.g("ref_level"), f.g("tail_level"))
-				rl, rr := s.c[1].run(xr, f.g("ref_level"), f.g("tail_level"))
-				ll, lr, rl, rr = ll+dry*xl, lr+dry*xl, rl+dry*xr, rr+dry*xr
+				s.c[0].bw, s.c[1].bw = f.g("pre_damp"), f.g("pre_damp")
+				ll := s.c[0].run(xl, f.g("ref_level"), f.g("tail_level")) + dry*xl
+				rr := s.c[1].run(xr, f.g("ref_level"), f.g("tail_level")) + dry*xr
+				lr, rl := ll, rr // spread 0: both outputs of a GVerb are the same signal
 				a := f.g("amp")
 				out[i] = float32(a * (ll*ca + rl*cb))
 				out[i+1] = float32(a * (rr*ca + lr*cb))
