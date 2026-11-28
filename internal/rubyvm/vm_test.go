@@ -411,3 +411,47 @@ puts "bpm #{current_bpm.round(3)}"
 		t.Errorf("durations: %s", logs)
 	}
 }
+
+func TestModEffects(t *testing.T) {
+	v := vm(t)
+	evs, other := run(t, v, `
+use_bpm 120
+with_fx :slicer, phase: 0.5 do |s|
+  with_fx :wobble do
+    sleep 1
+    play 60
+  end
+  control s, phase: 1
+  play 62
+end
+with_fx :pitch_shift, pitch: 12 do
+  play 60
+end
+with_fx :record do
+  play 64
+end
+`, 4)
+	t.Log(flat(other))
+	var kv []string
+	for _, e := range evs {
+		kv = append(kv, e.Arg(5))
+	}
+	t.Log(kv)
+	if len(kv) != 4 {
+		t.Fatalf("events %v", kv)
+	}
+	// innermost first: wobble (4) then slicer (1); the slicer had run 1 beat
+	if !strings.Contains(kv[0], "x0k=4") || !strings.Contains(kv[0], "x1k=1") || !strings.Contains(kv[0], "x1ph=0.25") ||
+		!strings.Contains(kv[0], "x1org=0.5") {
+		t.Errorf("nested effects: %s", kv[0])
+	}
+	if !strings.Contains(kv[1], "x0ph=0.5") {
+		t.Errorf("control on the slicer: %s", kv[1])
+	}
+	if !strings.Contains(kv[2], "n=72.0") || strings.Contains(kv[3], "x0k") {
+		t.Errorf("pitch_shift / record: %s %s", kv[2], kv[3])
+	}
+	if !strings.Contains(strings.Join(flat(other), " "), "with_fx :record does nothing in susynth") {
+		t.Error("no note about :record")
+	}
+}

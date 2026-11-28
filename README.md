@@ -284,8 +284,13 @@ live_loop :keys do
 end
 ```
 
-Available effects: `reverb`, `echo`, `lpf`, `hpf`, `bitcrusher`, `distortion`, `level` and
-`pan` (plus a few aliases). The Sounds page lists them all.
+Available effects: `reverb`, `gverb`, `echo`, `ping_pong`, the `lpf`/`hpf` family, `bitcrusher`,
+`krush`, `distortion`, `tanh`, `compressor`, `normaliser`, `eq`, `chorus`, `level`, `pan`, and
+the moving ones, synced to the beat: `slicer`, `panslicer`, `tremolo`, `wobble`, `ixi_techno`
+and `flanger`. There are also `bpf`, `rbpf`, `nbpf`, `nrbpf`, `band_eq`, `ring_mod`,
+`octaver`, `vowel`, `mono`, `pitch_shift` and `whammy`. `control` on an effect (`with_fx
+:slicer do |s| … control s, phase: 1`) changes it for the sounds that start after it.
+`record`, `sound_out` and `autotuner` play the block as it is. The Sounds page lists them all.
 
 ### 8. Find sounds
 
