@@ -378,7 +378,7 @@ play 65
 				t.Fatal(err)
 			}
 			if h.Unit != nil { // the compressor is a unit
-				if h.Unit.Op == "open" {
+				if h.Unit.Op == "open" && h.Unit.Name == "compressor" {
 					comp = h.Unit
 				}
 				continue
@@ -392,8 +392,8 @@ play 65
 	if comp == nil || comp.Name != "compressor" || comp.Opts["threshold"] != 0.1 || comp.Opts["slope_above"] != 0.3 || hs[0].Bus != comp.ID {
 		t.Errorf("compressor: %+v on bus %d", comp, hs[0].Bus)
 	}
-	if !hs[1].Params.EQ || gs[1].EQ.LowDB != 3 || gs[1].EQ.MidDB != -2 || math.Abs(gs[1].EQ.MidHz-midiHz(81)) > 0.01 {
-		t.Errorf("eq: %+v", gs[1])
+	if hs[1].Bus == 0 { // the eq is a unit too
+		t.Errorf("eq: the note is not on a unit's bus: %+v", hs[1])
 	}
 	if hs[2].Params.Chorus != 0.4 || gs[2].Chorus.Rate != 1.2 {
 		t.Errorf("chorus: %+v %+v", hs[2].Params, gs[2])

@@ -443,7 +443,7 @@ end
 	// slicer and wobble run as units: slicer opens, wobble opens inside it, a
 	// note on the wobble's bus, wobble closes, control on the slicer, a note on
 	// the slicer's bus, slicer closes; then pitch_shift and record as notes.
-	if len(kv) != 9 {
+	if len(kv) != 11 {
 		t.Fatalf("events %v", kv)
 	}
 	if !strings.Contains(kv[0], "phase=0.5") || !strings.Contains(kv[1], "parent=98") || !strings.Contains(kv[2], "bus=99") {
@@ -452,8 +452,8 @@ end
 	if !strings.Contains(kv[4], "phase=1.0") || !strings.Contains(kv[4], "id=98") || !strings.Contains(kv[5], "bus=98") {
 		t.Errorf("control on the slicer: %s / %s", kv[4], kv[5])
 	}
-	if !strings.Contains(kv[7], "n=72.0") || strings.Contains(kv[8], "x0k") {
-		t.Errorf("pitch_shift / record: %s %s", kv[7], kv[8])
+	if !strings.Contains(kv[7], "pitch=12.0") || !strings.Contains(kv[8], "bus=") || strings.Contains(kv[10], "x0k") || strings.Contains(kv[10], "bus=") {
+		t.Errorf("pitch_shift / record: %s %s", kv[7], kv[10])
 	}
 	if !strings.Contains(strings.Join(flat(other), " "), "with_fx :record does nothing in susynth") {
 		t.Error("no note about :record")
@@ -584,8 +584,8 @@ end
 	}
 }
 
-// A sample's pitch: and with_fx :pitch_shift on a sample become the voice's
-// pitch shifter (kind 12) with no warning; a note is simply transposed.
+// A sample's pitch: becomes the voice's pitch shifter (kind 12) with no warning;
+// with_fx :pitch_shift is an effect unit.
 func TestPitchShiftEvents(t *testing.T) {
 	v := vm(t)
 	evs, other := run(t, v, `
@@ -599,9 +599,11 @@ end
 	for _, e := range evs {
 		kv = append(kv, e.Arg(5))
 	}
-	if len(kv) != 3 || !strings.Contains(kv[0], "x0k=12") || !strings.Contains(kv[0], "x0a=3.0") ||
-		!strings.Contains(kv[1], "x0k=12") || !strings.Contains(kv[1], "x0a=-12.0") ||
-		strings.Contains(kv[2], "x0k") || !strings.Contains(kv[2], "n=48.0") {
+	// the sample's own pitch: is the voice's pitch shifter; with_fx :pitch_shift is a
+	// unit (open, the sample and the note on its bus, close) and leaves the notes alone
+	if len(kv) != 5 || !strings.Contains(kv[0], "x0k=12") || !strings.Contains(kv[0], "x0a=3.0") ||
+		!strings.Contains(kv[1], "pitch=-12.0") || !strings.Contains(kv[2], "bus=") || strings.Contains(kv[2], "x0k") ||
+		!strings.Contains(kv[3], "n=60.0") || !strings.Contains(kv[3], "bus=") {
 		t.Errorf("events: %v", kv)
 	}
 	if l := strings.Join(flat(other), " "); strings.Contains(l, "speed") || strings.Contains(l, "isn't in susynth") {

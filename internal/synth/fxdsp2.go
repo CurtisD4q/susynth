@@ -7,6 +7,7 @@ import "math"
 // simple makes an effect from its options (with defaults), a per-channel
 // state and the sound it makes.
 type simpleFX struct {
+	name string
 	sr   float64
 	o    map[string]float64
 	kill float64
@@ -25,7 +26,7 @@ func (f *simpleFX) g(k string) float64        { return f.o[k] }
 
 func defFX(name string, kill float64, defaults map[string]float64, mk func(sr float64) any, run func(f *simpleFX, out, in []float32)) {
 	fxMakers[name] = func(sr float64) FX {
-		f := &simpleFX{sr: sr, o: map[string]float64{}, kill: kill, run: run}
+		f := &simpleFX{name: name, sr: sr, o: map[string]float64{}, kill: kill, run: run}
 		for k, v := range defaults {
 			f.o[k] = v
 		}
