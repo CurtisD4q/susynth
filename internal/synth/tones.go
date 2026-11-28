@@ -10,7 +10,6 @@ import "math"
 type toneState struct {
 	bq    [6]biquad
 	g     [6]float32
-	lfo   [5]float64
 	lp    [2]float32
 	dcx   float32
 	dcy   float32
@@ -18,7 +17,6 @@ type toneState struct {
 	pdec  [8]float64 // partial decay per frame
 	pamp  [8]float64
 	pfreq [8]float64
-	brown float32
 	pink  [3]float32
 }
 

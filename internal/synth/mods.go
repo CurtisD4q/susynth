@@ -70,7 +70,6 @@ type modState struct {
 	gains  [3]float64
 	line   [2][]float32 // flanger
 	w      int
-	fbk    [2]float32
 	flip   [2]int // octaver
 	last   [2]float32
 	dc     [2]float32
