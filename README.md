@@ -5,8 +5,8 @@ A terminal instrument for live-coding music in **Sonic Pi's language**. You writ
 pass. One standalone Go binary: no cgo, no Ruby to install, no external player programs.
 
 It **plays Sonic Pi code you find online**, with **Sonic Pi's real samples** and its
-**moving effects** (`slicer`, `wobble`, `flanger`, …): of 34 example songs that ship with
-Sonic Pi, 29 play with nothing left out. See [Playing Sonic Pi code](#playing-sonic-pi-code).
+**moving effects** (`slicer`, `wobble`, `flanger`, …): all 34 example songs that ship with
+Sonic Pi play with nothing left out. See [Playing Sonic Pi code](#playing-sonic-pi-code).
 
 **Install:** `curl -fsSL https://raw.githubusercontent.com/CurtisD4q/susynth/main/install.sh | sh` (Linux and macOS; [more ways below](#install)).
 
@@ -92,17 +92,19 @@ something susynth hasn't got, that part is left out with a note and the rest pla
 
 ### How much plays
 
-Measured on 209 real Sonic Pi files, each rendered for 16 seconds: the 34 examples that
-ship with Sonic Pi, and 175 songs from 73 people's GitHub repositories.
+Measured on 1,193 real Sonic Pi files, each rendered for 16 seconds: the 34 examples that
+ship with Sonic Pi, and 1,159 songs found in public GitHub repositories (files that are not
+valid Ruby are left out).
 
 | | Plays with nothing left out | Plays, something left out | Stops with an error |
 |---|---|---|---|
-| Sonic Pi's examples | 85% | 12% | 3% |
-| Songs from GitHub | 56% | 30% | 14% |
+| Sonic Pi's examples (34) | 100% | 0% | 0% |
+| Songs from GitHub (1,159) | 66% | 13% | 21% |
 
-Most of what's left out is MIDI or OSC (which needs a device) and a few rare effects. Most
-of the errors would happen in Sonic Pi too: code that loads Ruby libraries or the author's
-own files, or has a typo. This is measured against susynth, not against Sonic Pi itself.
+Most of what's left out is something that needs a device or the author's own files: OSC,
+Ableton Link, sound files on their computer. Most of the errors would happen in Sonic Pi
+too: code that loads Ruby gems, reads values from a controller, or has a typo or a missing
+helper. This is measured against susynth, not against Sonic Pi itself.
 
 ### The language
 
@@ -120,8 +122,13 @@ are there:
 * `time_warp`, `with_swing`, negative `sleep`, `density` with an index, `stop :name`,
   `defonce`, `comment`/`uncomment`, `use_bpm_mul`, `use_sample_bpm`, `rand(2..5)`.
 * Note arithmetic: `:c4 + 12`, `chord(:e3, :minor) + 12`, `"x-x-".ring`.
-* MIDI, OSC, Ableton Link, recording and track functions run as harmless no-ops with a
-  note; use the Settings page for MIDI and OSC output.
+* `midi_note_on`, `midi`, `midi_cc`, `midi_pitch_bend`, `midi_program_change` and the rest of
+  the `midi_*` calls go to the MIDI device chosen in Settings, on time and on any channel
+  (`channel: [1, 2]` or `"*"`); with no device they stay silent. OSC, Ableton Link, recording
+  and track functions run as harmless no-ops with a note.
+* Ruby's own `Set`, and `require 'json'`, `'csv'`, `'stringio'`, `'securerandom'`,
+  `'ostruct'`, `'forwardable'`, `'singleton'` and a few more, work with no files on disk. A
+  gem that isn't part of Ruby is still a `LoadError`, as it would be on a machine without it.
 * A synth susynth hasn't got plays `:beep`, and a sample it hasn't got is skipped, each with
   a one-time note, instead of stopping the loop.
 
@@ -144,7 +151,7 @@ sleep sample_duration(:loop_amen)           # the real length, at the current bp
 ```
 
 Sample filters work too: `sample "bd_", 2` plays the third built-in whose name contains
-`bd_`. Not there yet: `pitch:` (changing pitch but not speed) and `onset:`.
+`bd_`. `pitch:` shifts a sample's pitch without changing its speed. Not there yet: `onset:`.
 
 For more sounds, `susynth samples install tr808` downloads a free sample library (see
 [Free sample libraries](#free-sample-libraries)).
@@ -178,7 +185,7 @@ were one unit. `control` on an effect (`with_fx :wobble do |w| … control w, ph
 changes it for the sounds that start after.
 
 Also new: `:bpf`, `:rbpf`, `:nbpf`, `:nrbpf`, `:band_eq`, `:ring_mod`, `:octaver`, `:vowel`,
-`:mono`, and `:pitch_shift` and `:whammy` (which change a sample's speed too). `:record`,
+`:mono`, and `:pitch_shift` and `:whammy` (a real pitch shifter on samples, so the speed stays). `:record`,
 `:sound_out` and `:autotuner` play the block as it is.
 
 ### The synths

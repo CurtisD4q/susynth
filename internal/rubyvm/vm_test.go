@@ -604,3 +604,20 @@ end
 		t.Errorf("warned: %s", l)
 	}
 }
+
+// invert_chord and the small settings functions exist.
+func TestInvertChordAndSettings(t *testing.T) {
+	v := vm(t)
+	_, other := run(t, v, `
+puts invert_chord(chord(:c4, :major), 1).to_a.inspect
+puts invert_chord(chord(:c4, :major), -1).to_a.inspect
+use_timing_warnings false
+with_timing_warnings(false) { puts "block" }
+`, 1)
+	logs := strings.Join(flat(other), " | ")
+	for _, want := range []string{"[64, 67, 72]", "[55, 60, 64]", "block"} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("missing %s in %s", want, logs)
+		}
+	}
+}
