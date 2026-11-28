@@ -504,10 +504,10 @@ on false do puts "on-no" end
 		kv = append(kv, e.Arg(4)+" "+e.Arg(5))
 	}
 	t.Log(kv, logs)
-	if len(kv) != 5 {
+	if len(kv) != 7 { // the level effect is a unit: open, the note on its bus, close
 		t.Fatalf("events: %v", kv)
 	}
-	for i, want := range []string{"det=0.3", "div=3.0,dep=2.0", "mr=7.0,mp=0.125,mw=3", "bd_haus", "amp=0.25"} {
+	for i, want := range []string{"det=0.3", "div=3.0,dep=2.0", "mr=7.0,mp=0.125,mw=3", "bd_haus", "pre_amp=0.5,amp=0.5", "bus=", "id="} {
 		if !strings.Contains(kv[i], want) {
 			t.Errorf("event %d %q: want %q", i, kv[i], want)
 		}

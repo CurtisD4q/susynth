@@ -2,7 +2,8 @@ package engine
 
 import (
 	"math"
-	"sort"
+
+	"github.com/susynth/susynth/internal/synth"
 )
 
 // Effect units are Sonic Pi's with_fx: an effect that reads a bus of its own
@@ -20,48 +21,28 @@ type UnitOp struct {
 	BPM    float64 // open: the tempo its time options are in beats of
 }
 
-// fxProc is one kind of effect.
-type fxProc interface {
-	// set gives the effect options (at creation, and again by control).
-	set(o map[string]float64)
-	// levels is the weight of the unprocessed sound and of the effect's own in the output.
-	levels() (dry, wet float32)
-	// process adds the effect's own sound for the stereo block in to out.
-	process(out, in []float32)
-	// killDelay is how long the unit lives on after its sounds are gone, seconds.
-	killDelay() float64
-}
-
-type fxMaker func(o map[string]float64, bpm float64) fxProc
-
-var fxMakers = map[string]fxMaker{}
-
 // FXUnitNames lists the effects that run as units, sorted.
-func FXUnitNames() []string {
-	var out []string
-	for n := range fxMakers {
-		out = append(out, n)
-	}
-	sort.Strings(out)
-	return out
-}
+func FXUnitNames() []string { return synth.FXUnits() }
 
 // HasUnit reports whether with_fx name runs as a unit.
-func HasUnit(name string) bool { _, ok := fxMakers[name]; return ok }
+func HasUnit(name string) bool { return synth.NewFX(name, SampleRate, nil) != nil }
 
 type fxUnit struct {
 	id, parent int64
 	name       string
 	track      string
-	proc       fxProc
+	proc       synth.FX
 	preAmp     float64
 	amp        float64
+	preMix     float64
+	mix        float64
 	in, wet    []float32
 	closed     bool
 	closeAt    int64
 	lastBusy   int64
 	dead       bool
 	bpm        float64
+	dry        []float32
 }
 
 func opt(o map[string]float64, k string, d float64) float64 {
@@ -75,16 +56,18 @@ func (e *Engine) unitOp(h Hit) {
 	op := h.Unit
 	switch op.Op {
 	case "open":
-		mk, ok := fxMakers[op.Name]
-		if !ok {
-			return
-		}
 		bpm := op.BPM
 		if bpm <= 0 {
 			bpm = e.bpm
 		}
-		u := &fxUnit{id: op.ID, parent: op.Parent, name: op.Name, track: h.Track, proc: mk(op.Opts, bpm),
-			preAmp: opt(op.Opts, "pre_amp", 1), amp: opt(op.Opts, "amp", 1), lastBusy: h.At, bpm: bpm}
+		proc := synth.NewFX(op.Name, SampleRate, scaleBeats(op.Opts, bpm))
+		if proc == nil {
+			return
+		}
+		u := &fxUnit{id: op.ID, parent: op.Parent, name: op.Name, track: h.Track, proc: proc,
+			preAmp: opt(op.Opts, "pre_amp", 1), amp: opt(op.Opts, "amp", 1),
+			preMix: clampF(opt(op.Opts, "pre_mix", 1), 0, 1), mix: clampF(opt(op.Opts, "mix", synth.FXDefaultMix(op.Name)), 0, 1),
+			lastBusy: h.At, bpm: bpm}
 		e.units = append(e.units, u)
 		if e.unitIdx == nil {
 			e.unitIdx = map[int64]*fxUnit{}
@@ -102,7 +85,13 @@ func (e *Engine) unitOp(h Hit) {
 			if v, ok := op.Opts["amp"]; ok {
 				u.amp = v
 			}
-			u.proc.set(scaleBeats(op.Opts, u.bpm))
+			if v, ok := op.Opts["pre_mix"]; ok {
+				u.preMix = clampF(v, 0, 1)
+			}
+			if v, ok := op.Opts["mix"]; ok {
+				u.mix = clampF(v, 0, 1)
+			}
+			u.proc.Set(scaleBeats(op.Opts, u.bpm))
 		}
 	case "kill":
 		if u := e.unitIdx[op.ID]; u != nil {
@@ -169,12 +158,27 @@ func (e *Engine) runUnits(mix []float32, n int) {
 				in[k] *= float32(u.preAmp)
 			}
 		}
-		clear(u.wet)
-		u.proc.process(u.wet, in)
-		dry, wet := u.proc.levels()
-		amp := float32(u.amp)
+		// Sonic Pi's def-fx: the effect hears pre_mix of the sound, the rest
+		// goes round it, and an equal-power cross-fade (mix) joins the
+		// unprocessed sound to the result.
+		pm := float32(u.preMix)
+		// The effects run at Sonic Pi's levels (the mix inside the engine is
+		// 1/outScale louder, and the master brings it back).
+		up := float32(1 / spLevel)
+		if cap(u.dry) < len(in) {
+			u.dry = make([]float32, len(in))
+		}
+		dry := u.dry[:len(in)]
 		for k := range in {
-			out[k] += (in[k]*dry + u.wet[k]*wet) * amp
+			dry[k] = in[k] * pm * float32(spLevel)
+		}
+		u.proc.Process(u.wet, dry)
+		th := u.mix * math.Pi / 2
+		cd, cw, amp := float32(math.Cos(th)), float32(math.Sin(th)), float32(u.amp)
+		by := 1 - pm
+		for k := range in {
+			w := u.wet[k]*up + in[k]*by
+			out[k] += (in[k]*cd + w*cw) * amp
 		}
 		clear(in)
 	}
@@ -215,7 +219,7 @@ func (e *Engine) unitDone(u *fxUnit, end int64) bool {
 		u.lastBusy = end
 		return false
 	}
-	return float64(end-u.lastBusy) >= u.proc.killDelay()*SampleRate
+	return float64(end-u.lastBusy) >= u.proc.KillDelay()*SampleRate
 }
 
 // killUnits frees the units of a track (all of them for "").
@@ -227,4 +231,7 @@ func (e *Engine) killUnits(track string) {
 	}
 }
 
-func pow10(x float64) float64 { return math.Pow(10, x) }
+// spLevel is how Sonic Pi's levels sit against the engine's own.
+const spLevel = float64(outScale)
+
+func clampF(x, lo, hi float64) float64 { return math.Max(lo, math.Min(hi, x)) }

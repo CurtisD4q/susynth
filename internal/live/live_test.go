@@ -249,24 +249,27 @@ end
 	if len(hs) != 6 {
 		t.Fatalf("%d notes", len(hs))
 	}
-	if hs[0].Params.Res != 0.7 || hs[1].Params.Res != 0.4 || hs[2].Params.HPRes != 0.6 || hs[2].Params.HPF == 0 {
-		t.Errorf("filters: %+v / %+v / %+v", hs[0].Params, hs[1].Params, hs[2].Params)
+	// rlpf, rhpf, reverb, ping_pong and echo run as units: open, the note on its bus, close
+	if len(units) != 10 {
+		t.Fatalf("%d unit events, want 10 (five opens, five closes)", len(units))
 	}
-	// reverb, ping_pong and echo run as units: open, the note on its bus, close
-	if len(units) != 6 {
-		t.Fatalf("%d unit events, want 6 (three opens, three closes)", len(units))
+	if u := units[0].Unit; u.Op != "open" || u.Name != "rlpf" || u.Opts["cutoff"] != 90 || u.Opts["res"] != 0.7 || hs[0].Bus != u.ID || hs[0].Params.Res != 0.3 {
+		t.Errorf("rlpf unit: %+v, note %+v on bus %d", u, hs[0].Params, hs[0].Bus)
 	}
-	if u := units[0].Unit; u.Op != "open" || u.Name != "reverb" || u.Opts["damp"] != 0.8 || hs[3].Bus != u.ID {
+	if u := units[2].Unit; u.Op != "open" || u.Name != "rhpf" || u.Opts["res"] != 0.6 || hs[2].Bus != u.ID {
+		t.Errorf("rhpf unit: %+v on bus %d", u, hs[2].Bus)
+	}
+	if u := units[4].Unit; u.Op != "open" || u.Name != "reverb" || u.Opts["damp"] != 0.8 || hs[3].Bus != u.ID {
 		t.Errorf("reverb unit: %+v on bus %d", u, hs[3].Bus)
 	}
-	if u := units[2].Unit; u.Op != "open" || u.Name != "ping_pong" || u.Opts["phase"] != 0.5 || hs[4].Bus != u.ID {
+	if u := units[6].Unit; u.Op != "open" || u.Name != "ping_pong" || u.Opts["phase"] != 0.5 || hs[4].Bus != u.ID {
 		t.Errorf("ping_pong unit: %+v on bus %d", u, hs[4].Bus)
 	}
-	if u := units[4].Unit; u.Op != "open" || u.Name != "echo" || hs[5].Bus != u.ID || units[5].Unit.Op != "close" || units[5].Unit.ID != u.ID {
+	if u := units[8].Unit; u.Op != "open" || u.Name != "echo" || hs[5].Bus != u.ID || units[9].Unit.Op != "close" || units[9].Unit.ID != u.ID {
 		t.Errorf("echo unit: %+v on bus %d", u, hs[5].Bus)
 	}
-	if hs[0].Bus != 0 || hs[1].Bus != 0 {
-		t.Errorf("notes outside with_fx unit are on bus %d, %d", hs[0].Bus, hs[1].Bus)
+	if hs[1].Bus != 0 {
+		t.Errorf("a note outside with_fx is on bus %d", hs[1].Bus)
 	}
 }
 

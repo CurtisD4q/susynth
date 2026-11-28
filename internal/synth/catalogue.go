@@ -56,10 +56,3 @@ func Catalogue() string {
 	}
 	return strings.Join(ents, ",") + "~" + strings.Join(timeOptions, ",") + "~" + strings.Join(FXUnits(), ",")
 }
-
-// fxUnits are the effects that run as units on a bus of their own (the engine
-// has a unit of each; a test checks the lists agree).
-var fxUnits = []string{"echo", "ping_pong", "reverb"}
-
-// FXUnits lists the effects that run as units.
-func FXUnits() []string { return append([]string(nil), fxUnits...) }
