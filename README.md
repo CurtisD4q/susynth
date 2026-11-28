@@ -190,14 +190,15 @@ Also new: `:bpf`, `:rbpf`, `:nbpf`, `:nrbpf`, `:band_eq`, `:ring_mod`, `:octaver
 
 ### The synths
 
-All 66 of Sonic Pi's synth names work. Twenty-three are ported straight from Sonic Pi's compiled
+All 66 of Sonic Pi's synth names work. Forty are ported straight from Sonic Pi's compiled
 designs, unit generator by unit generator, and were measured against the real synth rendered
 with SuperCollider (pitch, envelope and tone agree to about 1 dB; level is a fixed fraction of
 the real one): `:tb303`, `:supersaw`, `:hoover`, `:tech_saws`, `:growl`, `:zawa`,
 `:bass_foundation`, `:bass_highend`, `:winwood_lead`, `:subpulse`, `:chiplead`, `:chipbass`, and the
 noise synths `:noise`, `:pnoise` (pink), `:bnoise` (brown), `:gnoise` (gray), `:cnoise` (clip) and
 `:chipnoise`, `:kalimba`, `:gabberkick`, `:rhodey`, `:rodeo` and `:organ_tonewheel` (drawbars and
-rotary speaker). `:rodeo` plays without its optional chorus and compressor. `:piano` plays the
+rotary speaker) and the sixteen `:sc808_` drums (kick, snare, clap, claves, hats, cowbell,
+cymbal, maracas, rim, toms, congas). `:rodeo` plays without its optional chorus and compressor. `:piano` plays the
 real piano's partials (stretch, level and decay for each note and velocity, measured from the
 real synth), without its hammer noise.
 They read their options by Sonic Pi's names (`cutoff:`, `res:`, `drive:`, `wave:`, `phase:`...)
@@ -207,7 +208,7 @@ does, so two notes differ slightly. Every synth's volume envelope is straight li
 
 The rest are being ported the same way. Until then they are modelled on Sonic Pi's designs but
 checked only for pitch and level: `:prophet` (pulse-width-modulated pulses), `:hollow`,
-`:dark_ambience`, `:blade`, `:pretty_bell` and `:dull_bell`, `:dsaw` and the 808 kit.
+`:dark_ambience`, `:blade`, `:pretty_bell` and `:dull_bell` and `:dsaw`.
 `:sound_in` (live audio input) is skipped.
 
 ## Prerequisites

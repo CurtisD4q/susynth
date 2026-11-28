@@ -152,6 +152,13 @@ func (a *App) sounds() []soundItem {
 		if sy.Drum != "" {
 			it.group, it.word = "Drum synths", sy.Drum
 			it.example = "synth :" + sy.Name
+		} else if strings.HasPrefix(sy.Name, "sc808_") {
+			it.group, it.word = "Drum synths", "c3"
+			it.params = synth.Params{Wave: sy.Wave, Release: 0.6}
+			if n, ok := synth.DefaultNote(sy.Wave); ok {
+				it.params.Note = n
+			}
+			it.example = "synth :" + sy.Name
 		} else {
 			it.group, it.word = "Synths", "c3"
 			it.params = synth.Params{Wave: sy.Wave, Release: 0.6}

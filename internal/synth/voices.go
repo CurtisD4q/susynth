@@ -342,6 +342,9 @@ func New(word string, sr, delay, gate int, p Params, seed uint32) (*Voice, error
 		v.cutoffMin, v.cutoffMax, v.res = p.CutoffMin, p.LPF, p.Res
 		v.sweep()
 	}
+	if v.nat != nil && v.nat.done != nil { // a drum rings by itself until it goes quiet
+		v.env = NewEnvelope(v.sr, EnvTimes{Sustain: 30, Release: 0.005, Shape: 1})
+	}
 	if v.wave == "pluck" {
 		n := int(v.sr / v.freq)
 		if n < 2 {
@@ -671,7 +674,11 @@ func (v *Voice) toneBody() float32 {
 			v.right = float32(r) * env * 0.35
 			return float32(l) * env * 0.35
 		}
-		return float32(v.nat.next()) * env * 0.35
+		x := v.nat.next()
+		if v.nat.done != nil && v.nat.done() {
+			v.done = true
+		}
+		return float32(x) * env * 0.35
 	}
 	var s float32
 	if extWaves[v.wave] {

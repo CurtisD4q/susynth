@@ -17,6 +17,7 @@ type native struct {
 	cut  func(midi float64)    // control cutoff: (a MIDI note); nil if the synth has none
 	cur  func() float64        // the cutoff now, as a MIDI note
 	own  bool                  // the synth applies its amplitude envelope itself
+	done func() bool           // the synth has gone quiet for good (SuperCollider's DetectSilence)
 }
 
 // nativeMaker builds a native voice. o reads an option by Sonic Pi's name,
@@ -130,6 +131,7 @@ type normalizer struct {
 	curMax    float64
 	g0, g1    float64
 	primed    bool
+	limit     bool // a Limiter: it only turns loud sound down
 }
 
 func newNormalizer(level, dur, sr float64) *normalizer {
@@ -149,6 +151,9 @@ func (z *normalizer) run(x float64) float64 {
 		z.curMax = 0
 		z.g0 = z.g1
 		z.g1 = z.level / math.Max(z.prevMax, 1e-5)
+		if z.limit && z.g1 > 1 {
+			z.g1 = 1
+		}
 		if !z.primed {
 			z.g0, z.primed = z.g1, true
 		}
